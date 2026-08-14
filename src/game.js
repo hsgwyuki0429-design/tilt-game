@@ -11,6 +11,16 @@
 
   var E = root.TiltEngine;
   var STAGES = root.TiltStages.STAGES;
+  var CHAPTERS = root.TiltStages.CHAPTERS || [
+    { number: 1, name: '', from: 1, to: STAGES.length, note: '' }
+  ];
+
+  function chapterOf(id) {
+    for (var i = 0; i < CHAPTERS.length; i++) {
+      if (id >= CHAPTERS[i].from && id <= CHAPTERS[i].to) return CHAPTERS[i];
+    }
+    return CHAPTERS[CHAPTERS.length - 1];
+  }
 
   var JA = /^ja\b/i.test((navigator.language || navigator.userLanguage || 'en'));
 
@@ -29,7 +39,9 @@
     stages:    { ja: 'ステージ', en: 'STAGES' },
     deadEnd:   { ja: '行き止まり', en: 'DEAD END' },
     allClear:  { ja: 'ALL STAGES CLEAR', en: 'ALL STAGES CLEAR' },
-    allBody:   { ja: '20ステージすべて突破。', en: 'All twenty stages solved.' },
+    allBody:   { ja: '全100ステージ突破。', en: 'All one hundred stages solved.' },
+    progress:  { ja: 'クリア', en: 'CLEARED' },
+    chapEnd:   { ja: 'CHAPTER CLEAR', en: 'CHAPTER CLEAR' },
     newBest:   { ja: 'NEW BEST', en: 'NEW BEST' },
     tiltOn:    { ja: '傾き操作 ON', en: 'TILT ON' },
     tiltOff:   { ja: '傾き操作 OFF', en: 'TILT OFF' },
@@ -125,7 +137,9 @@
     this.renderer.setStage(this.stage, this.state);
     this.input.recentre();
 
-    this.dom.stageLabel.textContent = 'STAGE ' + pad2(def.id);
+    var chap = chapterOf(def.id);
+    this.dom.stageLabel.textContent = 'STAGE ' + pad2(def.id) +
+      (chap.name ? ' · ' + chap.name : '');
     this.dom.stageName.textContent = def.name;
     this.dom.par.textContent = String(def.par);
     this.hideOverlay();
@@ -356,7 +370,10 @@
     this._toastTimer = setTimeout(function () { el.classList.remove('show'); }, 1100);
   };
 
+  function self_isCleared(save, id) { return save.isCleared(id); }
+
   Game.prototype.showClear = function () {
+    var self_save = this.save;
     var def = STAGES[this.index];
     var moves = this.state.moves;
     var prevBest = this.save.best(def.id);
@@ -365,8 +382,15 @@
     var last = this.index === STAGES.length - 1;
     this.syncHud();
 
+    var chap = chapterOf(def.id);
+    var chapDone = def.id === chap.to && STAGES.filter(function (d) {
+      return d.id >= chap.from && d.id <= chap.to && self_isCleared(self_save, d.id);
+    }).length === (chap.to - chap.from + 1);
+
     var lines = [];
-    lines.push('<div class="ov-kicker">STAGE ' + pad2(def.id) + ' · ' + def.name + '</div>');
+    lines.push('<div class="ov-kicker">' +
+      (chapDone ? t('chapEnd') + ' · ' + chap.name : 'STAGE ' + pad2(def.id) + ' · ' + def.name) +
+      '</div>');
     lines.push('<h2 class="ov-title' + (perfect ? ' perfect' : '') + '">' + (perfect ? t('perfect') : t('clear')) + '</h2>');
     lines.push('<div class="ov-stats">' +
       stat(t('moves'), moves) +
@@ -385,7 +409,6 @@
       '</div>');
 
     this.openOverlay(lines.join(''), 'clear');
-    this.renderStageGrid();
   };
 
   Game.prototype.showLost = function () {
@@ -400,11 +423,11 @@
   };
 
   Game.prototype.showAllClear = function () {
-    var total = 0, par = 0;
+    var total = 0, par = 0, done = 0;
     var self = this;
     STAGES.forEach(function (s) {
       var b = self.save.best(s.id);
-      if (b != null) total += b;
+      if (b != null) { total += b; done++; }
       par += s.par;
     });
     var lines = [];
@@ -448,30 +471,68 @@
     var grid = this.dom.grid;
     var self = this;
     grid.innerHTML = '';
-    STAGES.forEach(function (def, i) {
-      var unlocked = self.save.isUnlocked(def.id);
-      var best = self.save.best(def.id);
-      var b = document.createElement('button');
-      b.className = 'cell' + (unlocked ? '' : ' locked') + (best != null ? ' done' : '') +
-        (best != null && best === def.par ? ' perfect' : '') + (i === self.index ? ' current' : '');
-      b.innerHTML = '<span class="n">' + pad2(def.id) + '</span>' +
-        '<span class="nm">' + def.name + '</span>' +
-        '<span class="bs">' + (best == null ? (unlocked ? '—' : '🔒') : best + '/' + def.par) + '</span>';
-      b.disabled = !unlocked;
-      b.addEventListener('click', function () {
-        if (!unlocked) return;
-        self.audio.ui(true);
-        self.closeMenu();
-        self.loadStage(i);
+
+    var total = STAGES.length;
+    var cleared = this.save.clearedCount();
+    var summary = document.getElementById('menu-progress');
+    if (summary) {
+      summary.innerHTML = '<span class="pv">' + cleared + '</span><span class="pt">/ ' + total + '</span>' +
+        '<span class="pl">' + t('progress') + '</span>';
+    }
+
+    CHAPTERS.forEach(function (chap) {
+      var stages = STAGES.filter(function (d) { return d.id >= chap.from && d.id <= chap.to; });
+      if (!stages.length) return;
+
+      var done = stages.filter(function (d) { return self.save.isCleared(d.id); }).length;
+      var open = stages.some(function (d) { return self.save.isUnlocked(d.id); });
+
+      var head = document.createElement('div');
+      head.className = 'chap-head' + (done === stages.length ? ' done' : '') + (open ? '' : ' locked');
+      head.innerHTML =
+        '<span class="cn">' + (chap.number < 10 ? '0' + chap.number : chap.number) + '</span>' +
+        '<span class="cname">' + chap.name + '</span>' +
+        '<span class="cprog">' + done + '/' + stages.length + '</span>';
+      grid.appendChild(head);
+
+      var row = document.createElement('div');
+      row.className = 'chap-row';
+      stages.forEach(function (def) {
+        var unlocked = self.save.isUnlocked(def.id);
+        var best = self.save.best(def.id);
+        var b = document.createElement('button');
+        b.className = 'cell' + (unlocked ? '' : ' locked') + (best != null ? ' done' : '') +
+          (best != null && best === def.par ? ' perfect' : '') +
+          (STAGES[self.index] && STAGES[self.index].id === def.id ? ' current' : '');
+        b.innerHTML = '<span class="n">' + pad2(def.id) + '</span>' +
+          '<span class="nm">' + def.name + '</span>' +
+          '<span class="bs">' + (best == null ? (unlocked ? '—' : '🔒') : best + '/' + def.par) + '</span>';
+        b.disabled = !unlocked;
+        b.addEventListener('click', function () {
+          if (!unlocked) return;
+          self.audio.ui(true);
+          self.closeMenu();
+          self.loadStage(STAGES.indexOf(def));
+        });
+        row.appendChild(b);
       });
-      grid.appendChild(b);
+      grid.appendChild(row);
     });
+
+    // Scroll the chapter you are actually playing into view — but only when the
+    // panel is really visible, or this is a no-op that can disturb the page.
+    var cur = this.menuOpen ? grid.querySelector('.cell.current') : null;
+    if (cur && cur.scrollIntoView) {
+      try { cur.scrollIntoView({ block: 'center' }); } catch (e) { cur.scrollIntoView(); }
+    }
   };
 
   Game.prototype.openMenu = function () {
-    this.renderStageGrid();
+    // Show first, then fill: the grid scrolls the current stage into view, and
+    // that only works once the panel is actually on screen.
     this.menuOpen = true;
     this.dom.menu.classList.add('show');
+    this.renderStageGrid();
     this.renderer.aimDir = null;
     this.audio.ui(true);
   };

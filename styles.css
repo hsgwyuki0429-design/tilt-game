@@ -424,11 +424,11 @@ body::before {
   flex: 1 1 auto;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 9px;
-  align-content: start;
+  display: block;
   padding-bottom: 8px;
+  /* The list is a hundred entries long; let it scroll on its own without
+     dragging the page behind it. */
+  overscroll-behavior: contain;
 }
 
 .cell {
@@ -465,6 +465,41 @@ body::before {
 /* Pointer clicks should not leave a ring behind; keyboard focus must. */
 button:focus { outline: none; }
 button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+/* ── chapters ─────────────────────────────────────────────────────────────── */
+
+.progress {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 2px 0 12px;
+}
+.progress .pv { font-size: 26px; font-weight: 900; color: var(--cyan); font-variant-numeric: tabular-nums; }
+.progress .pt { font-size: 14px; font-weight: 700; color: var(--ink-faint); }
+.progress .pl { font-size: 9px; font-weight: 800; letter-spacing: 0.18em; color: var(--ink-faint); margin-left: 4px; }
+
+.chap-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px 2px 7px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 9px;
+}
+.chap-head:first-child { padding-top: 2px; }
+.chap-head .cn { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; color: var(--ink-faint); }
+.chap-head .cname { font-size: 12px; font-weight: 800; letter-spacing: 0.2em; color: var(--ink-dim); flex: 1 1 auto; }
+.chap-head .cprog { font-size: 10px; font-weight: 800; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.chap-head.done .cname { color: var(--cyan); }
+.chap-head.done .cprog { color: var(--cyan); }
+.chap-head.locked { opacity: 0.4; }
+
+.chap-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 9px;
+  margin-bottom: 4px;
+}
 
 /* ── failure of last resort ───────────────────────────────────────────────── */
 

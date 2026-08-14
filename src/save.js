@@ -87,7 +87,24 @@
     return improved;
   };
 
-  Save.prototype.isUnlocked = function (id) { return id <= this.data.unlocked; };
+  /**
+   * How far ahead of your progress you may reach.
+   *
+   * With a hundred stages, strict one-at-a-time progression means a single
+   * board you cannot see the trick to ends the game for you. A small window
+   * past the frontier keeps the sequence meaningful while making sure nobody is
+   * ever completely walled off by one puzzle.
+   */
+  Save.SKIP_WINDOW = 2;
+
+  Save.prototype.isUnlocked = function (id) {
+    return id <= this.data.unlocked + Save.SKIP_WINDOW;
+  };
+
+  /** The next stage the player has not beaten — where "continue" should land. */
+  Save.prototype.frontier = function () { return this.data.unlocked; };
+
+  Save.prototype.clearedCount = function () { return Object.keys(this.data.cleared).length; };
 
   Save.prototype.set = function (key, value) {
     this.data[key] = value;
