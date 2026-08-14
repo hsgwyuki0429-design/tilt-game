@@ -1,7 +1,7 @@
 {
   "name": "tilt",
   "version": "1.0.0",
-  "description": "TILT - a gravity puzzle for phones, 100 stages. You never move the blocks; you move the world.",
+  "description": "TILT - a gravity puzzle for phones. You never move the blocks; you move the world.",
   "private": true,
   "scripts": {
     "audit": "node tools/audit.js",
@@ -10,8 +10,7 @@
     "qa": "node tools/qa.js",
     "test": "node tools/audit.js && node tools/qa.js",
     "serve": "node tools/serve.js",
-    "campaign": "node tools/campaign.js",
-    "qa:all": "node tools/qa.js --all"
+    "campaign": "node tools/campaign.js"
   },
   "devDependencies": {
     "playwright": "^1.49.0"

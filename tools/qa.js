@@ -19,7 +19,6 @@ var chromium = pw.chromium, devices = pw.devices;
 
 var ROOT = path.join(__dirname, '..');
 var SHOTS = process.argv.indexOf('--shots') >= 0;
-var ALL = process.argv.indexOf('--all') >= 0;
 var SHOT_DIR = path.join(ROOT, '.qa');
 
 var MIME = {
@@ -111,32 +110,17 @@ async function swipe(page, x, y, dx, dy) {
   console.log('\n[1mPLAY STAGES (engine-proved optimal lines, driven as key input)[0m');
 
   var stageCount = await page.evaluate(function () { return window.TiltStages.STAGES.length; });
-  ok('one hundred stages ship', stageCount === 100, 'found ' + stageCount);
+  ok('the campaign ships ' + stageCount + ' stages', stageCount >= 20, 'found ' + stageCount);
 
-  // Solvability of all 100 is proven by tools/audit.js; this harness is here to
-  // exercise the UI. By default it plays the whole introduction plus a spread
-  // from each generated chapter, which covers every board size and every
-  // solution length without spending ten minutes replaying boards the solver
-  // already cleared. --all plays the entire campaign.
-  var playList = await page.evaluate(function (all) {
-    var S = window.TiltStages.STAGES, C = window.TiltStages.CHAPTERS || [];
-    if (all) return S.map(function (d, i) { return i; });
-    var picked = [];
-    S.forEach(function (d, i) { if (d.id <= 10) picked.push(i); });
-    C.forEach(function (c) {
-      if (c.to <= 10) return;
-      var idx = [];
-      S.forEach(function (d, i) { if (d.id >= c.from && d.id <= c.to) idx.push(i); });
-      // first, middle and last of each chapter: easiest, median and hardest
-      [0, Math.floor(idx.length / 2), idx.length - 1].forEach(function (k) {
-        if (idx[k] != null && picked.indexOf(idx[k]) < 0) picked.push(idx[k]);
-      });
-    });
-    return picked.sort(function (a, b) { return a - b; });
-  }, ALL);
+  // Solvability is proven by tools/audit.js; this harness is here to exercise
+  // the UI. The campaign is short enough that the default plays all of it —
+  // there is no filler to skip. (--all is kept as a no-op alias so the npm
+  // script and old habits keep working.)
+  var playList = await page.evaluate(function () {
+    return window.TiltStages.STAGES.map(function (d, i) { return i; });
+  });
 
-  console.log('  ' + '[2m' + 'playing ' + playList.length + ' of ' + stageCount +
-    ' stages' + (ALL ? '' : '  (--all for the full campaign)') + '[0m');
+  console.log('  ' + '[2m' + 'playing all ' + playList.length + ' stages[0m');
 
   var keyFor = { U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight' };
 
@@ -175,7 +159,7 @@ async function swipe(page, x, y, dx, dy) {
     ok('stage ' + String(plan.id).padStart(2, '0') + ' ' + plan.name.padEnd(8) + ' cleared in par ' + plan.par,
       good, 'phase=' + res.phase + ' moves=' + res.moves + ' overlay=' + res.overlayText.trim() + ' best=' + res.best);
 
-    if (SHOTS && (plan.id === 7 || plan.id === 50 || plan.id === 100)) {
+    if (SHOTS && (plan.id === 5 || plan.id === 10 || plan.id === 20)) {
       await page.screenshot({ path: path.join(SHOT_DIR, 'clear-' + String(plan.id).padStart(3, '0') + '.png') });
     }
   }
@@ -242,7 +226,7 @@ async function swipe(page, x, y, dx, dy) {
     var phases = {};
     window.TiltStages.STAGES.forEach(function (d) {
       Object.keys(d).forEach(function (k) {
-        if (['id', 'name', 'par', 'note', 'hint', 'board'].indexOf(k) < 0) bad.push(d.id + ':field ' + k);
+        if (['id', 'name', 'par', 'purpose', 'note', 'hint', 'board'].indexOf(k) < 0) bad.push(d.id + ':field ' + k);
       });
       d.board.forEach(function (row) {
         for (var i = 0; i < row.length; i++) if ('.#o@'.indexOf(row[i]) < 0) bad.push(d.id + ':char ' + row[i]);
@@ -316,7 +300,7 @@ async function swipe(page, x, y, dx, dy) {
   console.log('\n[1mDEAD END DETECTION[0m');
   var deadFound = await page.evaluate(function () {
     var g = window.game, E = window.TiltEngine, S = window.TiltStages.STAGES;
-    for (var idx = 0; idx < S.length; idx += 7) {
+    for (var idx = 0; idx < S.length; idx += 2) {
       g.loadStage(idx);
       var states = E.reachable(g.stage, null, 3000);
       for (var i = 0; i < states.length; i++) {
@@ -406,8 +390,8 @@ async function swipe(page, x, y, dx, dy) {
     };
   });
   ok('menu opens', menu.shown);
-  ok('menu lists all one hundred stages', menu.cells === 100, 'cells=' + menu.cells);
-  ok('menu groups them into chapters', menu.chapters === menu.expectChapters && menu.chapters === 10,
+  ok('menu lists every stage', menu.cells === stageCount, 'cells=' + menu.cells + ' of ' + stageCount);
+  ok('menu groups them into chapters', menu.chapters === menu.expectChapters && menu.chapters > 1,
     'chapters=' + menu.chapters);
   ok('cleared stages are marked', menu.done > 0, 'done=' + menu.done);
   ok('menu shows overall progress', /\d+/.test(menu.progress), menu.progress);
@@ -419,6 +403,7 @@ async function swipe(page, x, y, dx, dy) {
   console.log('\n[1mPROGRESSION[0m');
   var unlock = await page.evaluate(function () {
     var g = window.game;
+    var total = window.TiltStages.STAGES.length;
     g.save.reset();
     var W = window.TiltSave.Save.SKIP_WINDOW;
     return {
@@ -426,7 +411,7 @@ async function swipe(page, x, y, dx, dy) {
       firstOpen: g.save.isUnlocked(1),
       windowOpen: g.save.isUnlocked(1 + W),
       beyondShut: g.save.isUnlocked(2 + W),
-      lastShut: g.save.isUnlocked(100)
+      lastShut: g.save.isUnlocked(total)
     };
   });
   ok('stage 1 is open on a fresh save', unlock.firstOpen === true);

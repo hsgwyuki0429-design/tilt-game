@@ -37,7 +37,7 @@
     stages:    { ja: 'ステージ', en: 'STAGES' },
     deadEnd:   { ja: '行き止まり', en: 'DEAD END' },
     allClear:  { ja: 'ALL STAGES CLEAR', en: 'ALL STAGES CLEAR' },
-    allBody:   { ja: '全100ステージ突破。', en: 'All one hundred stages solved.' },
+    allBody:   { ja: '全ステージ突破。', en: 'Every stage solved.' },
     progress:  { ja: 'クリア', en: 'CLEARED' },
     chapEnd:   { ja: 'CHAPTER CLEAR', en: 'CHAPTER CLEAR' },
     newBest:   { ja: 'NEW BEST', en: 'NEW BEST' },

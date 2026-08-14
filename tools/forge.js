@@ -76,10 +76,7 @@ var seen = {};
 var t0 = Date.now();
 
 for (var t = 0; t < TRIES; t++) {
-  // Each attempt aims somewhere inside the requested band, which spreads the
-  // results across it instead of piling them against the ceiling.
-  var target = rng.range(filters.par);
-  var rows = B.climb(spec, rng, target, 500, filters.nodeCap);
+  var rows = B.climb(spec, rng, filters.par, 500, filters.nodeCap);
   if (!rows) continue;
   // Two boards that differ only by rotation are the same puzzle.
   var key = B.canonical(rows);

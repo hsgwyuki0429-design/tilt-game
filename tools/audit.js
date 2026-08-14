@@ -338,7 +338,7 @@ function checkVocabulary(def) {
       }
     }
   });
-  var allowed = ['id', 'name', 'par', 'note', 'hint', 'board'];
+  var allowed = ['id', 'name', 'par', 'purpose', 'note', 'hint', 'board'];
   Object.keys(def).forEach(function (k) {
     if (allowed.indexOf(k) < 0) {
       errs.push('stage carries an unknown field "' + k + '" — the rules did not grow, so neither should the data');
