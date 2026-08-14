@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>TILT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="description" content="TILT — a gravity puzzle. You do not move the blocks. You move the world.">
+<meta name="theme-color" content="#0a0b18">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230a0b18'/><rect x='7' y='7' width='10' height='10' rx='3' fill='%232ed3f2'/><rect x='18' y='18' width='7' height='7' rx='2' fill='none' stroke='%23b9c6ee' stroke-width='2'/></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <header id="hud">
+    <button id="btn-menu" class="icon-btn" aria-label="Stages">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+    </button>
+
+    <div class="title-block">
+      <span id="stage-label">STAGE 01</span>
+      <span id="stage-name">DROP</span>
+    </div>
+
+    <div class="counters">
+      <div class="counter"><span class="k">MOVES</span><span class="v" id="moves">0</span></div>
+      <div class="counter dim"><span class="k">PAR</span><span class="v" id="par">2</span></div>
+      <div class="counter dim" id="best-counter"><span class="k">BEST</span><span class="v" id="best">—</span></div>
+    </div>
+  </header>
+
+  <main id="board-area">
+    <canvas id="board"></canvas>
+    <div id="hint"></div>
+    <div id="toast"></div>
+    <div id="overlay" class="overlay"></div>
+  </main>
+
+  <footer id="dock">
+    <button id="btn-undo" class="dock-btn" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H15a5 5 0 0 1 0 10H8" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.5 4 8 7l3.5 3" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="lbl">UNDO</span>
+      <span class="badge"></span>
+    </button>
+    <button id="btn-restart" class="dock-btn">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke-width="2.2" stroke-linecap="round"/><path d="M20 4v5h-5" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="lbl">RESTART</span>
+    </button>
+    <button id="btn-tilt" class="dock-btn small" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5" fill="none" stroke-width="2" transform="rotate(18 12 12)"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+      <span class="lbl">TILT</span>
+    </button>
+    <button id="btn-sound" class="dock-btn small" aria-pressed="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4Z" stroke-width="2" stroke-linejoin="round"/><path class="wave" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11" fill="none" stroke-width="2" stroke-linecap="round"/><path class="cross" d="m16 9.5 5 5m0-5-5 5" fill="none" stroke-width="2" stroke-linecap="round"/></svg>
+      <span class="lbl">SOUND</span>
+    </button>
+  </footer>
+
+</div>
+
+<section id="menu" aria-hidden="true">
+  <div class="menu-head">
+    <h1>TILT</h1>
+    <button id="btn-close" class="icon-btn" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke-width="2.4" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <p class="menu-tag">重力を操り、盤面の未来を読む。<span>You never move the blocks. You move the world.</span></p>
+  <div id="stage-grid" class="grid"></div>
+  <div class="menu-foot">
+    <button id="btn-reset" class="btn ghost small">RESET PROGRESS</button>
+  </div>
+</section>
+
+<script src="src/engine.js"></script>
+<script src="src/stages.js"></script>
+<script src="src/save.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/render.js"></script>
+<script src="src/input.js"></script>
+<script src="src/game.js"></script>
+</body>
+</html>
