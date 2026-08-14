@@ -30,8 +30,6 @@
     best:      { ja: 'BEST', en: 'BEST' },
     clear:     { ja: 'CLEAR', en: 'CLEAR' },
     perfect:   { ja: 'PERFECT', en: 'PERFECT' },
-    lost:      { ja: 'BLOCK LOST', en: 'BLOCK LOST' },
-    lostBody:  { ja: 'ブロックが穴に落ちた', en: 'A block fell into the void' },
     next:      { ja: 'NEXT', en: 'NEXT' },
     retry:     { ja: 'もう一度', en: 'RETRY' },
     undo:      { ja: 'UNDO', en: 'UNDO' },
@@ -65,7 +63,7 @@
     this.stage = null;
     this.state = null;
     this.history = [];
-    this.phase = 'play';        // play | busy | clear | lost
+    this.phase = 'play';        // play | busy | clear
     this.queued = null;
     this.deadEnd = false;
     this.animStart = 0;
@@ -189,7 +187,6 @@
       this.next();
       return;
     }
-    if (this.phase === 'lost') { this.undo(); return; }
 
     if (this.phase === 'busy') {
       // Accept a follow-up only once the current slide is mostly played, so a
@@ -229,7 +226,6 @@
     // override behind on the renderer.
     this.renderer.onEvent = function (ev) {
       if (ev.type === 'goal') self.audio.goal(goalIndex++);
-      else if (ev.type === 'pit') self.audio.pit();
       else if (ev.type === 'stop') self.audio.impact(1);
     };
 
@@ -257,14 +253,6 @@
       setTimeout(function () { self.showClear(); }, 420);
       return;
     }
-    if (res.lost) {
-      this.queued = null;
-      this.setPhase('lost');
-      this.renderer.mourn();
-      this.audio.lost();
-      setTimeout(function () { self.showLost(); }, 320);
-      return;
-    }
 
     this.setPhase('play');
     this.checkDeadEnd();
@@ -277,9 +265,12 @@
   };
 
   /**
-   * If the board can no longer be solved, say so quietly. The player has
-   * already lost the puzzle; making them discover that by exhaustion is not
-   * difficulty, it is just wasted time.
+   * If the board can no longer be solved, say so quietly.
+   *
+   * Nothing in this game can destroy a block, so a board is almost never
+   * genuinely stuck — but "almost never" is not "never", and a player who has
+   * jammed one should be told rather than left to discover it by exhaustion.
+   * Undo is one tap away and costs nothing.
    */
   Game.prototype.checkDeadEnd = function () {
     var r = E.solve(this.stage, this.state, 40000);
@@ -409,17 +400,6 @@
       '</div>');
 
     this.openOverlay(lines.join(''), 'clear');
-  };
-
-  Game.prototype.showLost = function () {
-    var lines = [];
-    lines.push('<h2 class="ov-title lost">' + t('lost') + '</h2>');
-    lines.push('<div class="ov-note">' + t('lostBody') + '</div>');
-    lines.push('<div class="ov-actions">' +
-      '<button class="btn primary" data-act="undo">' + t('undo') + '</button>' +
-      '<button class="btn ghost" data-act="restart">' + t('restart') + '</button>' +
-      '</div>');
-    this.openOverlay(lines.join(''), 'lost');
   };
 
   Game.prototype.showAllClear = function () {

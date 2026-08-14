@@ -10,27 +10,43 @@
  *   node tools/campaign.js --workers 4  parallelism
  *   node tools/campaign.js --only 5,6   rebuild just those chapters
  *
- * Chapters 1–2 are hand-authored: they introduce the four things the game is
- * made of (gravity, walls, the void, colour, mass) and each new idea gets a
- * board simple enough to see it on. Those boards are written out below,
- * literally, and are never regenerated.
+ * ---------------------------------------------------------------------------
+ * THE DESIGN RULE
+ * ---------------------------------------------------------------------------
  *
- * Chapters 3–10 are SEARCHED, not sketched. Each declares a board budget and a
- * band of shortest-solution lengths; the generator throws boards at that spec
- * until enough of them survive every quality gate, then the ten that best cover
- * the band become the chapter. Difficulty is ordered by proven optimal length,
- * which is the axis the whole campaign is built on.
+ * There are three things on a TILT board: walls, blocks and goals. Every block
+ * is identical, no cell is forbidden, nothing can be destroyed, and tilting is
+ * the only verb. That list is closed. A later chapter may not introduce a new
+ * element, a new colour, a new hazard or a new exception — if a stage is not
+ * interesting, the answer is a better arrangement of the same three things, not
+ * a fourth thing.
+ *
+ * So difficulty here has exactly one axis, and it is the honest one: the proven
+ * shortest number of tilts. Chapter 1 asks for two moves. Chapter 10 asks for
+ * twenty-five, on a board you can still take in at a glance. Nothing in between
+ * is a new rule — it is the same rule, folded further.
+ *
+ * Chapter 1 is hand-authored, because the first ten boards have a job the
+ * search cannot do: introduce gravity, walls, one goal serving many blocks, and
+ * blocks getting in each other's way, one idea at a time and each on a board
+ * simple enough to see it on.
+ *
+ * Chapters 2–10 are SEARCHED, and they are searched by hill-climbing: throw
+ * down a random board on a fixed element budget, then move ONE element at a
+ * time for as long as the shortest solution keeps growing. The budget never
+ * grows during a climb, so what the search produces is not a busier board — it
+ * is the same handful of pieces arranged so they finally have something to say.
  *
  * A generated board ships only if ALL of the following hold:
  *   - it is solvable, and the shortest solution length is inside the band
  *   - it does not begin already solved
  *   - it has few enough distinct optimal lines to have a single clean idea
- *   - random par-length tilting almost never clears it (see `luck`)
- *   - deleting ANY wall, pit, goal or block measurably changes the puzzle
+ *   - random tilting almost never clears it (see `luck`)
+ *   - it cannot be jammed: at most a quarter of the positions you can wander
+ *     into are unsolvable, because a board you can ruin by exploring it is a
+ *     failure state wearing a different hat
+ *   - deleting ANY wall, block or goal measurably changes the puzzle
  *   - it is not a rotation or reflection of any other stage in the campaign
- *
- * No new mechanics are introduced after chapter 2. The late chapters are hard
- * because of geometry, not because the rules grew.
  */
 
 var fs = require('fs');
@@ -43,264 +59,216 @@ var ROOT = path.join(__dirname, '..');
 var CACHE_DIR = path.join(__dirname, '.campaign-cache');
 
 // ===========================================================================
-// CHAPTERS 1–2 — hand-authored. Every element here was checked by the same
-// deletion test the generated boards face.
+// CHAPTER 1 — hand-authored. Every element here faced the same deletion test
+// the generated boards face, and every par below is solver-proven.
 // ===========================================================================
 
 var AUTHORED = [
   {
     number: 1, name: 'AWAKEN',
-    note: 'Gravity, walls, blocks that block each other, and the void. One idea at a time.',
+    note: 'Gravity, walls, and blocks that get in each other\'s way. Everything the game is made of, ' +
+          'one idea at a time.',
     stages: [
       {
-        id: 1, name: 'DROP', par: 2,
-        note: 'Gravity exists and it answers to you. One block, one goal, nothing to fear.',
+        name: 'DROP',
+        note: 'Gravity exists and it answers to you. One block, one goal, nothing to be afraid of.',
         hint: { ja: 'スワイプして重力を変える', en: 'Swipe to tilt gravity' },
-        terrain: ['...', '...', '..o'],
-        pieces: ['A..', '...', '...']
+        board: ['@..',
+                '...',
+                '..o']
       },
       {
-        id: 2, name: 'STOP', par: 3,
-        note: 'Walls stop things. The straight line is closed, so the player invents the detour.',
+        name: 'TWO',
+        note: 'A second block. The goal takes any block — so the last tilt sends both home at once, ' +
+              'and that is the first chain you will ever see.',
+        hint: { ja: 'ブロックはすべて同じ。ゴールはどれでも受け取る', en: 'Every block is the same' },
+        board: ['@..',
+                '@..',
+                '..o']
+      },
+      {
+        name: 'STOP',
+        note: 'A wall closes the straight line, so the player invents the detour.',
         hint: { ja: '壁はブロックを止める', en: 'Walls stop blocks' },
-        terrain: ['.#o', '...', '...'],
-        pieces: ['A..', '...', '...']
+        board: ['@#o',
+                '...',
+                '...']
       },
       {
-        id: 3, name: 'TWO', par: 2,
-        note: 'A second block. One goal serves both — and blocks pile up against each other.',
-        terrain: ['..o', '...', '...'],
-        pieces: ['A..', 'B..', '...']
+        name: 'NOTCH',
+        note: 'The goal sits in the top edge behind a wall. Neither block can arrive straight at it.',
+        board: ['.o.',
+                '.#.',
+                '@@.']
       },
       {
-        id: 4, name: 'FOLLOW', par: 4,
-        note: 'The last tilt sends both blocks home at once. First taste of a chain.',
-        terrain: ['...', '..#', '..o'],
-        pieces: ['..B', 'A..', '...']
+        name: 'FOLLOW',
+        note: 'One block waits above the wall while the other travels. They arrive together.',
+        board: ['..@',
+                '..#',
+                '@.o']
       },
       {
-        id: 5, name: 'NOTCH', par: 4,
-        note: 'The goal sits in the top edge behind a wall. Neither block can arrive straight.',
-        terrain: ['.o.', '.#.', '...'],
-        pieces: ['...', '...', 'AB.']
+        name: 'PAIR',
+        note: 'Two blocks, two walls, and the first board where the answer is not the direction you ' +
+              'wanted to swipe.',
+        board: ['@.#',
+                '.#o',
+                '..@']
       },
       {
-        id: 6, name: 'STACK', par: 5,
-        note: 'Three blocks in one column. They are each other\'s floor — the order they unstack is the puzzle.',
-        terrain: ['..#', '#.o', '...'],
-        pieces: ['.C.', '.B.', '.A.']
+        name: 'SHUNT',
+        note: 'A block is a wall for another block. Move the wrong one first and the other has nowhere ' +
+              'to go.',
+        board: ['.@.',
+                '@#o',
+                '.#.']
       },
       {
-        id: 7, name: 'LAP', par: 6,
+        name: 'CORNER',
+        note: 'The goal is one cell away and completely out of reach. Five moves to travel two.',
+        board: ['@#o',
+                '...',
+                '..#']
+      },
+      {
+        name: 'LAP',
         note: 'Two walls on opposite corners. Six moves out of nine cells, and exactly one line works.',
-        terrain: ['.#o', '...', '..#'],
-        pieces: ['A..', '...', '.B.']
+        board: ['@#o',
+                '...',
+                '.@#']
       },
       {
-        id: 8, name: 'VOID', par: 3,
-        note: 'The pit. The most obvious first tilt deletes your only block — learned in one tap, undone in one tap.',
-        hint: { ja: '穴に落ちたブロックは消える', en: 'Pits swallow blocks' },
-        terrain: ['..*', '..o', '...'],
-        pieces: ['A..', '...', '...']
-      },
-      {
-        id: 9, name: 'LEDGE', par: 5,
-        note: 'A pit above, a wall beside the goal. Half of all tilts here cost you a block.',
-        terrain: ['..*', '.#o', '...'],
-        pieces: ['.A.', '...', '..B']
-      },
-      {
-        id: 10, name: 'BRINK', par: 5,
-        note: 'The pit sits mid-board where both blocks must cross it. Survival is a matter of order.',
-        terrain: ['.o#', '...', '.*.'],
-        pieces: ['...', '..B', 'A..']
-      }
-    ]
-  },
-  {
-    number: 2, name: 'SPECTRUM',
-    note: 'Colour and mass arrive. After this chapter the rules never grow again.',
-    stages: [
-      {
-        id: 11, name: 'HUE', par: 4,
-        note: 'Colour is taught by disappointment: a block lands squarely on a goal and nothing happens.',
-        hint: { ja: '色が合ったゴールだけ入る', en: 'Colours must match' },
-        terrain: ['...', '...', '01.'],
-        pieces: ['A..', 'B..', '...'],
-        colors: { A: 0, B: 1 }
-      },
-      {
-        id: 12, name: 'SPLIT', par: 5,
-        note: 'Two goals side by side in the wrong order. The wall between them is the whole problem.',
-        terrain: ['1#0', '...', '...'],
-        pieces: ['...', '.B.', '.A.'],
-        colors: { A: 0, B: 1 }
-      },
-      {
-        id: 13, name: 'SORT', par: 6,
-        note: 'Wrong-coloured goals are just floor. Sliding over one is free; stopping on one is a wasted move.',
-        terrain: ['....', '1.#.', '.#0.', '....'],
-        pieces: ['.B..', '....', 'A...', '....'],
-        colors: { A: 0, B: 1 }
-      },
-      {
-        id: 14, name: 'WIDE', par: 4,
-        note: 'A two-cell block. It only counts when the whole body is home — half in is not in.',
-        hint: { ja: '大きなブロックは全部入れる', en: 'The whole block must fit' },
-        terrain: ['....', '....', '...#', '#.oo'],
-        pieces: ['AA..', '....', '....', '....']
-      },
-      {
-        id: 15, name: 'LEVER', par: 7,
-        note: 'The wide block is also the best wall you own. Park it, then use it.',
-        terrain: ['....', '#...', 'oo..', '#...'],
-        pieces: ['....', '...B', '....', '.AA.']
-      },
-      {
-        id: 16, name: 'FIT', par: 7,
-        note: 'A tall goal and a wide goal. Blocks cannot turn, so each shape has exactly one home.',
-        terrain: ['....', '.#.o', '...o', '.oo#'],
-        pieces: ['BBA.', '..A.', '....', '....']
-      },
-      {
-        id: 17, name: 'CASCADE', par: 6,
-        note: 'Four blocks, one goal, and the LAST tilt sends three of them home in a single sweep. ' +
-              'Searched specifically for a board whose cascade is the finale rather than a mid-game accident.',
-        terrain: ['..#o', '....', '.#..', '..#.'],
-        pieces: ['C...', '.ABD', '....', '....']
-      },
-      {
-        id: 18, name: 'NERVE', par: 8,
-        note: 'Colour, a pit and a chain on one small board. Thirty-seven different tilts here will cost you a block.',
-        terrain: ['....', '..#.', '*.1.', '0...'],
-        pieces: ['....', '.B..', '...A', '...C'],
-        colors: { A: 1, B: 0, C: 1 }
-      },
-      {
-        id: 19, name: 'PRISM', par: 9,
-        note: 'Three colours, three goals, three separate laps around the same board.',
-        terrain: ['.....', '#....', '2.1.#', '##...', '.0...'],
-        pieces: ['..B..', '.....', '.....', '..A..', 'C....'],
-        colors: { A: 1, B: 0, C: 2 }
-      },
-      {
-        id: 20, name: 'TILT', par: 10,
-        note: 'The end of the tutorial arc: a wide block, a pit, two colours, ten moves, one line through it.',
-        terrain: ['.....', '..11#', '.*..#', '...#.', '.0...'],
-        pieces: ['AA...', '.....', '..C..', '.....', 'B....'],
-        colors: { A: 1, B: 0, C: 0 }
+        name: 'TIGHT',
+        note: 'The end of the introduction: three cells of wall, two blocks, one goal, seven tilts. ' +
+              'Everything from here is this, folded further.',
+        board: ['@@#',
+                '.#o',
+                '...']
       }
     ]
   }
 ];
 
 // ===========================================================================
-// CHAPTERS 3–10 — searched. Each is a budget plus a band of solution lengths.
+// CHAPTERS 2–10 — searched. Each is an element budget plus a band of proven
+// solution lengths. The bands only ever go up.
 // ===========================================================================
 
 var SEARCHED = [
   {
-    number: 3, name: 'NINE',
-    note: 'Everything that fits in nine cells. No new ideas — just proof that a 3×3 board can hold ' +
-          'eight moves of thinking.',
-    par: [5, 8],
-    names: ['PIVOT', 'CORNER', 'SHUNT', 'TANGLE', 'ORBIT', 'CLASP', 'THREAD', 'RELAY', 'KNOT', 'CINCH'],
-    filters: { ways: [1, 2], luck: 0.03, nodeCap: 120000 },
+    number: 2, name: 'NINE',
+    note: 'Nine cells, and nothing else will be added. Proof that a 3×3 board already holds ten moves ' +
+          'of thinking if the walls are in the right places.',
+    par: [6, 10],
+    names: ['PIVOT', 'SHUNT II', 'ORBIT', 'CLASP', 'THREAD', 'RELAY', 'KNOT', 'CINCH', 'SPIRE', 'NINE'],
+    filters: { ways: [1, 2], luck: 0.01, maxDead: 0.25, nodeCap: 60000 },
     specs: [
-      { w: 3, h: 3, walls: [1, 2], pits: [0, 0], goals: [1, 1], pieces: [2, 3], colors: 1, tries: 40000 },
-      { w: 3, h: 3, walls: [0, 2], pits: [1, 1], goals: [1, 1], pieces: [2, 3], colors: 1, tries: 40000, danger: true },
-      { w: 3, h: 3, walls: [0, 1], pits: [0, 1], goals: [2, 2], pieces: [2, 2], colors: 2, tries: 40000 }
+      { w: 3, h: 3, walls: [1, 2], blocks: [2, 3], goals: [1, 1], tries: 1500 },
+      { w: 3, h: 3, walls: [2, 3], blocks: [2, 3], goals: [1, 2], tries: 1500 }
+    ]
+  },
+  {
+    number: 3, name: 'TWELVE',
+    note: 'Three cells wider. The extra room is not a kindness — it is where the long way round lives.',
+    par: [9, 12],
+    names: ['LATCH', 'SLALOM', 'HINGE', 'FERRY', 'RATCHET', 'DETOUR', 'SIEVE', 'CRADLE', 'WINCH', 'ANVIL'],
+    filters: { ways: [1, 2], luck: 0.008, maxDead: 0.25, nodeCap: 80000 },
+    specs: [
+      { w: 4, h: 3, walls: [2, 3], blocks: [2, 3], goals: [1, 2], tries: 1500 },
+      { w: 4, h: 3, walls: [3, 4], blocks: [3, 3], goals: [1, 1], tries: 1500 }
     ]
   },
   {
     number: 4, name: 'SIXTEEN',
-    note: 'The board doubles. More cells means longer routes and more blocks in each other\'s way, ' +
-          'without a single new rule.',
-    par: [6, 9],
-    names: ['LATTICE', 'SLALOM', 'HINGE', 'FERRY', 'RATCHET', 'DETOUR', 'SIEVE', 'CRADLE', 'SPIRAL', 'ANVIL'],
-    filters: { ways: [1, 2], luck: 0.01, nodeCap: 150000 },
+    note: 'The board doubles. Same three things on it, twice as much room for them to be in the wrong ' +
+          'place.',
+    par: [11, 14],
+    names: ['GRID', 'CAROUSEL', 'PENDULUM', 'SHUTTLE', 'TRAVERSE', 'MEANDER', 'CIRCUIT', 'GANTRY',
+            'ESCARP', 'SIXTEEN'],
+    filters: { ways: [1, 2], luck: 0.006, maxDead: 0.25, opening: 1, nodeCap: 100000 },
     specs: [
-      { w: 4, h: 4, walls: [2, 4], pits: [0, 0], goals: [1, 2], pieces: [2, 3], colors: 1, tries: 55000 },
-      { w: 4, h: 4, walls: [1, 3], pits: [0, 0], goals: [1, 2], pieces: [3, 4], colors: 1, tries: 55000 },
-      { w: 4, h: 3, walls: [1, 3], pits: [0, 0], goals: [1, 2], pieces: [2, 3], colors: 1, tries: 45000 }
+      { w: 4, h: 4, walls: [2, 4], blocks: [2, 3], goals: [1, 2], tries: 1500 },
+      { w: 4, h: 4, walls: [3, 5], blocks: [3, 4], goals: [1, 2], tries: 1500 }
     ]
   },
   {
-    number: 5, name: 'PALETTE',
-    note: 'Two colours on a board big enough for them to get in each other\'s way. Every block needs ' +
-          'its own route and they share the same gravity.',
-    par: [7, 10],
-    names: ['SWATCH', 'DECANT', 'SPLICE', 'FILTER', 'DIVIDE', 'ROTATE', 'EXCHANGE', 'MIRROR', 'PARTITION', 'RESOLVE'],
-    filters: { ways: [1, 2], luck: 0.01, nodeCap: 200000 },
+    number: 5, name: 'ORDER',
+    note: 'Chapter of the wrong first move. Every board here has a block that cannot go anywhere until ' +
+          'a different block has been dealt with first, and finding out which is the whole puzzle.',
+    par: [14, 17],
+    names: ['PRECEDENCE', 'QUEUE', 'INTERLOCK', 'DEADBOLT', 'SEQUENCE', 'TUMBLER', 'ESCAPEMENT',
+            'RATCHET II', 'CASCADE', 'ORDER'],
+    filters: { ways: [1, 2], luck: 0.005, maxDead: 0.25, opening: 2, nodeCap: 120000 },
     specs: [
-      { w: 4, h: 4, walls: [1, 3], pits: [0, 0], goals: [2, 3], pieces: [2, 3], colors: 2, tries: 55000 },
-      { w: 4, h: 4, walls: [2, 4], pits: [0, 0], goals: [2, 2], pieces: [3, 3], colors: 2, tries: 55000 },
-      { w: 5, h: 4, walls: [2, 4], pits: [0, 0], goals: [2, 3], pieces: [2, 3], colors: 2, tries: 45000 }
+      { w: 4, h: 4, walls: [3, 5], blocks: [3, 4], goals: [1, 2], tries: 1500 },
+      { w: 4, h: 4, walls: [4, 6], blocks: [3, 4], goals: [1, 1], tries: 1500 }
     ]
   },
   {
-    number: 6, name: 'ABYSS',
-    note: 'Boards where the wrong tilt costs you a block. Every stage in this chapter has at least one ' +
-          'fatal move, so lookahead stops being optional.',
-    par: [7, 11],
-    names: ['CHASM', 'TIGHTROPE', 'GANTRY', 'PRECIPICE', 'SCAFFOLD', 'TRESTLE', 'CATWALK', 'FISSURE', 'PLUMMET', 'KEYSTONE'],
-    filters: { ways: [1, 2], luck: 0.01, danger: true, nodeCap: 200000 },
+    number: 6, name: 'TWENTY',
+    note: 'Twenty cells. Long enough that the route stops being visible and has to be worked out one ' +
+          'consequence at a time.',
+    par: [16, 19],
+    names: ['CONVEYOR', 'SWITCHBACK', 'TRESTLE', 'CATWALK', 'FUNNEL', 'AQUEDUCT', 'PORTAGE', 'SLUICE',
+            'CAPSTAN', 'TWENTY'],
+    filters: { ways: [1, 3], luck: 0.004, maxDead: 0.25, opening: 2, nodeCap: 150000 },
     specs: [
-      { w: 4, h: 4, walls: [1, 3], pits: [1, 2], goals: [1, 2], pieces: [2, 3], colors: 1, tries: 55000 },
-      { w: 5, h: 4, walls: [1, 3], pits: [1, 2], goals: [1, 2], pieces: [2, 3], colors: 1, tries: 50000 },
-      { w: 4, h: 4, walls: [0, 2], pits: [1, 2], goals: [2, 2], pieces: [3, 3], colors: 1, tries: 50000 }
+      { w: 5, h: 4, walls: [3, 5], blocks: [3, 4], goals: [1, 2], tries: 1200 },
+      { w: 5, h: 4, walls: [4, 6], blocks: [3, 4], goals: [1, 1], tries: 1200 }
     ]
   },
   {
-    number: 7, name: 'MASS',
-    note: 'Two-cell blocks. They cannot turn, they need a matching gap to pass and a matching goal to ' +
-          'land in — and they make the best walls in the game.',
-    par: [8, 11],
-    names: ['GIRDER', 'BEAM', 'PISTON', 'BULKHEAD', 'CARRIAGE', 'TRUSS', 'BALLAST', 'COUPLING', 'DERRICK', 'KEEL'],
-    filters: { ways: [1, 2], luck: 0.01, nodeCap: 200000 },
+    number: 7, name: 'TRAFFIC',
+    note: 'Four blocks sharing one exit. They are identical, so it does not matter which goes first — ' +
+          'except that it does, because each one is the wall the next has to work around.',
+    par: [18, 21],
+    names: ['CONGESTION', 'BOTTLENECK', 'ROTARY', 'SIDING', 'MARSHAL', 'JUNCTION', 'TURNTABLE',
+            'INTERCHANGE', 'GRIDLOCK', 'TRAFFIC'],
+    filters: { ways: [1, 3], luck: 0.003, maxDead: 0.25, opening: 2, nodeCap: 180000 },
     specs: [
-      { w: 4, h: 4, walls: [2, 4], pits: [0, 0], goals: [2, 3], pieces: [2, 3], big: [1, 1], colors: 1, tries: 35000 },
-      { w: 5, h: 4, walls: [2, 4], pits: [0, 0], goals: [2, 4], pieces: [2, 3], big: [1, 2], colors: 1, tries: 35000 },
-      { w: 5, h: 5, walls: [3, 5], pits: [0, 0], goals: [2, 4], pieces: [2, 3], big: [1, 2], colors: 1, tries: 30000 }
+      { w: 5, h: 4, walls: [4, 6], blocks: [4, 4], goals: [1, 1], tries: 1000 },
+      { w: 5, h: 5, walls: [4, 6], blocks: [3, 4], goals: [1, 2], tries: 1000 }
     ]
   },
   {
-    number: 8, name: 'BLEND',
-    note: 'Colour and the void together. A block can be routed correctly and still be destroyed on the ' +
-          'way, so the order you solve the colours in becomes a survival question.',
-    par: [9, 12],
-    names: ['ALLOY', 'CRUCIBLE', 'QUENCH', 'DECAY', 'ISOTOPE', 'FERMENT', 'CATALYST', 'REAGENT', 'DISTIL', 'SYNTHESIS'],
-    filters: { ways: [1, 2], luck: 0.008, danger: true, nodeCap: 250000 },
+    number: 8, name: 'LATTICE',
+    note: 'Twenty-five cells and about six walls. Almost the whole board is empty, and that is the ' +
+          'trick: with nothing to stop them, blocks travel too far, and the walls you do have are the ' +
+          'only brakes you own.',
+    par: [20, 23],
+    names: ['SCAFFOLD', 'FILIGREE', 'ARMATURE', 'BUTTRESS', 'CANTILEVER', 'TRUSS', 'PYLON', 'MULLION',
+            'VAULT', 'LATTICE'],
+    filters: { ways: [1, 3], luck: 0.002, maxDead: 0.25, opening: 3, nodeCap: 220000 },
     specs: [
-      { w: 5, h: 4, walls: [1, 3], pits: [1, 2], goals: [2, 3], pieces: [2, 3], colors: 2, tries: 55000 },
-      { w: 5, h: 5, walls: [2, 4], pits: [1, 2], goals: [2, 3], pieces: [2, 3], colors: 2, tries: 50000 },
-      { w: 4, h: 4, walls: [1, 3], pits: [1, 1], goals: [2, 3], pieces: [3, 3], colors: 2, tries: 50000 }
+      { w: 5, h: 5, walls: [4, 6], blocks: [3, 4], goals: [1, 2], tries: 900 },
+      { w: 5, h: 5, walls: [5, 7], blocks: [4, 5], goals: [1, 1], tries: 900 }
     ]
   },
   {
-    number: 9, name: 'STRUCTURE',
-    note: 'Mass and colour. A wide block that will not fit through a gap is a wall you have to plan ' +
-          'around, and now it has a colour that decides where it must end up.',
-    par: [9, 13],
-    names: ['ARMATURE', 'BUTTRESS', 'CANTILEVER', 'LINTEL', 'PYLON', 'MULLION', 'ARCHITRAVE', 'SPANDREL', 'VAULT', 'CAPSTONE'],
-    filters: { ways: [1, 2], luck: 0.008, nodeCap: 250000 },
+    number: 9, name: 'DEPTH',
+    note: 'Twenty-plus tilts on a board of a dozen things. Every stage in this chapter looks like it ' +
+          'should take four moves, and none of them do.',
+    par: [23, 25],
+    names: ['PLUMB', 'FATHOM', 'SOUNDING', 'UNDERTOW', 'KEEL', 'BALLAST', 'TRENCH', 'ABYSSAL',
+            'PRESSURE', 'DEPTH'],
+    filters: { ways: [1, 3], luck: 0.002, maxDead: 0.25, opening: 3, nodeCap: 260000 },
     specs: [
-      { w: 5, h: 5, walls: [3, 5], pits: [0, 0], goals: [3, 4], pieces: [2, 3], big: [1, 1], colors: 2, tries: 25000 },
-      { w: 5, h: 4, walls: [2, 4], pits: [0, 0], goals: [3, 4], pieces: [3, 3], big: [1, 1], colors: 2, tries: 25000 },
-      { w: 5, h: 5, walls: [3, 6], pits: [0, 0], goals: [2, 4], pieces: [3, 3], big: [1, 2], colors: 2, tries: 22000 }
+      { w: 5, h: 5, walls: [5, 7], blocks: [4, 5], goals: [1, 2], tries: 900 },
+      { w: 6, h: 5, walls: [5, 7], blocks: [3, 4], goals: [1, 1], tries: 900 }
     ]
   },
   {
-    number: 10, name: 'CONVERGENCE',
-    note: 'Mass, colour and the void on one board, on the largest grids in the game. Nothing new — ' +
-          'everything at once, and up to fourteen moves of it.',
-    par: [10, 14],
-    names: ['CONFLUENCE', 'MERIDIAN', 'ESCAPEMENT', 'GYRE', 'LABYRINTH', 'CALIBRATE', 'ASCENDANT', 'TERMINUS', 'ZENITH', 'TILT II'],
-    filters: { ways: [1, 2], luck: 0.006, danger: true, nodeCap: 300000 },
+    number: 10, name: 'TILT',
+    note: 'Thirty cells, four blocks, one goal, and twenty-five moves. Nothing here that was not in ' +
+          'stage one — the same gravity, the same walls, the same blocks. Only the folding is deeper.',
+    par: [25, 28],
+    names: ['CONFLUENCE', 'MERIDIAN', 'GYRE', 'LABYRINTH', 'CALIBRATE', 'ASCENDANT', 'TERMINUS',
+            'ZENITH', 'SOLSTICE', 'TILT'],
+    filters: { ways: [1, 3], luck: 0.002, maxDead: 0.25, opening: 3, nodeCap: 300000 },
     specs: [
-      { w: 5, h: 5, walls: [3, 6], pits: [1, 2], goals: [2, 4], pieces: [3, 3], big: [1, 1], colors: 2, tries: 22000 },
-      { w: 6, h: 5, walls: [3, 6], pits: [1, 2], goals: [2, 4], pieces: [3, 4], big: [1, 1], colors: 2, tries: 16000 },
-      { w: 5, h: 5, walls: [2, 5], pits: [1, 2], goals: [3, 4], pieces: [3, 4], big: [0, 1], colors: 2, tries: 18000 }
+      { w: 6, h: 5, walls: [5, 7], blocks: [3, 4], goals: [1, 2], tries: 800 },
+      { w: 6, h: 5, walls: [6, 8], blocks: [4, 5], goals: [1, 1], tries: 800 }
     ]
   }
 ];
@@ -309,7 +277,13 @@ var SEARCHED = [
 // search
 // ===========================================================================
 
-/** Fill one chapter's candidate pool. Runs inside a worker process. */
+/**
+ * Fill one chapter's candidate pool. Runs inside a worker process.
+ *
+ * Each attempt picks its own target length from inside the band before it
+ * starts climbing, which is what spreads the pool across the whole band instead
+ * of piling every board up against the ceiling.
+ */
 function searchChapter(chapter, seedBase) {
   var pool = [];
   var seen = {};
@@ -318,21 +292,22 @@ function searchChapter(chapter, seedBase) {
     var filters = {};
     Object.keys(chapter.filters).forEach(function (k) { filters[k] = chapter.filters[k]; });
     filters.par = chapter.par;
-    if (spec.danger) filters.danger = true;
 
     for (var t = 0; t < spec.tries; t++) {
-      var def = B.generate(spec, rng);
-      if (!def) continue;
-      var key = B.canonical(def);
+      var target = rng.range(chapter.par);
+      var rows = B.climb(spec, rng, target, 500, filters.nodeCap);
+      if (!rows) continue;
+      var key = B.canonical(rows);
       if (seen[key]) continue;
       seen[key] = 1;
-      var res = B.evaluate(def, filters, rng);
+      var res = B.evaluate(rows, filters, rng);
       if (!res) continue;
       pool.push({
-        key: key,
-        terrain: def.terrain, pieces: def.pieces, colors: def.colors,
-        par: res.par, ways: res.ways, luck: res.luck, states: res.states,
-        kills: res.kills, chain: res.chain, score: res.score
+        key: key, board: res.board,
+        par: res.par, ways: res.ways, luck: res.luck, states: res.states, dead: res.dead,
+        chain: res.chain, chainLast: res.chainLast, opening: res.opening,
+        walls: res.walls, goals: res.goals, blocks: res.blocks, elements: res.elements,
+        score: res.score
       });
     }
   });
@@ -340,27 +315,7 @@ function searchChapter(chapter, seedBase) {
 }
 
 /**
- * What share of reachable positions can no longer be solved.
- *
- * A high number is not a bug — undo is free and the game flags a dead board the
- * moment it happens — but it is a measure of how unforgiving a stage feels, and
- * the first board of a chapter should not be the harshest one in it.
- */
-function riskOf(def) {
-  var st;
-  try { st = E.compile(def); } catch (e) { return 0; }
-  var states = E.reachable(st, null, 2500);
-  var dead = 0, n = 0;
-  for (var i = 0; i < states.length; i++) {
-    if (E.isClear(states[i])) continue;
-    n++;
-    if (!E.solve(st, states[i], 20000).solvable) dead++;
-  }
-  return n ? dead / n : 0;
-}
-
-/**
- * Choose ten boards that cover the chapter's par band as evenly as possible,
+ * Choose ten boards that cover the chapter's band as evenly as possible,
  * best-scoring first at each length, skipping anything that duplicates a stage
  * already in the campaign.
  */
@@ -387,10 +342,11 @@ function selectTen(pool, band, used) {
     chosen.push(best.c);
   }
   // Present each chapter in ascending difficulty. Solution length is the
-  // primary axis; among boards of equal length the more forgiving one comes
-  // first, so a chapter never opens with its cruellest position.
-  chosen.forEach(function (c) { c.risk = riskOf(c); });
-  chosen.sort(function (a, b) { return a.par - b.par || a.risk - b.risk || b.score - a.score; });
+  // primary axis; among boards of equal length the one with fewer elements
+  // comes first, because that is the one whose idea is easiest to see.
+  chosen.sort(function (a, b) {
+    return a.par - b.par || a.elements - b.elements || b.score - a.score;
+  });
   return chosen;
 }
 
@@ -400,66 +356,53 @@ function selectTen(pool, band, used) {
 
 function q(s) { return "'" + s.replace(/'/g, "\\'") + "'"; }
 
-function nonDefaultColors(colors) {
-  if (!colors) return null;
-  var keys = Object.keys(colors);
-  if (!keys.length) return null;
-  var any = keys.some(function (k) { return colors[k] !== 0; });
-  return any ? colors : null;
-}
-
-function emitLayer(key, rows, indent) {
+function emitBoard(rows, indent) {
   var pad = new Array(indent + 1).join(' ');
-  var head = pad + key + ': [';
+  var head = pad + 'board: [';
   var joiner = ',\n' + new Array(head.length + 1).join(' ');
   return head + rows.map(q).join(joiner) + ']';
 }
 
+function wrapNote(note, ip) {
+  if (note.length <= 92) return ip + 'note: ' + q(note) + ',';
+  // Wrap long notes so the data file stays readable at 100 columns.
+  var words = note.split(' '), line = '', lines = [];
+  words.forEach(function (w) {
+    if ((line + ' ' + w).length > 88) { lines.push(line); line = w; }
+    else line = line ? line + ' ' + w : w;
+  });
+  if (line) lines.push(line);
+  // Every line but the last keeps a trailing space, or concatenation would glue
+  // the last word of one line to the first word of the next.
+  return ip + 'note: ' + lines.map(function (l, li) {
+    return q(li < lines.length - 1 ? l + ' ' : l);
+  }).join(' +\n' + ip + '      ') + ',';
+}
+
 function emitStage(st, indent) {
   var pad = new Array(indent + 1).join(' ');
-  var out = [];
-  out.push(pad + '{');
   var inner = indent + 2;
   var ip = new Array(inner + 1).join(' ');
+  var out = [];
+  out.push(pad + '{');
+
   var head = ip + 'id: ' + st.id + ', name: ' + q(st.name) + ', par: ' + st.par + ',';
   if (st._m) {
-    // Record why this board qualified, so the data file explains itself:
-    // how many optimal lines exist, how unlikely a random clear is, how much
-    // room there is to think, and whether the void is a live threat.
+    // Record why this board qualified, so the data file explains itself: how
+    // many optimal lines exist, how unlikely a random clear is, how much room
+    // there is to think, and how long the set-up runs before anything scores.
     var m = st._m;
     head += '   // ways ' + m.ways +
       ' · luck ' + (m.luck * 100).toFixed(2) + '%' +
       ' · ' + m.states + ' states' +
-      (m.kills ? ' · fatal tilts' : '') +
-      (m.chain > 1 ? ' · chain ×' + m.chain : '') +
-      (m.risk > 0.25 ? ' · ' + Math.round(m.risk * 100) + '% dead ends' : '');
+      ' · ' + m.elements + ' pieces' +
+      (m.opening > 0 ? ' · ' + m.opening + ' set-up tilts' : '') +
+      (m.chain > 1 ? ' · chain ×' + m.chain : '');
   }
   out.push(head);
-  if (st.note) {
-    if (typeof st.note === 'string' && st.note.length > 92) {
-      // Wrap long notes so the data file stays readable at 100 columns.
-      var words = st.note.split(' '), line = '', lines = [];
-      words.forEach(function (w) {
-        if ((line + ' ' + w).length > 88) { lines.push(line); line = w; }
-        else line = line ? line + ' ' + w : w;
-      });
-      if (line) lines.push(line);
-      // Every line but the last keeps a trailing space, or concatenation would
-      // glue the last word of one line to the first word of the next.
-      out.push(ip + 'note: ' + lines.map(function (l, li) {
-        return q(li < lines.length - 1 ? l + ' ' : l);
-      }).join(' +\n' + ip + '      ') + ',');
-    } else {
-      out.push(ip + 'note: ' + q(st.note) + ',');
-    }
-  }
+  if (st.note) out.push(wrapNote(st.note, ip));
   if (st.hint) out.push(ip + 'hint: { ja: ' + q(st.hint.ja) + ', en: ' + q(st.hint.en) + ' },');
-  out.push(emitLayer('terrain', st.terrain, inner) + ',');
-  out.push(emitLayer('pieces', st.pieces, inner) + (st.colors && Object.keys(st.colors).length ? ',' : ''));
-  if (st.colors && Object.keys(st.colors).length) {
-    var cs = Object.keys(st.colors).sort().map(function (k) { return k + ': ' + st.colors[k]; });
-    out.push(ip + 'colors: { ' + cs.join(', ') + ' }');
-  }
+  out.push(emitBoard(st.board, inner));
   out.push(pad + '}');
   return out.join('\n');
 }
@@ -472,15 +415,17 @@ function emit(chapters) {
   L.push(' *');
   L.push(' * Source of truth: tools/campaign.js  (rebuild with `npm run campaign`)');
   L.push(' *');
-  L.push(' *   terrain: \'.\' floor  \'#\' wall  \'*\' pit');
-  L.push(' *            \'o\' goal (any colour)   \'0\' \'1\' \'2\' goal (that colour only)');
-  L.push(' *   pieces:  \'.\' empty  \'A\'..\'Z\'  one letter = one block');
-  L.push(' *            (a letter repeated across adjacent cells = one rigid multi-cell block)');
-  L.push(' *   colors:  { A: 0, B: 1, ... }  — defaults to 0');
+  L.push(' * One board, one picture, four characters:');
   L.push(' *');
-  L.push(' * Every `par` below is a breadth-first-proven shortest solution, and every wall, pit,');
-  L.push(' * goal and block survived deletion testing: remove any one of them and the puzzle');
-  L.push(' * measurably changes. Verified by tools/audit.js.');
+  L.push(" *     '.'  floor        '#'  wall");
+  L.push(" *     'o'  goal         '@'  block");
+  L.push(' *');
+  L.push(' * There is nothing else. Every block is identical, no cell is forbidden, and no stage');
+  L.push(' * anywhere in this file introduces a rule that stage 1 did not already have.');
+  L.push(' *');
+  L.push(' * Every `par` below is a breadth-first-proven shortest solution, and every wall, block');
+  L.push(' * and goal survived deletion testing: remove any one of them and the puzzle measurably');
+  L.push(' * changes. Verified by tools/audit.js.');
   L.push(' */');
   L.push('(function (root, factory) {');
   L.push('  var api = factory();');
@@ -512,8 +457,7 @@ function emit(chapters) {
     if (p.trim().indexOf('//') === 0 || p.indexOf('\n    //') === 0) body.push(p);
     else body.push(p + ',');
   });
-  var joined = body.join('\n');
-  joined = joined.replace(/,(\s*)$/, '$1');
+  var joined = body.join('\n').replace(/,(\s*)$/, '$1');
   L.push(joined);
   L.push('  ];');
   L.push('');
@@ -602,12 +546,15 @@ function main() {
     return FRESH || !cache[c.number] || !cache[c.number].length;
   }).map(function (c) { return c.number; });
 
-  if (!need.length) { finish(cache, SEED); return; }
+  if (!need.length) { finish(cache); return; }
 
   console.log('searching chapters ' + need.join(', ') + ' across ' + WORKERS + ' workers…\n');
   var buckets = [];
   for (var i = 0; i < WORKERS; i++) buckets.push([]);
-  need.forEach(function (n, i) { buckets[i % WORKERS].push(n); });
+  // Deal the heaviest chapters out first so no single worker ends up with all
+  // of them and holds up the build on its own.
+  need.slice().sort(function (a, b) { return b - a; })
+    .forEach(function (n, i) { buckets[i % WORKERS].push(n); });
   buckets = buckets.filter(function (b) { return b.length; });
 
   var pending = buckets.length;
@@ -623,7 +570,7 @@ function main() {
       if (m.progress) {
         var p = m.progress;
         var ch = SEARCHED.filter(function (c) { return c.number === p.chapter; })[0];
-        console.log('  chapter ' + p.chapter + ' ' + ch.name.padEnd(12) +
+        console.log('  chapter ' + String(p.chapter).padStart(2) + ' ' + ch.name.padEnd(12) +
           String(p.found).padStart(5) + ' boards kept (best per solution length)   ' +
           (p.ms / 1000).toFixed(1) + 's');
       }
@@ -633,7 +580,7 @@ function main() {
         });
         if (--pending === 0) {
           console.log('\nsearch finished in ' + ((Date.now() - t0) / 1000).toFixed(1) + 's');
-          finish(cache, SEED);
+          finish(cache);
         }
       }
     });
@@ -648,21 +595,40 @@ function main() {
   });
 }
 
-function finish(cache, seed) {
+/** Solver-proven par for a hand-authored board — never a number I typed in. */
+function measureAuthored(stage) {
+  var st = E.compile({ board: stage.board });
+  var m = B.measure(st, 80000);
+  if (!m) throw new Error('authored stage ' + stage.name + ' is unsolvable');
+  var inert = B.findInert(stage.board, m.par, m.ways, 80000);
+  if (inert) throw new Error('authored stage ' + stage.name + ' has an inert ' + inert);
+  var shape = B.shapeOf(st, E.solve(st, null, 80000).path);
+  return {
+    par: m.par, ways: m.ways, luck: m.luck, states: m.states,
+    chain: shape.chain, opening: shape.opening,
+    elements: B.cellsOf(stage.board, B.WALL).length +
+              B.cellsOf(stage.board, B.GOAL).length +
+              B.cellsOf(stage.board, B.BLOCK).length
+  };
+}
+
+function finish(cache) {
   var used = {};
   var chapters = [];
-  var id = 1;
   var failed = [];
 
   AUTHORED.forEach(function (c) {
-    var stages = c.stages.map(function (s) { id++; return s; });
-    stages.forEach(function (s) {
-      used[B.canonical({ terrain: s.terrain, pieces: s.pieces, colors: s.colors || {} })] = 1;
+    var stages = c.stages.map(function (s) {
+      var m = measureAuthored(s);
+      used[B.canonical(s.board)] = 1;
+      return {
+        name: s.name, note: s.note, hint: s.hint, board: s.board,
+        par: m.par, _m: m
+      };
     });
     var pars = stages.map(function (s) { return s.par; });
     chapters.push({
       number: c.number, name: c.name, note: c.note, stages: stages,
-      from: stages[0].id, to: stages[stages.length - 1].id,
       parLo: Math.min.apply(null, pars), parHi: Math.max.apply(null, pars)
     });
   });
@@ -675,18 +641,11 @@ function finish(cache, seed) {
       return;
     }
     var stages = picked.map(function (p, i) {
-      return {
-        id: id++, name: c.names[i], par: p.par,
-        terrain: p.terrain, pieces: p.pieces,
-        // Colour 0 is the default, so an all-zero map is noise in the data file.
-        colors: nonDefaultColors(p.colors),
-        _m: p
-      };
+      return { name: c.names[i], par: p.par, board: p.board, _m: p };
     });
     var pars = stages.map(function (s) { return s.par; });
     chapters.push({
       number: c.number, name: c.name, note: c.note, stages: stages,
-      from: stages[0].id, to: stages[stages.length - 1].id,
       parLo: Math.min.apply(null, pars), parHi: Math.max.apply(null, pars)
     });
   });
@@ -697,7 +656,7 @@ function finish(cache, seed) {
     process.exit(1);
   }
 
-  // Renumber ids so they run 1..100 regardless of chapter ordering.
+  // Number the stages 1..100 in chapter order.
   var n = 1;
   chapters.forEach(function (c) {
     c.stages.forEach(function (s) { s.id = n++; });
@@ -710,7 +669,7 @@ function finish(cache, seed) {
   console.log('\nwrote src/stages.js — ' + (n - 1) + ' stages\n');
   chapters.forEach(function (c) {
     var pars = c.stages.map(function (s) { return s.par; });
-    console.log('  ' + String(c.number).padStart(2) + '  ' + c.name.padEnd(13) +
+    console.log('  ' + String(c.number).padStart(2) + '  ' + c.name.padEnd(9) +
       'stages ' + String(c.from).padStart(3) + '–' + String(c.to).padStart(3) +
       '   par ' + pars.join(' '));
   });
