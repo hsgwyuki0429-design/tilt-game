@@ -5,672 +5,852 @@
  * This file IS the design document for all twenty stages, and it generates
  * src/stages.js from it.
  *
- *   node tools/campaign.js              build (uses the cache where possible)
- *   node tools/campaign.js --fresh      ignore the cache and search again
- *   node tools/campaign.js --workers 5  parallelism
- *   node tools/campaign.js --only 12,13 rebuild just those stages
+ *   node tools/campaign.js              build
+ *   node tools/campaign.js --report     build and print every scorecard
+ *   node tools/campaign.js --only 7,12  search just those slots and report
+ *   node tools/campaign.js --dry        search and report, write nothing
+ *
+ * `--only` never writes: the twenty stages are chosen against each other (no
+ * two may share a board or even a terrain), so a partial run cannot honestly
+ * produce a partial file.
  *
  * ---------------------------------------------------------------------------
- * WHAT WENT WRONG BEFORE, AND WHAT THIS FIXES
+ * WHAT THIS REPLACES, AND WHY
  * ---------------------------------------------------------------------------
  *
- * The previous campaign searched for the LONGEST solution it could find and
- * shipped whatever came back. That was the wrong target. A twenty-eight move
- * board with exactly one line through it is a corridor: the player does not
- * work it out, they feel their way along it, and being right feels like nothing
- * because there was never a moment of seeing.
+ * The previous campaign gave each slot a target LENGTH and searched until a
+ * board hit it. The result measured well and played badly, and the measurement
+ * in design.js says exactly why. Run it over the old twenty stages and the
+ * verdict is brutal:
  *
- * The feeling this game is for is not "that was long". It is:
+ *   stages 1, 2, 4      unlock 0   — the player who is not thinking solves
+ *                                    them cold. There is no idea in them.
+ *   stages 10 – 20      unlock ≈ par — every single move has to be found
+ *                                    separately. That is not depth, it is a
+ *                                    corridor with fifty doors.
+ *   almost all of them  blindness 0 — the first move a player would try is
+ *                                    the correct one.
  *
- *     obvious → try it → wrong → look again → oh. OH. → it all falls in
- *
- * So length is now a REQUIREMENT of a slot, never the thing being optimised.
- * What the search optimises is the shape of the thinking:
- *
- *   retreat    tilts on the optimal line that move blocks AWAY from the goal.
- *              A board with none can be solved by always heading for the exit.
- *              A board with two or three cannot be solved without the "wrong
- *              way first" realisation — which IS the moment this game is for.
- *   traps      how many opening tilts fail to make progress. Three out of four
- *              means the first move is a decision, not a formality.
- *   greedy     what happens to the player who is not thinking yet. On the best
- *              boards they walk in a circle forever.
- *   setup      tilts spent arranging before anything is collected at all.
- *   chainLast  blocks collected by the final tilt — the payoff landing at once.
- *   elements   taxed, always. The board has to LOOK simple or none of it lands.
+ * A board that takes fifty tilts and never once surprises you is a worse board
+ * than one that takes five and does. So no slot below asks for a length. Each
+ * slot states ONE THING THE PLAYER SHOULD NOTICE, and then requires the
+ * measured signature of a board that can only be solved by noticing it.
  *
  * ---------------------------------------------------------------------------
- * TWENTY STAGES, NOT A HUNDRED
+ * HOW A SLOT IS BUILT
  * ---------------------------------------------------------------------------
  *
- * Twenty stages that are all worth playing, rather than a hundred that are
- * mostly filler. Every slot below is a design brief — a purpose, a board
- * budget, a proven solution length, and the specific feeling it has to produce
- * — and the search runs per slot until a board satisfies all of it.
+ *   1  CORE IDEA      one sentence: what is there to see here?
+ *   2  FEELING        what the player should experience finding it
+ *   3  SEARCH         the design space to look in, and the signature required
+ *   4  PREFER         which surviving board best expresses THIS idea
  *
- * Boards stay small on purpose. Nothing here is bigger than 5×5 and the
- * twenty-move stages are 4×3. Length comes from DENSITY: more blocks in a small
- * space get in each other's way, and the order you unpack them in is the
- * puzzle. A big board with a long route is not the same thing and is not as
- * good.
+ * The search does not sample. At 3×3 it enumerates the entire design space —
+ * every arrangement of walls, goals, hazards and blocks up to symmetry — so
+ * what ships is not the best board the search stumbled on, it is the best
+ * board that exists inside that budget. Tens of thousands of boards are built
+ * and measured per slot; one survives. Nothing is kept because it was
+ * expensive to find.
  *
- * The rules never grow. Walls, blocks, goals, gravity — that is the entire
- * vocabulary from stage 1 to stage 20, and tools/audit.js fails the build if
- * anything else ever appears.
+ * ---------------------------------------------------------------------------
+ * WHAT MAY APPEAR, AND WHEN
+ * ---------------------------------------------------------------------------
+ *
+ * Hazards and colours exist (see the engine for what each one is FOR). They
+ * are not rewards for reaching chapter three and they are not difficulty
+ * knobs. A device may appear in a slot only when the slot's core idea cannot
+ * be built without it.
+ *
+ * Ten of the twenty stages use nothing but the base rules. Half the campaign
+ * is nine cells, four characters and no exceptions.
+ *
+ * NO STAGE USES BOTH DEVICES AT ONCE, and that was tested rather than assumed.
+ * 26,744 boards carrying a hazard AND two colours were built and measured, and
+ * the best of them was compared against the best single-device board on all ten
+ * axes:
+ *
+ *                      both devices   colour only
+ *     clarity                   4.1           6.8
+ *     fairness                  7.4          10.0     (4% silent jams vs none)
+ *     discovery                 8.7           9.7
+ *     density                   5.1           6.7
+ *     surprise                 10.0           8.2
+ *     elegance                 10.0           9.1
+ *                        ── 2 axes ──   ── 6 axes ──
+ *
+ * The combined board is longer (15 tilts against 10) and more surprising, and
+ * it loses anyway: it is harder to read, and 4% of its positions are quietly
+ * unwinnable rather than visibly so. Length and surprise do not outrank being
+ * legible and being fair. If a combined board had won, it would be in the
+ * campaign — this is a result, not a rule.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT WAS CONSIDERED AND LEFT OUT
+ * ---------------------------------------------------------------------------
+ *
+ * Both of these were prototyped against the question every element has to
+ * answer — "what new thinking does this create?" — and neither could answer it:
+ *
+ *   BIG BLOCKS      A 2×1 block needs two free cells instead of one. That is a
+ *                   packing constraint, not a new question: everything it asks
+ *                   ("will it fit, will it stop here") the player is already
+ *                   asking about single blocks, and it costs a whole new set
+ *                   of rules about what happens when half of one is blocked.
+ *                   More rule, same thought.
+ *
+ *   ALTERNATE WIN   "Collect only the red ones", "form a shape", "leave one
+ *   CONDITIONS      behind". Each of these moves the difficulty off the board
+ *                   and into the briefing. The player stops looking at nine
+ *                   cells and starts re-reading a sentence. TILT's win
+ *                   condition is visible in the picture — every block gone —
+ *                   and it stays that way.
+ *
+ * They are left out because they lose that argument, not because the campaign
+ * is being careful. A device that could answer the question would be in.
  */
 
 var fs = require('fs');
 var path = require('path');
-var cp = require('child_process');
-var B = require('./lib/boards.js');
+var D = require('./lib/design.js');
+var G = require('./lib/generate.js');
 var E = require('../src/engine.js');
 
 var ROOT = path.join(__dirname, '..');
-var CACHE_DIR = path.join(__dirname, '.campaign-cache');
+var argv = process.argv.slice(2);
+var REPORT = argv.indexOf('--report') >= 0;
+var DRY = argv.indexOf('--dry') >= 0;
+var ONLY = null;
+var onlyAt = argv.indexOf('--only');
+if (onlyAt >= 0 && argv[onlyAt + 1]) ONLY = argv[onlyAt + 1].split(',').map(Number);
 
-// ===========================================================================
-// CHAPTER 1 — hand-authored, because teaching is not a search problem.
+// ---------------------------------------------------------------------------
+// search spaces
+// ---------------------------------------------------------------------------
+// A spec is a budget, not a board: size, what furniture may be placed, and how
+// many blocks. The generator enumerates every arrangement inside it.
+
+function spec(w, h, blocks, walls, opts) {
+  opts = opts || {};
+  return {
+    w: w, h: h,
+    blocks: blocks,
+    walls: walls,
+    hazards: opts.hazards || [0, 0],
+    goals: opts.goals || ['o']
+  };
+}
+
+function reps(ch, n) { var a = []; for (var i = 0; i < n; i++) a.push(ch); return a; }
+
+/** 3×3, base rules, b blocks, walls in the given band. */
+function nine(b, walls) { return spec(3, 3, reps('@', b), walls); }
+/** 3×3 with hazards. */
+function nineHaz(b, walls, hz) { return spec(3, 3, reps('@', b), walls, { hazards: hz }); }
+/** 3×3, two colours. */
+function nineCol(blocks, walls) { return spec(3, 3, blocks, walls, { goals: ['a', 'b'] }); }
+/** 4×3, base rules. */
+function twelve(b, walls) { return spec(4, 3, reps('@', b), walls); }
+
+// ---------------------------------------------------------------------------
+// the twenty slots
+// ---------------------------------------------------------------------------
 //
-// Five boards, five ideas, in the order they have to arrive. Every par below is
-// solver-proven at build time and every element faced the same deletion test
-// the generated boards face.
-// ===========================================================================
+// `need` is the measured signature a board must have to be capable of teaching
+// the idea. `prefer` breaks ties among boards that all qualify.
+//
+// Ordinary slots inherit a floor that no stage in the game is allowed below:
+// the naive player must fail, nothing may be won by luck, and no piece may be
+// on the board that the board would not miss. `teach: true` marks the four
+// stages that exist to put a rule on screen for the first time — they are
+// allowed to be gentle, and each one says so in its own note.
 
-var AUTHORED = {
-  chapter: { number: 1, name: 'GRAVITY', ja: '重力' },
-  note: 'Everything the game is made of, one idea per board: gravity moves things, walls stop them, ' +
-        'blocks stop each other, and the way out is rarely the way you are facing.',
-  stages: [
-    {
-      name: 'DROP',
-      purpose: 'Gravity exists and it answers to you.',
-      note: 'One block, one goal, nothing to be afraid of. The only stage in the game you can solve ' +
-            'without thinking, and that is its job.',
-      hint: { ja: 'スワイプして重力を変える', en: 'Swipe to tilt gravity' },
-      board: ['@..',
-              '...',
-              '..o']
-    },
-    {
-      name: 'TWO',
-      purpose: 'Every block is the same block, and one goal takes them all.',
-      note: 'The last tilt sends both home at once — the first chain in the game, on the third move ' +
-            'you will ever make.',
-      hint: { ja: 'ブロックはすべて同じ。ゴールはどれでも受け取る', en: 'Every block is the same' },
-      board: ['@..',
-              '@..',
-              '..o']
-    },
-    {
-      name: 'STOP',
-      purpose: 'Walls stop blocks — so the straight line is not always open.',
-      note: 'The goal is two cells away in a straight line and that line is closed. The detour is ' +
-            'the player\'s own idea, which is the point.',
-      hint: { ja: '壁はブロックを止める', en: 'Walls stop blocks' },
-      board: ['@#o',
-              '...',
-              '...']
-    },
-    {
-      name: 'SHUNT',
-      purpose: 'A block is a wall for another block — so order starts to matter.',
-      note: 'Move the wrong one first and the other has nowhere to go. Nothing is lost by finding ' +
-            'that out: undo costs nothing and is meant to be used.',
-      hint: { ja: 'ブロックは他のブロックも止める', en: 'Blocks stop each other too' },
-      board: ['.@.',
-              '@#o',
-              '.#.']
-    },
-    {
-      name: 'LAP',
-      purpose: 'The way out is not the way you are facing.',
-      note: 'Two walls on opposite corners. Both blocks have to travel away from the goal before ' +
-            'they can reach it — and a player who only ever tilts toward the goal circles this board ' +
-            'forever without solving it. Six moves, one line, nine cells.',
-      board: ['@#o',
-              '...',
-              '.@#']
-    }
-  ]
+var BASE_NEED = {
+  maxLuck: 0.015,
+  maxJam: 0.25,
+  naiveSolves: false,
+  // No stage may be a pump handle. A board can have a perfect crux — one move
+  // to find, eight that follow for free — and still be a chore, because those
+  // eight turn out to be L U L U L U L U. The idea cost one move; the
+  // execution cost eight, and nothing else measured here notices.
+  maxPump: 0.5,
+  // At least three of the four tilts have to DO something. A board where
+  // gravity only works in one direction is not a puzzle with one answer, it is
+  // a corridor with one door, and it reads as broken rather than as hard.
+  minLive: 3
 };
 
-// ===========================================================================
-// CHAPTERS 2–4 — searched, one slot at a time.
-//
-// `par` is a requirement, never a goal. `want` is what the board has to make
-// the player feel; it is enforced as a hard filter AND is what the score
-// rewards, so within a slot the winner is the board that does it hardest.
-// ===========================================================================
-
-var CHAPTERS = [
-  {
-    number: 2, name: 'NINE', ja: '九マス',
-    note: 'Nine cells and nothing added. Every board in this chapter fits in a single glance and ' +
-          'none of them can be solved in a single glance — which is the whole argument of the game, ' +
-          'made on the smallest board it owns.'
-  },
-  {
-    number: 3, name: 'ORDER', ja: '順番',
-    note: 'Blocks are each other\'s walls. Now there are enough of them that the question stops ' +
-          'being "which way" and becomes "which one, first".'
-  },
-  {
-    number: 4, name: 'CONVERGENCE', ja: '収束',
-    note: 'One goal, and a small board packed with blocks that all have to reach it. Nothing new — ' +
-          'the boards barely even get bigger. There is just no slack left anywhere in them.'
-  }
-];
-
-// Every slot: a name, the feeling it exists to produce, its proven length, its
-// element budget, and the hard requirements that go with the feeling.
 var SLOTS = [
-  // ── CHAPTER 2 · NINE — 3×3, and every one of them earns its length ────────
-  //
-  // Every `want` below is set from a measured sample of what boards of that
-  // length and budget actually look like, at roughly the median. Asking for
-  // more than the population contains is how a slot searches forever and finds
-  // nothing — the first draft of this file asked every 3×3 board for a
-  // two-block finale, which on nine cells with one goal essentially never
-  // happens.
+
+  // ── CHAPTER 1 · GRAVITY ─────────────────────────────────────────────────
+  // The whole vocabulary, one idea per board. Four stages of teaching and one
+  // that turns on the player.
+
   {
-    chapter: 2, name: 'DETOUR', par: [7, 7],
-    purpose: 'The first board that punishes heading straight for the goal.',
-    spec: { w: 3, h: 3, walls: [1, 3], blocks: [2, 3], goals: [1, 1] },
-    want: { retreat: 1, greedyGap: 999 },      // 999 = greedy must fail outright
-    filters: { ways: [1, 3], luck: 0.02, minShift: 0.5 },
-    tries: 900
+    id: 1, name: 'DROP', chapter: 1, teach: true,
+    idea: 'Gravity is a thing you point, and everything obeys it at once.',
+    feeling: 'No resistance at all. This board exists to be understood in one gesture.',
+    note: 'One block, one goal, two tilts. The only stage in the game a player can ' +
+          'solve without thinking, and that is its entire job: it teaches the verb.',
+    hint: { ja: 'スワイプして重力を向ける', en: 'Swipe to aim gravity' },
+    specs: [nine(1, [0, 0]), nine(1, [1, 1])],
+    need: { par: [2, 2], allowNaive: true, maxLuck: 0.5, minLive: 2 },
+    prefer: function (p) { return -p.pieces.total * 10 - p.states; }
   },
   {
-    chapter: 2, name: 'PIVOT', par: [8, 8],
-    purpose: 'Most of the openings are wrong. Choosing between them is the puzzle.',
-    spec: { w: 3, h: 3, walls: [1, 3], blocks: [2, 3], goals: [1, 1] },
-    want: { traps: 2, retreat: 1 },
-    filters: { ways: [1, 3], luck: 0.015, minShift: 0.5 },
-    tries: 1100
+    id: 2, name: 'PAIR', chapter: 1, teach: true,
+    idea: 'Every block is the same block, and one goal will take them all.',
+    feeling: 'The last tilt sends both home together — the first chain in the game.',
+    note: 'Two blocks and one socket. The finish collects both at once, which is the ' +
+          'first time the board does more in one tilt than the player asked it to.',
+    hint: { ja: 'ブロックはすべて同じ。ゴールはどれでも受け取る', en: 'Every block is the same' },
+    specs: [nine(2, [0, 0]), nine(2, [1, 1])],
+    need: { par: [2, 4], chainLast: 2, allowNaive: true, maxLuck: 0.5 },
+    prefer: function (p) { return (p.unlock > 0 ? 15 : 0) + p.chainLast * 6 - p.par * 3 - p.pieces.total * 3; }
   },
   {
-    chapter: 2, name: 'THREAD', par: [9, 9],
-    purpose: 'Nine moves, and only one way to make them.',
-    spec: { w: 3, h: 3, walls: [1, 3], blocks: [3, 4], goals: [1, 1] },
-    want: { retreat: 2 },
-    filters: { ways: [1, 2], luck: 0.015, minShift: 0.5 },
-    tries: 1100
+    id: 3, name: 'SHUT', chapter: 1, teach: true,
+    idea: 'A wall stops a block dead — so the straight line is not always open.',
+    feeling: 'The goal is right there and the direct route is closed. The way around is the player\'s own idea.',
+    note: 'The goal sits two cells away in a straight line, and that line has a wall in ' +
+          'it. Nothing here is hidden; the player simply has to accept that pointing at ' +
+          'the exit is not the same as reaching it.',
+    hint: { ja: '壁はブロックを止める', en: 'Walls stop blocks' },
+    specs: [nine(1, [1, 2]), nine(2, [1, 2])],
+    need: { par: [3, 5], unlock: [1, 3], retreat: 1, allowNaive: true, maxLuck: 0.2, minLive: 2 },
+    prefer: function (p) { return p.traps * 8 + p.retreat * 5 - p.pieces.total * 6 - p.par; }
   },
   {
-    chapter: 2, name: 'CIRCLE', par: [10, 11],
-    purpose: 'A player who never thinks walks this board in a loop forever.',
-    spec: { w: 3, h: 3, walls: [2, 3], blocks: [3, 4], goals: [1, 1] },
-    want: { greedyGap: 999, retreat: 2 },
-    filters: { ways: [1, 4], luck: 0.01, minShift: 0.5 },
-    tries: 700
+    id: 4, name: 'STACK', chapter: 1, teach: true,
+    idea: 'A block is a wall for another block — so which one moves first is a question.',
+    feeling: 'Move the wrong one and the other has nowhere to go. Undo costs nothing; find out.',
+    note: 'The first board where the obstacles are the pieces themselves. Getting the ' +
+          'order wrong is not punished — it is the intended way to learn what the order is.',
+    hint: { ja: 'ブロックは他のブロックも止める', en: 'Blocks stop each other too' },
+    specs: [nine(3, [1, 2]), nine(3, [0, 1])],
+    need: { par: [4, 8], unlock: [1, 2], flow: 2, traps: 2, indirect: true },
+    prefer: function (p) { return p.blindness * 12 + p.flow * 4 + p.setup * 3 - p.pieces.total * 4; }
   },
   {
-    chapter: 2, name: 'NINE', par: [12, 13],
-    purpose: 'What nine cells can hold when every one of them is doing work.',
-    spec: { w: 3, h: 3, walls: [2, 3], blocks: [3, 5], goals: [1, 1] },
-    want: { retreat: 2, greedyGap: 999 },
-    filters: { ways: [1, 4], luck: 0.01, minShift: 0.5 },
-    tries: 900
+    id: 5, name: 'AWAY', chapter: 1,
+    idea: 'The way out is not the way you are facing: a block has to travel away from the goal to reach it.',
+    feeling: 'A player who only ever tilts toward the exit circles this board forever.',
+    note: 'Chapter one\'s argument, and the first board that is genuinely a puzzle. Every ' +
+          'tilt that points at the goal makes things worse, and the answer is the ' +
+          'direction that looks like giving up ground.',
+    specs: [nine(2, [1, 2]), nine(3, [1, 2])],
+    need: { par: [4, 8], unlock: [1, 3], flow: 2, retreat: 2, blindness: 1 },
+    prefer: function (p) { return p.blindness * 14 + p.retreat * 8 + p.flow * 3 - p.pieces.total * 3; }
   },
 
-  // ── CHAPTER 3 · ORDER — 4×3 and 4×4, the unpacking problem ────────────────
+  // ── CHAPTER 2 · NINE ────────────────────────────────────────────────────
+  // Nothing new is introduced anywhere in this chapter — no hazard, no colour,
+  // the same four characters stage 1 had. What changes is only how hard the
+  // same four things are being made to work.
+  //
+  // Three of these five boards are nine cells and two are twelve, and that
+  // split is a finding rather than a preference. Sweeping the ENTIRE 3×3
+  // design space turns up only two boards under the base rules whose correct
+  // opening is the last one instinct would suggest, and they share a terrain.
+  // Nine cells is not an inexhaustible well: it holds a handful of genuinely
+  // excellent puzzles and this game already shipped most of them by stage 5.
+  // Rather than pad the chapter with near-misses at 3×3, the two slots that
+  // 3×3 cannot supply are allowed twelve cells — still small enough to hold in
+  // one glance, and with a third column the slides get long enough to hide an
+  // idea in.
+
   {
-    chapter: 3, name: 'QUEUE', par: [14, 15],
-    purpose: 'One cell wider than chapter two, and the extra room is where the detours live.',
-    spec: { w: 4, h: 3, walls: [2, 4], blocks: [3, 5], goals: [1, 1] },
-    want: { retreat: 3, traps: 1, greedyGap: 999 },
-    filters: { ways: [1, 6], luck: 0.008, minShift: 0.5 },
-    tries: 900
+    id: 6, name: 'WASTE', chapter: 2,
+    idea: 'The move that appears to accomplish nothing is the one that makes everything possible.',
+    feeling: 'Three tilts look productive and all three are wrong. The fourth looks pointless.',
+    note: 'Ranked by how a hurrying player would rate them, the correct opening is the ' +
+          'LAST one they would try. Nothing is hidden — the board is nine cells in plain ' +
+          'sight — and it still takes a second look.',
+    specs: [nine(2, [1, 3]), nine(3, [0, 3]), nine(4, [0, 3]), twelve(3, [1, 3]), twelve(4, [1, 3])],
+    need: { par: [4, 10], unlock: [1, 2], flow: 2, blindness: 2, traps: 2 },
+    prefer: function (p) { return p.blindness * 20 + p.traps * 6 + p.flow * 4 - p.pieces.total * 3; }
   },
   {
-    chapter: 3, name: 'INTERLOCK', par: [16, 17],
-    purpose: 'Every block is in another block\'s way. Very few release orders work.',
-    spec: { w: 4, h: 3, walls: [2, 4], blocks: [4, 5], goals: [1, 1] },
-    want: { retreat: 5, traps: 2 },
-    filters: { ways: [1, 8], luck: 0.008, minShift: 0.5 },
-    tries: 1400
+    id: 7, name: 'REFUSE', chapter: 2,
+    idea: 'Collecting a block can be the wrong move. Progress is not the same as winning.',
+    feeling: 'The board offers you something for free, and taking it loses.',
+    note: 'The cruellest shape in the game and the fairest: a tilt that visibly banks a ' +
+          'block and quietly ruins the position. Once seen it is never forgotten, because ' +
+          'it rewrites what "a good move" means.',
+    specs: [nine(3, [0, 3]), nine(4, [0, 3]), twelve(3, [1, 3]), twelve(4, [1, 3])],
+    need: { par: [4, 10], unlock: [1, 2], flow: 2, bait: true, blindness: 1 },
+    prefer: function (p) { return p.bait * 18 + p.blindness * 12 + p.flow * 4 - p.pieces.total * 3; }
   },
   {
-    chapter: 3, name: 'TUMBLER', par: [18, 19],
-    purpose: 'Sixteen cells, and the first board you cannot hold whole in your head.',
-    spec: { w: 4, h: 4, walls: [3, 5], blocks: [4, 5], goals: [1, 1] },
-    want: { retreat: 5, traps: 2 },
-    filters: { ways: [1, 12], luck: 0.006, minShift: 0.45 },
-    tries: 700
+    id: 8, name: 'OTHER', chapter: 2,
+    idea: 'The block you have to move first is not the block you are trying to get home.',
+    feeling: 'You stare at the block next to the goal for a while before you look away from it.',
+    note: 'Every instinct points at the piece nearest the socket. It is the last one that ' +
+          'moves. The board is built so that the piece furthest from the goal is the one ' +
+          'holding the whole position together.',
+    specs: [nine(3, [0, 3]), nine(4, [0, 3]), twelve(3, [1, 3]), twelve(4, [1, 3]), twelve(5, [1, 2])],
+    need: { par: [5, 11], unlock: [1, 3], flow: 3, indirect: true, blindness: 2, traps: 2 },
+    prefer: function (p) { return p.blindness * 14 + p.flow * 5 + p.setup * 4 - p.pieces.total * 3; }
   },
   {
-    chapter: 3, name: 'ESCAPEMENT', par: [21, 22],
-    purpose: 'A long arrangement before anything at all is collected.',
-    spec: { w: 4, h: 4, walls: [3, 5], blocks: [4, 6], goals: [1, 1] },
-    want: { retreat: 6, setup: 3 },
-    filters: { ways: [1, 20], luck: 0.005, minShift: 0.45 },
-    tries: 1100
+    id: 9, name: 'FALL', chapter: 2,
+    idea: 'One tilt, and the whole board resolves at once — if you built it correctly first.',
+    feeling: 'Several moves of arranging that collect nothing, then everything lands together.',
+    note: 'The payoff stage. Nothing is banked until the end, and then the last tilt takes ' +
+          'the lot. The pleasure is watching a plan you made three moves ago execute itself.',
+    specs: [nine(3, [0, 3]), nine(4, [0, 3]), nine(5, [0, 2]), twelve(4, [1, 3]), twelve(5, [1, 2])],
+    need: { par: [4, 11], unlock: [1, 3], chainLast: 2, setup: 2, blindness: 1 },
+    prefer: function (p) { return p.chainLast * 16 + p.setup * 7 + p.blindness * 8 + p.cascade * 3; }
   },
   {
-    chapter: 3, name: 'ORDER', par: [24, 26],
-    purpose: 'The chapter\'s thesis: same three things, and the only question is which one first.',
-    spec: { w: 4, h: 4, walls: [3, 6], blocks: [5, 7], goals: [1, 1] },
-    want: { retreat: 6, traps: 2 },
-    filters: { ways: [1, 40], luck: 0.004, minShift: 0.45 },
-    tries: 1600
+    id: 10, name: 'NINE', chapter: 2,
+    idea: 'What nine cells can hold when every single one of them is carrying weight.',
+    feeling: 'A board you can see all of at once and cannot hold all of at once.',
+    note: 'The chapter\'s closing argument: the most thinking that fits in nine cells under ' +
+          'the base rules. Delete any piece on it and the puzzle measurably changes.',
+    specs: [nine(3, [0, 3]), nine(4, [0, 3]), nine(5, [0, 3]), nine(6, [1, 2])],
+    need: { par: [6, 14], unlock: [1, 3], flow: 3, blindness: 1, traps: 2 },
+    prefer: function (p) { return p.states * 0.4 + p.par * 3 + p.blindness * 8 + p.flow * 3; }
   },
 
-  // ── CHAPTER 4 · CONVERGENCE — density, not size ───────────────────────────
-  //
-  // From here the boards barely grow but the block count does, and the number
-  // of distinct optimal lines runs into the hundreds. That is fine — a hundred
-  // fifty-move lines out of 4^50 sequences is still a needle — but it does mean
-  // "no inert elements" stops being a real standard on its own, which is what
-  // `minShift` is for: a fixed share of the elements have to change the
-  // solution LENGTH when deleted, not merely the number of lines.
+  // ── CHAPTER 3 · EDGE ────────────────────────────────────────────────────
+  // The hazard. One rule, arriving in one board, and then four boards that use
+  // it as machinery rather than as a place to stay away from.
+
   {
-    chapter: 4, name: 'PRESSURE', par: [28, 30],
-    purpose: 'Sixteen cells, half of them full. Nothing can move until something else has.',
-    spec: { w: 4, h: 4, walls: [4, 6], blocks: [6, 8], goals: [1, 1] },
-    want: { retreat: 8, traps: 2 },
-    filters: { ways: [1, 60], luck: 0.004, minShift: 0.4 },
-    tries: 1800
+    id: 11, name: 'CROSS', chapter: 3, teach: true,
+    idea: 'You may slide straight over a hazard. You may not be left standing on one.',
+    feeling: 'Learn it by doing it, in a board where the crossing is the only route.',
+    note: 'The hazard arrives doing the opposite of what a hazard normally does: the ' +
+          'solution goes right across it. Stop on it and the block shatters where the ' +
+          'player can see exactly why — and undo is one tap, which is the whole lesson.',
+    hint: { ja: '危険マスは通り抜けられる。止まると壊れる', en: 'Cross a hazard freely — but never stop on one' },
+    specs: [nineHaz(1, [0, 1], [1, 1]), nineHaz(2, [0, 1], [1, 1])],
+    need: { par: [2, 5], crossings: 1, allowNaive: true, maxLuck: 0.3, maxJam: 0.6, minLive: 2 },
+    prefer: function (p) { return (p.unlock > 0 ? 15 : 0) + p.crossings * 10 + p.traps * 4 - p.pieces.total * 5 - p.par * 2; }
   },
   {
-    chapter: 4, name: 'FUNNEL', par: [32, 34],
-    purpose: 'Many blocks, one exit, and a queue that has to be built before it can be emptied.',
-    spec: { w: 5, h: 4, walls: [4, 6], blocks: [6, 9], goals: [1, 1] },
-    want: { retreat: 10, traps: 2 },
-    filters: { ways: [1, 250], luck: 0.003, minShift: 0.4 },
-    tries: 800
+    id: 12, name: 'CATCH', chapter: 3,
+    idea: 'A hazard is only survivable if something is waiting to stop you past it.',
+    feeling: 'The route is obvious and lethal until you notice what has to be standing where.',
+    note: 'The hazard turns another block into a brake. This is the point at which the ' +
+          'dangerous square stops being an obstacle and becomes a piece of equipment: the ' +
+          'question is no longer "how do I avoid it" but "what has to be over there first".',
+    specs: [nineHaz(2, [0, 2], [1, 1]), nineHaz(3, [0, 2], [1, 1])],
+    need: { par: [4, 10], unlock: [1, 3], flow: 2, crossings: 1, blindness: 1, maxJam: 0.4 },
+    prefer: function (p) { return p.blindness * 12 + p.crossings * 8 + p.flow * 4 - p.pieces.total * 3; }
   },
   {
-    chapter: 4, name: 'MARSHAL', par: [37, 39],
-    purpose: 'Twenty cells and nine blocks: the board is the traffic jam.',
-    spec: { w: 5, h: 4, walls: [4, 7], blocks: [7, 10], goals: [1, 1] },
-    want: { retreat: 11 },
-    filters: { ways: [1, 400], luck: 0.003, minShift: 0.4 },
-    tries: 800
+    id: 13, name: 'LEDGE', chapter: 3,
+    idea: 'Every direction looks fatal. One of them is not, and it is the one that looks worst.',
+    feeling: 'Genuine "there is no move here" — followed by there being a move here.',
+    note: 'The board a player is most likely to declare broken before solving it. Everything ' +
+          'that looks like progress ends with a block standing somewhere it cannot stand.',
+    specs: [nineHaz(2, [0, 3], [1, 2]), nineHaz(3, [0, 3], [1, 2]), nineHaz(4, [0, 2], [1, 1]),
+            twelveHaz(2, [1, 2], [1, 2]), twelveHaz(3, [1, 2], [1, 1])],
+    need: { par: [4, 12], unlock: [1, 3], flow: 3, traps: 3, blindness: 2, maxJam: 0.4 },
+    prefer: function (p) { return p.blindness * 16 + p.traps * 8 + p.flow * 4 - p.pieces.total * 2.5; }
   },
   {
-    chapter: 4, name: 'KEYSTONE', par: [43, 45],
-    purpose: 'One block is the plug. Everything waits on working out which.',
-    spec: { w: 5, h: 4, walls: [4, 7], blocks: [8, 11], goals: [1, 1] },
-    want: { retreat: 12 },
-    filters: { ways: [1, 800], luck: 0.002, minShift: 0.35 },
-    tries: 700
+    id: 14, name: 'THREAD', chapter: 3,
+    idea: 'Nine cells, three blocks, and ten tilts — because a hazard makes half the stopping places illegal.',
+    feeling: 'A long solution on a tiny board, with no crowd of pieces to hide behind.',
+    note: 'The densest thing in the game per square. A hazard does not add material, it ' +
+          'removes places to rest, and removing places to rest is what makes a small board ' +
+          'deep instead of merely full.',
+    specs: [nineHaz(3, [1, 2], [1, 1]), nineHaz(2, [1, 2], [1, 2]), nineHaz(3, [0, 1], [1, 2])],
+    need: { par: [7, 16], unlock: [1, 3], flow: 4, blindness: 1, maxJam: 0.35 },
+    prefer: function (p) { return p.par * 4 + p.flow * 5 + p.blindness * 8 + p.states * 0.2 - p.pieces.total * 3; }
   },
   {
-    chapter: 4, name: 'TILT', par: [49, 52],
-    purpose: 'The finale. Twenty-five cells, one goal, and about fifty tilts of nothing but ' +
-             'gravity, walls and blocks.',
-    spec: { w: 5, h: 5, walls: [5, 8], blocks: [9, 13], goals: [1, 1] },
-    want: { retreat: 13 },
-    filters: { ways: [1, 1500], luck: 0.002, minShift: 0.35 },
-    tries: 600
+    id: 15, name: 'EDGE', chapter: 3,
+    idea: 'The hazard, the walls and the blocks all doing one job each, with nothing left over.',
+    feeling: 'The chapter\'s closing statement: dangerous, completely fair, and solvable on sight once seen.',
+    note: 'Chapter three\'s finale. Every piece is load-bearing, the dead ends are all loud ' +
+          'ones — you watch the block break — and there is exactly one thing to realise.',
+    specs: [nineHaz(3, [1, 2], [1, 1]), nineHaz(3, [1, 3], [1, 2]), twelveHaz(3, [1, 2], [1, 1])],
+    need: { par: [6, 14], unlock: [1, 2], flow: 4, blindness: 2, traps: 2, maxJam: 0.3 },
+    prefer: function (p) { return p.blindness * 15 + p.flow * 5 + p.par * 2 - p.pieces.total * 3 - p.jam * 20; }
+  },
+
+  // ── CHAPTER 4 · PAIR ────────────────────────────────────────────────────
+  // Colour. The point is never "two puzzles at once": it is that a goal can be
+  // a hole for one block and a floor for another, so a block you thought was
+  // finished is still furniture.
+
+  {
+    id: 16, name: 'SORT', chapter: 4, teach: true,
+    idea: 'A goal that is not yours does not take you. You roll straight over it.',
+    feeling: 'Watch a block pass through a socket without being collected, once, and the rule is learned.',
+    note: 'Colour arrives in the smallest board that can show what it does. The lesson is ' +
+          'not "match the colours" — a child gets that instantly — it is that the socket ' +
+          'you rolled over is still open behind you, and you are still in the way.',
+    hint: { ja: '色の合うゴールだけが受け取る', en: 'A goal only takes its own colour' },
+    specs: [nineCol(['A', 'B'], [0, 1]), nineCol(['A', 'B'], [1, 2])],
+    need: { par: [3, 7], refused: 1, allowNaive: true, maxLuck: 0.25, maxJam: 0.15, minLive: 2 },
+    prefer: function (p) { return (p.unlock > 0 ? 15 : 0) + p.refused * 8 + p.traps * 4 - p.pieces.total * 5 - p.par * 2; }
+  },
+  {
+    id: 17, name: 'THROUGH', chapter: 4,
+    idea: 'The wrong-coloured goal is a hole you fall past — and a block that has not been collected is still a wall.',
+    feeling: 'The realisation that you do not want to collect a block yet, because you still need it standing there.',
+    note: 'The board turns "collect everything as fast as possible" into a mistake. One ' +
+          'block has to stay on the board doing a job long after it could have gone home.',
+    specs: [nineCol(['A', 'B', 'B'], [0, 2]), nineCol(['A', 'A', 'B'], [0, 2])],
+    need: { par: [6, 11], unlock: [1, 3], flow: 3, blindness: 2, refused: 1, maxJam: 0.2 },
+    prefer: function (p) { return p.blindness * 14 + p.refused * 6 + p.flow * 4 - p.pieces.total * 3; }
+  },
+  {
+    id: 18, name: 'ORDER', chapter: 4,
+    idea: 'Both colours want the same tilt. Only one of them can have it first.',
+    feeling: 'Two plans that are each fine alone and destroy each other in the wrong sequence.',
+    note: 'Nothing on this board is difficult to move. The entire puzzle is which of two ' +
+          'obvious things happens first, and the two orders do not merely differ in ' +
+          'length — one of them does not work at all.',
+    specs: [nineCol(['A', 'A', 'B'], [1, 2]), nineCol(['A', 'B', 'B'], [1, 2]), nineCol(['A', 'A', 'B', 'B'], [0, 1])],
+    need: { par: [5, 11], unlock: [1, 3], flow: 3, blindness: 2, traps: 2, maxJam: 0.18 },
+    prefer: function (p) { return p.blindness * 13 + p.traps * 7 + p.flow * 4 + p.setup * 3 - p.pieces.total * 2.5; }
+  },
+  {
+    id: 19, name: 'SWAP', chapter: 4,
+    idea: 'Every tilt that helps one colour hurts the other, and the answer helps neither.',
+    feeling: 'Four moves, four reasons not to. Then the fifth reading of the board.',
+    note: 'Ranked by instinct the correct opening is dead last, and it is dead last because ' +
+          'it appears to abandon both blocks at once. The strongest "every direction is ' +
+          'wrong" board the search found anywhere.',
+    specs: [nineCol(['A', 'B', 'B'], [1, 2]), nineCol(['A', 'A', 'B'], [1, 2]), twelveCol(['A', 'A', 'B'], [1, 2])],
+    need: { par: [5, 12], unlock: [1, 3], flow: 3, blindness: 3, traps: 3, maxJam: 0.28 },
+    prefer: function (p) { return p.blindness * 18 + p.traps * 8 + p.flow * 4 - p.pieces.total * 2.5 - p.jam * 25; }
+  },
+  {
+    id: 20, name: 'TILT', chapter: 4,
+    idea: 'The best board the search could find anywhere in the game, whatever it is made of.',
+    feeling: 'Everything the campaign has taught, asked once, in a board that looks like it should be easy.',
+    note: 'The finale is not the biggest board or the longest solution — it is whichever ' +
+          'board scored highest on the thing this game is actually about. It is allowed to ' +
+          'use any single device or none; what it is not allowed to be is merely long.',
+    specs: [nine(4, [1, 2]), nine(5, [1, 2]), twelve(4, [1, 3]), twelve(5, [1, 2]),
+            nineHaz(3, [1, 2], [1, 1]), nineCol(['A', 'A', 'B'], [1, 2]), twelveCol(['A', 'B', 'B'], [1, 2])],
+    need: { par: [6, 16], unlock: [1, 2], flow: 4, blindness: 2, traps: 3, maxJam: 0.25, maxWays: 4 },
+    prefer: function (p) {
+      return p.blindness * 16 + p.flow * 6 + p.traps * 7 + p.retreat * 5 +
+             (p.bait ? 10 : 0) + (p.indirect ? 8 : 0) + p.chainLast * 5 +
+             p.par * 1.5 - p.pieces.total * 2.5 - p.jam * 30;
+    }
   }
 ];
 
-var FIRST_SEARCHED = AUTHORED.stages.length + 1;   // stage number of SLOTS[0]
+function twelveHaz(b, walls, hz) { return spec(4, 3, reps('@', b), walls, { hazards: hz }); }
+function twelveCol(blocks, walls) { return spec(4, 3, blocks, walls, { goals: ['a', 'b'] }); }
 
-// ===========================================================================
-// search
-// ===========================================================================
+// ---------------------------------------------------------------------------
+// the search
+// ---------------------------------------------------------------------------
 
 /**
- * Fill one slot's candidate pool. Runs inside a worker process.
+ * Everything a slot's specs can produce, measured and filtered.
  *
- * The climb aims at the slot's length; the gate then throws away everything
- * that hits the length without producing the feeling. That order matters — the
- * length is cheap to test and the feeling is not.
+ * Three stages, cheapest first, because the last one is expensive enough that
+ * it must only ever see finalists:
+ *
+ *   SWEEP    solve whole terrains at once. Filters on nothing but length and
+ *            the crux, which are the two things that come free off the shared
+ *            tables. Deliberately permissive — a filter applied here that the
+ *            ranking would have wanted back cannot be recovered later, and
+ *            that is exactly how the first draft of this file starved four
+ *            slots of candidates.
+ *   PROFILE  full measurement minus the deletion census. This is where the
+ *            slot's real signature is enforced.
+ *   CENSUS   delete every piece in turn and check the board misses it. Runs on
+ *            a few dozen finalists per slot, never on the whole pool.
  */
-function searchSlot(slot, index, seedBase) {
-  var rng = new B.Rng(seedBase + index * 104729 + 7919);
-  var filters = { par: slot.par, maxDead: 0, nodeCap: 300000 };
-  Object.keys(slot.filters).forEach(function (k) { filters[k] = slot.filters[k]; });
-  Object.keys(slot.want).forEach(function (k) { filters[k] = slot.want[k]; });
+var PROFILE_CACHE = Object.create(null);
+var CENSUS_CACHE = Object.create(null);
 
-  var pool = [];
-  var seen = {};
+function quickProfile(rows) {
+  var key = D.canonical(rows);
+  var hit = PROFILE_CACHE[key];
+  if (hit !== undefined) return hit;
+  var p = D.profile(rows, { quick: true, cap: 60000 });
+  PROFILE_CACHE[key] = p;
+  return p;
+}
 
-  for (var t = 0; t < slot.tries; t++) {
-    var rows = B.climb(slot.spec, rng, slot.par, 600, filters.nodeCap);
-    if (!rows) continue;
-    var key = B.canonical(rows);
-    if (seen[key]) continue;
-    seen[key] = 1;
-    var res = B.evaluate(rows, filters, rng);
-    if (!res) continue;
-    pool.push({
-      key: key, board: res.board,
-      par: res.par, ways: res.ways, luck: res.luck, states: res.states, dead: res.dead,
-      chain: res.chain, chainLast: res.chainLast, setup: res.setup, retreat: res.retreat,
-      traps: res.traps, liveOpenings: res.liveOpenings, greedy: res.greedy,
-      walls: res.walls, goals: res.goals, blocks: res.blocks, elements: res.elements,
-      score: res.score
+/** Full profile including the deletion census, memoised across slots. */
+function fullProfile(rows) {
+  var key = D.canonical(rows);
+  var hit = CENSUS_CACHE[key];
+  if (hit !== undefined) return hit;
+  var p = D.profile(rows, { cap: 60000 });
+  CENSUS_CACHE[key] = p;
+  return p;
+}
+
+function search(slot, budget) {
+  var need = {};
+  var k;
+  for (k in BASE_NEED) need[k] = BASE_NEED[k];
+  for (k in slot.need) need[k] = slot.need[k];
+  // A teaching board is allowed to be solvable on instinct — that is what it is
+  // for. Every other board in the game is not.
+  if (need.allowNaive) delete need.naiveSolves;
+
+  var sweepFilters = {
+    par: need.par,
+    unlock: need.allowNaive ? null : (need.unlock || [1, 4]),
+    allowNaive: !!need.allowNaive,
+    nodeCap: 60000,
+    maxPlacements: 4000
+  };
+
+  var raw = [], seenBoard = Object.create(null);
+  var terrainCount = 0;
+  slot.specs.forEach(function (sp) {
+    var r = G.exhaust(sp, sweepFilters, function (c) {
+      var key2 = D.canonical(c.board);
+      if (seenBoard[key2]) return;
+      seenBoard[key2] = 1;
+      raw.push(c);
     });
-    // Only the best are ever handed back; there is no point growing the pool
-    // without bound once a slot is comfortably filled.
-    if (pool.length > 400) {
-      pool.sort(function (a, b) { return b.score - a.score; });
-      pool = pool.slice(0, 120);
-    }
-  }
-  pool.sort(function (a, b) { return b.score - a.score; });
-  return pool.slice(0, 120);
-}
-
-// ===========================================================================
-// emit
-// ===========================================================================
-
-function q(s) { return "'" + s.replace(/'/g, "\\'") + "'"; }
-
-function emitBoard(rows, indent) {
-  var pad = new Array(indent + 1).join(' ');
-  var head = pad + 'board: [';
-  var joiner = ',\n' + new Array(head.length + 1).join(' ');
-  return head + rows.map(q).join(joiner) + ']';
-}
-
-function wrapNote(key, note, ip) {
-  if (note.length <= 92) return ip + key + ': ' + q(note) + ',';
-  // Wrap long notes so the data file stays readable at 100 columns.
-  var words = note.split(' '), line = '', lines = [];
-  words.forEach(function (w) {
-    if ((line + ' ' + w).length > 88) { lines.push(line); line = w; }
-    else line = line ? line + ' ' + w : w;
+    terrainCount += r.terrains;
   });
-  if (line) lines.push(line);
-  // Every line but the last keeps a trailing space, or concatenation would glue
-  // the last word of one line to the first word of the next.
-  var cont = '\n' + ip + new Array(key.length + 3).join(' ');
-  return ip + key + ': ' + lines.map(function (l, li) {
-    return q(li < lines.length - 1 ? l + ' ' : l);
-  }).join(' +' + cont) + ',';
-}
 
-function emitStage(st, indent) {
-  var pad = new Array(indent + 1).join(' ');
-  var inner = indent + 2;
-  var ip = new Array(inner + 1).join(' ');
-  var out = [];
-  out.push(pad + '{');
-
-  var head = ip + 'id: ' + st.id + ', name: ' + q(st.name) + ', par: ' + st.par + ',';
-  if (st._m) {
-    // Say why this board is here, in the numbers that chose it.
-    var m = st._m;
-    head += '   // ' + m.elements + ' pieces · ' +
-      m.retreat + ' wrong-way tilts · ' +
-      m.traps + '/' + m.liveOpenings + ' openings wrong · ' +
-      (m.greedy < 0 ? 'greedy loops forever' : 'greedy takes ' + m.greedy) +
-      ' · ' + m.setup + ' set-up · ' + m.states + ' states' +
-      (m.chainLast > 1 ? ' · finale ×' + m.chainLast : '') +
-      ' · ways ' + m.ways;
-  }
-  out.push(head);
-  if (st.purpose) out.push(wrapNote('purpose', st.purpose, ip));
-  if (st.note) out.push(wrapNote('note', st.note, ip));
-  if (st.hint) out.push(ip + 'hint: { ja: ' + q(st.hint.ja) + ', en: ' + q(st.hint.en) + ' },');
-  out.push(emitBoard(st.board, inner));
-  out.push(pad + '}');
-  return out.join('\n');
-}
-
-function emit(chapters) {
-  var L = [];
-  L.push("'use strict';");
-  L.push('/*');
-  L.push(' * TILT — stage data.  GENERATED FILE — do not edit by hand.');
-  L.push(' *');
-  L.push(' * Source of truth: tools/campaign.js  (rebuild with `npm run campaign`)');
-  L.push(' *');
-  L.push(' * One board, one picture, four characters:');
-  L.push(' *');
-  L.push(" *     '.'  floor        '#'  wall");
-  L.push(" *     'o'  goal         '@'  block");
-  L.push(' *');
-  L.push(' * There is nothing else. Every block is identical, no cell is forbidden, and no stage');
-  L.push(' * anywhere in this file introduces a rule that stage 1 did not already have.');
-  L.push(' *');
-  L.push(' * Every `par` is a breadth-first-proven shortest solution. Every wall, block and goal');
-  L.push(' * survived deletion testing: remove any one of them and the puzzle measurably changes.');
-  L.push(' * The comment on each stage is why THAT board was chosen over the thousands of others');
-  L.push(' * of the same length. Verified by tools/audit.js.');
-  L.push(' */');
-  L.push('(function (root, factory) {');
-  L.push('  var api = factory();');
-  L.push("  if (typeof module === 'object' && module.exports) { module.exports = api; }");
-  L.push('  if (root) { root.TiltStages = api; }');
-  L.push("})(typeof globalThis !== 'undefined' ? globalThis : this, function () {");
-  L.push('');
-
-  L.push('  var CHAPTERS = [');
-  L.push(chapters.map(function (c) {
-    return '    { number: ' + c.number + ', name: ' + q(c.name) + ', ja: ' + q(c.ja) +
-           ', from: ' + c.from + ', to: ' + c.to + ',\n' +
-           '      note: ' + q(c.note) + ' }';
-  }).join(',\n'));
-  L.push('  ];');
-  L.push('');
-
-  L.push('  var STAGES = [');
-  var parts = [];
-  chapters.forEach(function (c) {
-    parts.push('\n    // ── CHAPTER ' + c.number + ' · ' + c.name + ' · ' + c.ja +
-      '  (stages ' + c.from + '–' + c.to + ', par ' + c.parLo + '–' + c.parHi + ') ' +
-      new Array(Math.max(2, 40 - c.name.length)).join('─'));
-    parts.push('    // ' + c.note);
-    c.stages.forEach(function (st) { parts.push(emitStage(st, 4)); });
-  });
-  // Stages are separated by commas; chapter banners are comments, not entries.
-  var body = [];
-  parts.forEach(function (p) {
-    if (p.trim().indexOf('//') === 0 || p.indexOf('\n    //') === 0) body.push(p);
-    else body.push(p + ',');
-  });
-  var joined = body.join('\n').replace(/,(\s*)$/, '$1');
-  L.push(joined);
-  L.push('  ];');
-  L.push('');
-  L.push('  return { STAGES: STAGES, CHAPTERS: CHAPTERS };');
-  L.push('});');
-  return L.join('\n') + '\n';
-}
-
-// ===========================================================================
-// driver
-// ===========================================================================
-
-function argOf(name, dflt) {
-  var i = process.argv.indexOf('--' + name);
-  if (i < 0) return dflt;
-  var v = process.argv[i + 1];
-  return (v == null || v.slice(0, 2) === '--') ? true : v;
-}
-
-if (process.env.TILT_WORKER) {
-  // Worker: search its slots, write each pool to disk, hand back slot indices.
-  //
-  // Writing to disk rather than sending pools over IPC is deliberate:
-  // process.send() is asynchronous, so a large payload followed by
-  // process.exit() races the flush and the parent silently never hears back.
-  process.on('message', function (msg) {
-    var done = [];
-    try {
-      msg.slots.forEach(function (i) {
-        var t0 = Date.now();
-        var pool = searchSlot(SLOTS[i], i, msg.seed);
-        fs.writeFileSync(path.join(CACHE_DIR, 'slot-' + i + '.json'), JSON.stringify(pool));
-        done.push(i);
-        process.send({ progress: { slot: i, found: pool.length, ms: Date.now() - t0 } });
-      });
-    } catch (e) {
-      process.send({ error: String(e && e.stack || e) });
-      process.exit(1);
-      return;
-    }
-    process.send({ done: done }, function () { process.disconnect(); });
-  });
-} else {
-  main();
-}
-
-function main() {
-  var FRESH = !!argOf('fresh', false);
-  var WORKERS = Number(argOf('workers', 5));
-  var SEED = Number(argOf('seed', 20260814));
-  var ONLY = argOf('only', null);
-  var onlyList = ONLY && ONLY !== true ? String(ONLY).split(',').map(Number) : null;
-
-  if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
-
-  var cache = {};
-  if (!FRESH) {
-    SLOTS.forEach(function (s, i) {
-      var f = path.join(CACHE_DIR, 'slot-' + i + '.json');
-      if (!fs.existsSync(f)) return;
-      try { cache[i] = JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { /* research it */ }
+  // Order the profiling pass so the most promising boards are measured first.
+  // A teaching board wants the opposite of a puzzle board — the smallest,
+  // plainest thing that can still show the rule — so it gets its own order.
+  if (need.allowNaive) {
+    raw.sort(function (a, b) {
+      return (weight(a.board) * 10 + a.par) - (weight(b.board) * 10 + b.par);
+    });
+  } else {
+    raw.sort(function (a, b) {
+      return (b.blindness * 100 + b.flow * 8 + b.traps * 4 + b.bait * 6) -
+             (a.blindness * 100 + a.flow * 8 + a.traps * 4 + a.bait * 6);
     });
   }
 
-  var need = [];
-  SLOTS.forEach(function (s, i) {
-    // --only names stage numbers, which run ahead of the slot index by the
-    // length of the hand-authored chapter.
-    if (onlyList && onlyList.indexOf(i + FIRST_SEARCHED) < 0) return;
-    if (FRESH || !cache[i] || !cache[i].length) need.push(i);
+  var pool = raw.slice(0, budget || 12000);
+  var kept = [];
+  for (var i = 0; i < pool.length; i++) {
+    var p = quickProfile(pool[i].board);
+    if (!p) continue;
+    if (!G.fits(p, need)) continue;
+    if (!need.allowNaive && p.unlock === 0) continue;
+    kept.push(p);
+  }
+
+  // Every slot, whatever else it wants, prefers a board that FINISHES. Two
+  // boards that express the idea equally well are not equally good if one of
+  // them ends with four blocks crossing the board into the last socket and the
+  // other ends with one block shuffling one cell.
+  kept.sort(function (a, b) {
+    return (slot.prefer(b) + finish(b)) - (slot.prefer(a) + finish(a));
   });
+  return { raw: raw.length, terrains: terrainCount, examined: pool.length, kept: kept };
+}
 
-  if (!need.length) { finish(cache); return; }
+// ---------------------------------------------------------------------------
+// build
+// ---------------------------------------------------------------------------
 
-  console.log('searching ' + need.length + ' stage slots across ' + WORKERS + ' workers…\n');
-  var buckets = [];
-  for (var i = 0; i < WORKERS; i++) buckets.push([]);
-  // Deal the longest slots out first so no worker ends up holding all of them.
-  need.slice().sort(function (a, b) { return b - a; })
-    .forEach(function (n, i) { buckets[i % WORKERS].push(n); });
-  buckets = buckets.filter(function (b) { return b.length; });
+function boardKey(rows) { return D.canonical(rows); }
 
-  var pending = buckets.length;
+/** The walls, goals and hazards, with the blocks swept off. */
+function terrainOf(rows) {
+  return D.canonical(rows.map(function (r) { return r.replace(/[@AB]/g, '.'); }));
+}
+
+/**
+ * What counts as "the same puzzle wearing a hat".
+ *
+ * The same furniture with the same number of blocks in different cells is the
+ * same puzzle: a player recognises the board and re-uses the idea. The same
+ * furniture with a DIFFERENT number of blocks is not — two blocks on a terrain
+ * and five blocks on it play nothing alike, because on this board the blocks
+ * are most of the walls.
+ *
+ * The stricter reading (never repeat a terrain at all) was tried first and is
+ * wrong: it starves a nine-cell game. There are only a few dozen distinct 3×3
+ * terrains worth building on, and forbidding all reuse means the twentieth
+ * stage is chosen from whatever the first nineteen did not want.
+ */
+function shapeKey(rows) {
+  var blocks = 0;
+  for (var y = 0; y < rows.length; y++) {
+    for (var x = 0; x < rows[y].length; x++) if ('@AB'.indexOf(rows[y][x]) >= 0) blocks++;
+  }
+  return terrainOf(rows) + '#' + blocks;
+}
+
+/**
+ * Fill the twenty slots.
+ *
+ * No two stages may share a board, and no two may share a TERRAIN either —
+ * the same walls with the blocks shuffled is the same puzzle wearing a hat,
+ * and on a nine-cell board it is very obviously the same puzzle.
+ *
+ * That constraint makes the order of assignment matter enormously, because the
+ * design space is not evenly stocked. Sweeping it exhaustively turns up a
+ * genuinely surprising fact: under the base rules at 3×3 there are only TWO
+ * boards in existence whose correct opening is the last one a player would try
+ * and which carry no dead weight — and they share a terrain. Assigning slots in
+ * id order lets a teaching board, which a hundred terrains would have suited,
+ * take the one terrain the hard board could not do without.
+ *
+ * So slots are filled scarcest-first: whichever slot has the fewest qualifying
+ * boards in the entire searched space picks before any slot that has more. The
+ * teaching stages, which are the most accommodating, choose last from what is
+ * left. Same twenty ideas, assigned so that the rare ones survive.
+ */
+function build() {
   var t0 = Date.now();
+  var pending = [];
 
-  buckets.forEach(function (slots) {
-    var child = cp.fork(__filename, [], { env: Object.assign({}, process.env, { TILT_WORKER: '1' }) });
-    child.on('message', function (m) {
-      if (m.error) {
-        console.error('\nworker failed:\n' + m.error);
-        process.exit(1);
-      }
-      if (m.progress) {
-        var p = m.progress;
-        var slot = SLOTS[p.slot];
-        console.log('  stage ' + String(p.slot + FIRST_SEARCHED).padStart(2) + ' ' +
-          slot.name.padEnd(11) + 'par ' + String(slot.par[0]).padStart(2) + '  ' +
-          String(p.found).padStart(4) + ' boards passed   ' + (p.ms / 1000).toFixed(1) + 's' +
-          (p.found ? '' : '   [31mEMPTY[0m'));
-      }
-      if (m.done) {
-        m.done.forEach(function (n) {
-          cache[n] = JSON.parse(fs.readFileSync(path.join(CACHE_DIR, 'slot-' + n + '.json'), 'utf8'));
-        });
-        if (--pending === 0) {
-          console.log('\nsearch finished in ' + ((Date.now() - t0) / 1000).toFixed(1) + 's');
-          finish(cache);
-        }
-      }
-    });
-    child.on('exit', function (code) {
-      if (code !== 0 && pending > 0) {
-        console.error('\na search worker exited with code ' + code + ' before reporting');
-        process.exit(1);
-      }
-    });
-    child.send({ slots: slots, seed: SEED });
-  });
-}
-
-/** Solver-proven numbers for a hand-authored board — never a figure I typed in. */
-function measureAuthored(stage) {
-  var res = B.evaluate(stage.board, { nodeCap: 80000 }, null);
-  if (!res) throw new Error('authored stage ' + stage.name + ' is unsolvable or already clear');
-  var inert = B.findInert(stage.board, res.par, res.ways, 80000);
-  if (inert) throw new Error('authored stage ' + stage.name + ' has an inert ' + inert);
-  return res;
-}
-
-function finish(cache) {
-  var chapters = [];
-  var used = {};
-  var failed = [];
-  var id = 1;
-
-  var authored = AUTHORED.stages.map(function (s) {
-    var m = measureAuthored(s);
-    used[B.canonical(s.board)] = 1;
-    return {
-      id: id++, name: s.name, purpose: s.purpose, note: s.note, hint: s.hint,
-      board: s.board, par: m.par, _m: m
-    };
-  });
-  chapters.push({
-    number: AUTHORED.chapter.number, name: AUTHORED.chapter.name, ja: AUTHORED.chapter.ja,
-    note: AUTHORED.note, stages: authored
+  SLOTS.forEach(function (slot) {
+    if (ONLY && ONLY.indexOf(slot.id) < 0) return;
+    var t1 = Date.now();
+    var res = search(slot, slot.budget);
+    res.seconds = (Date.now() - t1) / 1000;
+    pending.push({ slot: slot, res: res });
+    console.log('  · ' + pad(slot.id) + ' ' + slot.name.padEnd(9) +
+      String(res.terrains).padStart(5) + ' terrains → ' + String(res.raw).padStart(6) +
+      ' candidates → ' + String(res.kept.length).padStart(5) + ' fit the idea   (' +
+      res.seconds.toFixed(1) + 's)');
   });
 
-  SLOTS.forEach(function (slot, i) {
-    var pool = cache[i] || [];
-    // Skip anything that is a rotation of a board already in the campaign.
-    var pick = null;
-    for (var k = 0; k < pool.length; k++) {
-      if (!used[pool[k].key]) { pick = pool[k]; break; }
+  // Scarcest first.
+  var order = pending.slice().sort(function (a, b) { return a.res.kept.length - b.res.kept.length; });
+
+  var usedBoard = Object.create(null);
+  var usedShape = Object.create(null);
+  var terrainUses = Object.create(null);
+  var chosen = [];
+  var censusTotal = 0, censusDead = 0;
+
+  console.log('');
+  order.forEach(function (item) {
+    var slot = item.slot, res = item.res;
+
+    // The census — delete every piece and check the board misses it — is by far
+    // the most expensive test, so it is paid for here, on finalists only.
+    // Roughly six boards in seven turn out to be carrying a piece the board
+    // would not miss, so the scan has to be allowed to go deep into the ranked
+    // list before giving up — stopping at the first few dozen leaves slots
+    // unfilled while perfectly good boards sit further down.
+    var pick = null, censused = 0;
+    for (var i = 0; i < res.kept.length && censused < 600; i++) {
+      var p = res.kept[i];
+      if (usedBoard[boardKey(p.board)]) continue;
+      if (usedShape[shapeKey(p.board)]) continue;
+      // A terrain may appear at most twice in the whole game. There are only a
+      // few dozen 3×3 arrangements of walls worth building on, so banning reuse
+      // outright starves the search — but four stages on the same walls is a
+      // chapter that looks like one stage, whatever the blocks are doing.
+      if ((terrainUses[terrainOf(p.board)] || 0) >= 2) continue;
+      censused++;
+      censusTotal++;
+      var full = fullProfile(p.board);
+      if (!full || full.inert) { censusDead++; continue; }
+      pick = full;
+      break;
     }
+
     if (!pick) {
-      failed.push('stage ' + (i + FIRST_SEARCHED) + ' ' + slot.name + ' (pool had ' + pool.length + ')');
+      console.log('  ✗ ' + pad(slot.id) + ' ' + slot.name.padEnd(9) +
+        ' NO BOARD SATISFIES THIS SLOT  (' + res.kept.length + ' fit the idea, ' +
+        'all taken or carrying dead weight)');
       return;
     }
-    used[pick.key] = 1;
+    // No two stages may share a board, and no two may share a terrain AND a
+    // block count — see shapeKey for why that is the line.
 
-    var chap = chapters.filter(function (c) { return c.number === slot.chapter; })[0];
-    if (!chap) {
-      var def = CHAPTERS.filter(function (c) { return c.number === slot.chapter; })[0];
-      chap = { number: def.number, name: def.name, ja: def.ja, note: def.note, stages: [] };
-      chapters.push(chap);
-    }
-    chap.stages.push({
-      id: id++, name: slot.name, purpose: slot.purpose, board: pick.board,
-      par: pick.par, _m: pick
-    });
+    usedBoard[boardKey(pick.board)] = 1;
+    usedShape[shapeKey(pick.board)] = 1;
+    terrainUses[terrainOf(pick.board)] = (terrainUses[terrainOf(pick.board)] || 0) + 1;
+    chosen.push({ slot: slot, p: pick, stats: res });
   });
 
-  if (failed.length) {
-    console.error('\ncould not fill: ' + failed.join('; '));
-    console.error('relax that slot\'s `want`, widen its par band, or raise `tries`, then re-run:');
-    console.error('  node tools/campaign.js --fresh --only <stage number>');
+  chosen.sort(function (a, b) { return a.slot.id - b.slot.id; });
+  chosen.forEach(function (c) {
+    console.log('  ✓ ' + pad(c.slot.id) + ' ' + c.slot.name.padEnd(9) +
+      c.p.board.join('/').padEnd(22) + ' ' + D.summarise(c.p));
+  });
+
+  console.log('\n  ' + chosen.length + '/' + SLOTS.length + ' slots filled in ' +
+    ((Date.now() - t0) / 1000).toFixed(1) + 's');
+  console.log('  deletion test: ' + censusDead + ' of ' + censusTotal + ' finalists (' +
+    (censusTotal ? Math.round(censusDead / censusTotal * 100) : 0) +
+    '%) were carrying a piece the board would not miss');
+  return chosen;
+}
+
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+/** How much visibly happens on the last tilt. */
+function finish(p) {
+  return p.chainLast * 4 + Math.min(p.lastTravel, 6) * 1.0;
+}
+
+/** How much furniture is on a board. */
+function weight(rows) {
+  var n = 0;
+  for (var y = 0; y < rows.length; y++) {
+    for (var x = 0; x < rows[y].length; x++) if (rows[y][x] !== '.') n++;
+  }
+  return n;
+}
+
+// ---------------------------------------------------------------------------
+// report
+// ---------------------------------------------------------------------------
+
+function report(chosen) {
+  console.log('\n  SCORECARDS — every stage, every axis, out of ten\n');
+  console.log('  id name       Cla Dis Ins Sur Prd Ele Den Fai Sat Rep   par unlk flow blind trap ways jam');
+  console.log('  ' + new Array(104).join('─'));
+  chosen.forEach(function (c) {
+    var s = c.p.score, p = c.p;
+    console.log('  ' + pad(c.slot.id) + ' ' + c.slot.name.padEnd(10) +
+      [s.clarity, s.discovery, s.insight, s.surprise, s.prediction,
+       s.elegance, s.density, s.fairness, s.satisfaction, s.replay]
+        .map(function (v) { return String(v).padStart(3); }).join(' ') +
+      '  ' + String(p.par).padStart(4) + String(p.unlock).padStart(5) +
+      String(p.flow).padStart(5) + String(p.blindness).padStart(6) +
+      String(p.traps + '/' + p.live).padStart(5) + String(p.ways).padStart(5) +
+      (p.jam * 100).toFixed(0).padStart(4) + '%');
+  });
+
+  console.log('\n  RULES ON SCREEN');
+  var base = chosen.filter(function (c) { return !c.p.hazard && !c.p.colour; }).length;
+  var haz = chosen.filter(function (c) { return c.p.hazard; }).length;
+  var col = chosen.filter(function (c) { return c.p.colour; }).length;
+  var both = chosen.filter(function (c) { return c.p.hazard && c.p.colour; }).length;
+  console.log('    base rules only  ' + base + '/' + chosen.length);
+  console.log('    + hazard         ' + haz);
+  console.log('    + colour         ' + col);
+  console.log('    both at once     ' + both + (both ? '   ← should be zero' : '   (by design)'));
+}
+
+// ---------------------------------------------------------------------------
+// emit
+// ---------------------------------------------------------------------------
+
+var CHAPTERS = [
+  { number: 1, name: 'GRAVITY', ja: '重力', from: 1, to: 5,
+    note: 'The whole vocabulary of the game, one idea per board: gravity moves everything at once, walls stop it, blocks stop each other, and the way out is rarely the way you are facing.' },
+  { number: 2, name: 'NINE', ja: '九マス', from: 6, to: 10,
+    note: 'Nine cells and nothing added. Every board here fits in a single glance and none of them can be solved in a single glance — which is the whole argument of the game, made on the smallest board it owns.' },
+  { number: 3, name: 'EDGE', ja: '境界', from: 11, to: 15,
+    note: 'A square you may cross and may not stop on. It adds no material to the board — it removes places to rest, and having nowhere to rest is what makes nine cells deep.' },
+  { number: 4, name: 'PAIR', ja: '対', from: 16, to: 20,
+    note: 'Two colours, and a goal that is a hole for one block and a floor for the other. A block that has not been collected is still a wall — so finishing early is how you lose.' }
+];
+
+function emit(chosen) {
+  var out = [];
+  out.push("'use strict';");
+  out.push('/*');
+  out.push(' * TILT — stage data.  GENERATED FILE — do not edit by hand.');
+  out.push(' *');
+  out.push(' * Source of truth: tools/campaign.js  (rebuild with `npm run campaign`)');
+  out.push(' *');
+  out.push(' * The picture:');
+  out.push(' *');
+  out.push(" *     '.'  floor          '#'  wall            'x'  hazard");
+  out.push(" *     'o'  goal, any      '@'  block, any");
+  out.push(" *     'a'  goal A         'A'  block A         (colour stages only)");
+  out.push(" *     'b'  goal B         'B'  block B");
+  out.push(' *');
+  out.push(' * Ten of the twenty stages use nothing but floor, wall, goal and block. No stage');
+  out.push(' * uses a hazard and a colour at the same time.');
+  out.push(' *');
+  out.push(' * Every `par` is a breadth-first-proven shortest solution. Every piece on every');
+  out.push(' * board survived deletion testing: remove any one of them and the puzzle measurably');
+  out.push(' * changes. The numbers in each comment are the measured signature — see');
+  out.push(' * tools/lib/design.js for what they mean, and why "unlock" is the one that matters:');
+  out.push(' *');
+  out.push(' *   unlock  how many correct moves the board costs before it starts playing itself.');
+  out.push(' *           0 would mean a player who is not thinking solves it cold. No stage');
+  out.push(' *           past the four teaching boards is allowed to be above 3.');
+  out.push(' *   flow    how much stage is left after that — the part that is the reward.');
+  out.push(' *   blind   where the correct opening sits in the order a hurrying player would');
+  out.push(' *           try the four tilts. 3 means it is the very last one they would pick.');
+  out.push(' */');
+  out.push('(function (root, factory) {');
+  out.push('  var api = factory();');
+  out.push("  if (typeof module === 'object' && module.exports) { module.exports = api; }");
+  out.push('  if (root) { root.TiltStages = api; }');
+  out.push("})(typeof globalThis !== 'undefined' ? globalThis : this, function () {");
+  out.push('');
+  out.push('  var CHAPTERS = [');
+  CHAPTERS.forEach(function (c, i) {
+    out.push('    { number: ' + c.number + ", name: '" + c.name + "', ja: '" + c.ja +
+      "', from: " + c.from + ', to: ' + c.to + ',');
+    out.push('      note: ' + jsStr(c.note) + ' }' + (i < CHAPTERS.length - 1 ? ',' : ''));
+  });
+  out.push('  ];');
+  out.push('');
+  out.push('  var STAGES = [');
+
+  chosen.forEach(function (c, i) {
+    var slot = c.slot, p = c.p;
+    var chap = CHAPTERS.filter(function (ch) { return slot.id >= ch.from && slot.id <= ch.to; })[0];
+    if (chap && slot.id === chap.from) {
+      out.push('');
+      out.push('    // ── CHAPTER ' + chap.number + ' · ' + chap.name + ' · ' + chap.ja +
+        '  (stages ' + chap.from + '–' + chap.to + ') ' +
+        new Array(Math.max(2, 46 - chap.name.length)).join('─'));
+      out.push('    // ' + chap.note);
+    }
+    out.push('    {');
+    out.push('      id: ' + slot.id + ", name: '" + slot.name + "', par: " + p.par + ',');
+    out.push('      // ' + D.summarise(p));
+    out.push('      // scores  ' + Object.keys(p.score).map(function (k2) {
+      return k2.slice(0, 3) + ' ' + p.score[k2];
+    }).join(' · '));
+    out.push('      idea: ' + jsStr(slot.idea) + ',');
+    out.push('      note: ' + jsStr(slot.note) + ',');
+    if (slot.hint) {
+      out.push("      hint: { ja: '" + slot.hint.ja + "', en: '" + slot.hint.en + "' },");
+    }
+    out.push('      board: [' + p.board.map(function (r) { return "'" + r + "'"; }).join(',\n              ') + ']');
+    out.push('    }' + (i < chosen.length - 1 ? ',' : ''));
+  });
+
+  out.push('  ];');
+  out.push('');
+  out.push('  return { STAGES: STAGES, CHAPTERS: CHAPTERS };');
+  out.push('});');
+  out.push('');
+
+  fs.writeFileSync(path.join(ROOT, 'src', 'stages.js'), out.join('\n'));
+  console.log('\n  wrote src/stages.js — ' + chosen.length + ' stages');
+}
+
+/** A JS string literal, wrapped so the generated file stays readable. */
+function jsStr(s) {
+  var esc = String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  if (esc.length <= 76) return "'" + esc + "'";
+  var words = esc.split(' '), lines = [], cur = '';
+  words.forEach(function (w) {
+    if ((cur + ' ' + w).length > 76 && cur) { lines.push(cur); cur = w; }
+    else cur = cur ? cur + ' ' + w : w;
+  });
+  if (cur) lines.push(cur);
+  return lines.map(function (l, i) {
+    return (i ? '            ' : '') + "'" + l + (i < lines.length - 1 ? ' ' : '') + "'";
+  }).join(' +\n');
+}
+
+// ---------------------------------------------------------------------------
+
+console.log('\n  TILT — searching for twenty boards worth playing\n');
+var chosen = build();
+if (REPORT) report(chosen);
+if (!DRY && !ONLY) {
+  if (chosen.length !== SLOTS.length) {
+    console.log('\n  refusing to write a partial campaign — ' +
+      (SLOTS.length - chosen.length) + ' slot(s) unfilled');
     process.exit(1);
   }
-
-  chapters.forEach(function (c) {
-    var pars = c.stages.map(function (s) { return s.par; });
-    c.from = c.stages[0].id;
-    c.to = c.stages[c.stages.length - 1].id;
-    c.parLo = Math.min.apply(null, pars);
-    c.parHi = Math.max.apply(null, pars);
-  });
-
-  fs.writeFileSync(path.join(ROOT, 'src', 'stages.js'), emit(chapters));
-
-  console.log('\nwrote src/stages.js — ' + (id - 1) + ' stages\n');
-  chapters.forEach(function (c) {
-    console.log('  ' + String(c.number).padStart(2) + '  ' + c.name + ' · ' + c.ja +
-      '   stages ' + c.from + '–' + c.to);
-    c.stages.forEach(function (s) {
-      var m = s._m;
-      console.log('        ' + String(s.id).padStart(2) + ' ' + s.name.padEnd(11) +
-        (s.board[0].length + '×' + s.board.length).padEnd(4) +
-        'par ' + String(s.par).padStart(2) +
-        '  pieces ' + String(m.elements).padStart(2) +
-        '  wrong-way ' + m.retreat +
-        '  traps ' + m.traps + '/' + m.liveOpenings +
-        '  greedy ' + (m.greedy < 0 ? 'loops' : String(m.greedy)).padStart(5) +
-        '  ways ' + m.ways);
-    });
-    console.log('');
-  });
+  emit(chosen);
 }

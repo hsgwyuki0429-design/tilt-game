@@ -3,12 +3,12 @@
 **重力を操り、ひらめきで答えを見つけるパズル。**
 You never move the blocks. You move the world.
 
-A gravity puzzle for phones. Swipe (or tilt the device) to change which way gravity
-pulls; every block slides as far as it can. A block that reaches a goal is collected —
-mid-slide, which is where the chain reactions come from. Clear a stage by collecting
-every block.
+A gravity puzzle for phones. Swipe (or tilt the device) to change which way gravity pulls;
+every block slides as far as it can. A block that reaches a goal it fits is collected —
+mid-slide, which is where the chain reactions come from. Clear a stage by collecting every
+block.
 
-No build step, no dependencies, no network. Open `index.html` and play.
+No build step, no runtime dependencies, no network. Open `index.html` and play.
 
 ```
 node tools/serve.js        # then open the printed LAN address on a phone
@@ -16,110 +16,159 @@ node tools/serve.js        # then open the printed LAN address on a phone
 
 ---
 
-## The rules, in full
+## The rules
+
+**The base rules. Ten of the twenty stages use nothing else.**
 
 1. The board is a grid of **floor** and **wall** cells. Some floor cells are **goals**.
-2. Every **block** is the same block: one cell, no colour, no special case.
-3. Tilting sends gravity one of four ways. Every block slides until something stops it —
+2. Tilting sends gravity one of four ways. Every block slides until something stops it —
    the edge, a wall, or another block.
-4. A block that arrives on a goal is **collected** and leaves. This resolves *during* the
-   slide, so a collected block frees the one queued behind it.
-5. **CLEAR** when every block has been collected.
+3. A block that arrives on a goal it fits is **collected** and leaves. This resolves
+   *during* the slide, so a collected block frees the one queued behind it.
+4. **CLEAR** when every block has been collected.
 
-That is the whole thing, and there is no sixth rule coming.
+**The two devices. A stage may use one, or neither. No stage uses both.**
 
-**Nothing here can go wrong.** No cell is forbidden. Nothing destroys a block. There is no
-failure state to learn, no hazard to memorise, no colour to match. You cannot lose — you
-can only take more moves than you needed to, which is what makes undo something to use
-rather than something to avoid.
+A device is not a difficulty setting and not a reward for reaching chapter three. Each one
+exists because it creates a kind of thinking the base rules cannot ask for, and a stage may
+use one only when that thinking is the entire point of the stage.
 
-`tools/audit.js` enforces the vocabulary: a board may contain the characters `.` `#` `o`
-`@` and nothing else, and a stage may carry no field the rules do not have. Reintroduce a
-hazard cell or a coloured goal and the test suite fails before anyone plays it.
+| | Rule | Why it exists |
+|---|---|---|
+| **HAZARD** `x` | A block **left standing** on a hazard when the board settles is lost. Sliding straight across one is completely safe. | The obvious version of a hazard — touch it and die — is a wall that lies about being a wall, and it only ever asks the player to avoid a region. This version asks the one question the whole game is built on, and asks it much harder: **where does this block stop?** A hazard is not a place to keep away from; it is a place you are free to cross and forbidden to park on. That turns the dangerous square from an obstacle into a piece of equipment — you route blocks straight over it on purpose, and the puzzle is arranging for something to be there to catch them. |
+| **COLOUR** `A`/`a`, `B`/`b` | A goal collects a block only when they match. `o` takes any block; a plain `@` fits only `o`. | Not "two puzzles side by side". The point is that a goal is a hole for one block and an ordinary floor tile for the other. A block of the wrong colour rolls straight over it and carries on being a **wall** somewhere else — so collecting in the wrong order does not merely waste moves, it removes a wall you needed. |
 
-## What the stages are for
+Nothing else is coming: no cell that teleports, no block that behaves differently from
+another block of its own colour, no hidden state, and no randomness anywhere. A stage is
+hard because of where things are and the order they have to be moved in.
 
-The point of a stage is not that it is long. It is:
+`tools/audit.js` enforces this. Any board character outside `.` `#` `x` `o` `@` `a` `b`
+`A` `B` fails, any stage field the rules do not define fails, and **any board using a
+hazard and a colour at the same time fails** — two new rules at once means the player is
+reading rules instead of reading the board.
 
-> obvious → try it → wrong → look again → oh. **OH.** → it all falls in
+## What makes a board good
+
+Not length. Not the number of solutions. This:
+
+> every direction looks wrong → you look again → oh. **OH.** → you play it → it all lands
 
 An earlier version of this campaign searched for the *longest* solution it could find and
-shipped whatever came back. That was the wrong target, and it produced exactly what you
-would expect: twenty-eight move boards with one line through them, which the player does
-not solve so much as feel their way along. Being right at the end of a corridor feels like
-nothing, because there was never a moment of seeing.
+shipped whatever came back. The measurement that replaced it renders a brutal verdict on
+the result:
 
-So length is now a **requirement** of each slot and never the thing being optimised. What
-the search optimises is the shape of the thinking:
+| Old stages | Diagnosis |
+|---|---|
+| 1, 2, 4 | **unlock 0** — a player who is not thinking solves them cold. There is no idea in them. |
+| 10 – 20 | **unlock ≈ par** — every single move has to be found separately. That is not depth, it is a corridor with fifty doors. |
+| almost all | **blindness 0** — the first move anybody would try is the correct one. |
+
+A board that takes fifty tilts and never once surprises you is worse than one that takes
+five and does. So no slot asks for a length any more. Each states **one thing the player
+should notice**, and requires the measured signature of a board that can only be solved by
+noticing it.
+
+### The five measurements that carry the design
 
 | Measured | What it means |
 |---|---|
-| **retreat** | tilts on the optimal line that move blocks *away* from the goal. A board with none can be solved by always heading for the exit. A board with several cannot be solved without the "wrong way first" realisation. |
-| **traps** | how many opening tilts fail to make progress. Three of four means the first move is a decision, not a formality. |
-| **greedy** | what happens to the player who is not thinking yet — the one who always tilts toward the goal. On the good boards they walk in a circle forever. |
-| **set-up** | tilts spent arranging before *anything* is collected. |
-| **finale** | blocks collected by the last tilt — the payoff landing all at once. |
-| **pieces** | taxed, always. The board has to *look* simple or none of the above lands. |
+| **unlock** | How many correct moves the board costs before it starts playing itself. Model the player who has not seen it yet — collect if you can, otherwise tilt toward the goal — and ask how many correct moves they must be *given* before the rest falls to them for free. **0** means the board contains no idea. **≈ par** means every move is its own separate fight: a corridor. **1 or 2** means there is exactly one thing to see, seeing it is the whole puzzle, and everything after it is the reward for having seen it. |
+| **flow** | `par − unlock`: how much stage is left to enjoy having seen it. |
+| **blindness** | Where the correct opening sits in the order a hurrying player would try the four tilts. **0** means their instinct is right and the board has nothing to say. **3** means every appealing move is a lie and the answer is the one that looks like a waste of time. |
+| **jam** | How much of the board is *silently* unwinnable. Not difficulty — unfairness. A stage is allowed to be brutal and is not allowed to be sly. Dead ends where the player watched a block shatter are counted separately, because those told them something. |
+| **pump** | How much of the solution is one pair of directions repeated. A board can score perfectly on all of the above and still be a chore, because the eight free moves after the crux turn out to be `L U L U L U L U`. The idea cost one move; the execution cost eight. |
 
-Each stage in `src/stages.js` carries the numbers that chose it, so the data file explains
-its own contents.
+Alongside these, every stage is scored 0–10 on ten axes: clarity, discovery, insight,
+surprise, prediction, elegance, density, fairness, satisfaction, replayability. There is
+deliberately **no single total** — a board that is 10 for surprise and 2 for fairness is not
+"a 6", it is a board that cheats, and averaging would hide that. Every stage in
+`src/stages.js` carries its scorecard in a comment, so the data file explains its own
+contents.
 
 ## How the boards are found
 
-Boards that need twenty or fifty tilts are a vanishing fraction of random layouts, but
-they sit a short walk from ordinary ones — nudge one wall and a six-move board becomes a
-nine-move board. So boards are not sampled, they are **climbed**: throw down a random
-board on a **fixed** element budget, then move ONE element at a time until the shortest
-solution lands inside the slot's target band. The budget never grows during a climb, so
-what comes out is not a busier board. It is the same handful of pieces arranged until they
-finally have something to say.
+The obvious approach makes a board, solves it, scores it, throws it away, and starts again
+— one full breadth-first search per candidate. That is enormously wasteful, because every
+board sharing a terrain (the same walls, goals and hazards, blocks elsewhere) shares almost
+all of its search.
 
-A board ships only if **all** of the following hold:
+So instead: **fix the terrain and solve the game once for every placement of the blocks
+simultaneously.** One graph, seeded from all starts at once, yields the exact shortest
+solution for every placement from a single backward sweep, which positions are dead and
+whether they are dead loudly or silently, and what the naive player does from every
+position as one pass over a functional graph. Scoring a candidate afterwards is arithmetic
+on lookup tables rather than a search.
+
+That is what makes the expensive thing affordable: **at 3×3 and 4×3 the search is
+exhaustive.** Every arrangement of walls, goals, hazards and blocks inside a budget, up to
+rotation, reflection, and which colour is called A. When the campaign says a board is the
+best one for a slot, that is a statement about the design space, not about the search.
+
+A board ships only if all of these hold:
 
 | Gate | Meaning |
 |---|---|
 | solvable | breadth-first search finds a solution at all |
-| par in band | its shortest solution is the length the slot wants |
-| not pre-solved | the board does not begin cleared |
+| has an idea | `unlock ≥ 1` — the naive player cannot solve it cold |
+| the right idea | it meets that slot's unlock / flow / blindness / trap / device signature |
+| at least three live tilts | a board where gravity works in one direction is a corridor with one door |
 | low luck | random par-length tilting essentially never clears it |
-| not jammable | **no** reachable position is unsolvable — exploring can never ruin a board |
-| produces the feeling | it meets that slot's retreat / traps / greedy / set-up requirement |
-| **no inert elements** | delete any wall, block or goal and the puzzle measurably changes |
-| **elements carry length** | a fixed share of them change the solution *length* when deleted |
-| distinct | not a rotation or reflection of any other stage |
+| honest dead ends | silent unwinnable positions stay under the slot's ceiling |
+| **no dead weight** | delete any wall, block, goal or hazard and the puzzle measurably changes |
+| distinct | not a rotation, reflection or recolouring of another stage, and never the same terrain *and* block count |
 
-That last pair is the one that matters most, and the second half of it is newer. On a
-nine-cell board almost every wall changes the solution length, so "no inert elements" is a
-real standard. On a twenty-five cell board with twelve blocks there are hundreds of
-optimal lines, the count moves if you breathe on it, and "no inert elements" quietly
-becomes free. Requiring a fixed share of elements to change the *length* keeps the
-standard honest at both sizes.
+### Three things the exhaustive search turned up
 
-Because every block is identical, two positions that differ only by swapping blocks *are*
-the same position, and the solver says so. That is not an optimisation — it is what "all
-blocks are the same" means, and it is why the par printed on screen is the real one.
+Worth recording, because each one changed the design rather than merely confirming it:
+
+- **Nine cells is not an inexhaustible well.** Sweeping the *entire* 3×3 design space under
+  the base rules finds exactly **two** boards whose correct opening is the last one instinct
+  would suggest and which carry no dead weight — and they share a terrain. The game already
+  ships most of the genuinely excellent 3×3 base boards by stage 5. Rather than pad chapter
+  two with near-misses, the two slots 3×3 cannot supply are allowed twelve cells.
+- **About six boards in seven are carrying a piece the board would not miss.** Across the
+  campaign's finalists the deletion test rejects **88%**. It is the most expensive gate and
+  by a distance the most useful.
+- **A perfect crux is not enough.** Two stages passed every measurement above and were
+  still wrong, and it took looking at the filmstrips to see it: `unlock 1`, `flow 8`, and a
+  tail that was `L U L U L U L U`. Nothing being measured could tell a reward from a pump
+  handle. Adding that one measurement and re-running the search replaced both boards — and
+  the replacement for stage 8 is *longer* than what it replaced (11 tilts against 10) while
+  scoring higher on discovery, density and satisfaction. Length was never the thing that
+  was wrong with them.
+- **Combining both devices loses.** 26,744 boards carrying a hazard *and* two colours were
+  built and measured, and the best was compared against the best single-device board across
+  all ten axes. The combined board is longer (15 tilts against 10) and more surprising — and
+  loses **6 axes to 2**, because it is harder to read and 4% of its positions are quietly
+  unwinnable rather than visibly so. Length and surprise do not outrank being legible and
+  being fair. Had it won, it would be in the campaign; this is a result, not a rule.
+
+Because blocks of one colour are identical, two positions differing only by swapping two of
+them *are* the same position, and the solver says so. That is not an optimisation — it is
+what "these two blocks are the same block" means, and it is why the par on screen is real.
 
 ## The campaign
 
 **Twenty stages, all of which are worth playing** — rather than a hundred that are mostly
-filler. Chapter 1 is hand-authored, because teaching is not a search problem: five boards,
-five ideas, in the order they have to arrive. Chapters 2–4 are searched per slot against
-the brief above.
+filler. Every slot is a stated idea with a required signature; the search runs against it
+and one board out of tens of thousands survives.
 
-Boards stay small on purpose. Nothing exceeds 5×5, and the twenty-move stages are 4×3.
-Length comes from **density**: more blocks in a small space get in each other's way, and
-the order you unpack them in is the puzzle. A big board with a long route is not the same
-thing and is not as good.
-
-| Ch | Name | Stages | Par | Board | What it is |
+| Ch | Name | Stages | Board | Rules | What it is |
 |---|---|---|---|---|---|
-| 1 | GRAVITY · 重力 | 1–5 | 2–6 | 3×3 | gravity, walls, blocks blocking blocks, and the way out not being the way you face |
-| 2 | NINE · 九マス | 6–10 | 7–13 | 3×3 | nine cells, and none of them solvable at a glance |
-| 3 | ORDER · 順番 | 11–15 | 14–24 | 4×3–4×4 | enough blocks that the question becomes "which one, first" |
-| 4 | CONVERGENCE · 収束 | 16–20 | 28–50 | 4×4–5×5 | one goal, no slack left anywhere on the board |
+| 1 | GRAVITY · 重力 | 1–5 | 3×3 | base | the whole vocabulary, one idea per board, ending with the first board that turns on you |
+| 2 | NINE · 九マス | 6–10 | 3×3, 4×3 | base | nothing new added — just the same four things made to work much harder |
+| 3 | EDGE · 境界 | 11–15 | 3×3, 4×3 | + hazard | a square you may cross and may not stop on: it removes places to rest, and having nowhere to rest is what makes nine cells deep |
+| 4 | PAIR · 対 | 16–20 | 3×3, 4×3 | + colour | a goal that is a hole for one block and a floor for the other, so finishing early is how you lose |
+
+Boards stay small on purpose — nothing exceeds 4×3, and eleven of the twenty are nine
+cells. **Small board, high thought density** is the point, not a beginner's concession: the
+hardest hazard board in the game is 3×3 with three blocks and takes nine tilts.
 
 Par is a target, not a requirement. Clearing in more moves is a normal clear, and your best
 is kept so you can come back and shave it down.
+
+Four stages exist to put a rule on screen for the first time (1, 2, 11, 16) and are allowed
+to be gentle; each says so in its own note. Everything else has to earn its place.
 
 ## Playing
 
@@ -129,11 +178,18 @@ is kept so you can come back and shave it down.
 - **Tilt** the device, if you enable it. A tilt must be held briefly before it commits and
   must return to centre before it fires again. Swipe alone plays the whole game.
 - **Arrow keys / WASD** on a desktop. `Z` undo, `R` restart, `Esc` stage list.
-- **UNDO** costs nothing and is meant to be used. Nothing can be destroyed and no stage can
-  be jammed, so undo always gets you all the way back — trying a move to see what happens
-  is the intended way to play.
+- **UNDO costs nothing and is meant to be used.** It works *during* a slide too — pressing
+  it while the board is still moving cancels the move rather than being ignored. On the ten
+  base-rule stages nothing can be destroyed at all; on a hazard stage a lost block makes the
+  board unwinnable, the dock says so immediately, and one tap takes it back.
+- **RESTART is always answerable**, mid-slide included.
 - **You are never walled off.** Stages unlock in sequence, but you may always reach two
   stages past your frontier — one puzzle you cannot see the trick to never ends the run.
+
+Every colour carries its own **shape** as well as its own hue — the dot on a block and the
+ring on the goal that accepts it are always the same shape — so the board is fully readable
+without colour vision. A wall is drawn raised and lit from above; a hazard is drawn as a
+pit sunk below the floor. One stops things, the other is crossed.
 
 ## Layout
 
@@ -147,10 +203,11 @@ src/input.js          swipe, device tilt, keyboard
 src/audio.js          synthesised sound — no asset files
 src/save.js           localStorage, defensively parsed
 src/game.js           state machine, HUD, overlays
-tools/campaign.js     the campaign design, slot by slot; regenerates src/stages.js
-tools/lib/boards.js   generation, hill-climbing, and every measurement above
-tools/audit.js        stage verification and the element-deletion test
-tools/forge.js        interactive board search
+tools/campaign.js     the twenty slots as design briefs; regenerates src/stages.js
+tools/lib/design.js   what makes a board good — every measurement above
+tools/lib/generate.js terrain sweeping, exhaustive enumeration, climbing, variation
+tools/audit.js        rules suite, per-stage proof, campaign-wide design checks
+tools/forge.js        exhaustive search of one corner of the design space
 tools/probe.js        prints a stage's solution as an ASCII filmstrip
 tools/qa.js           drives the real page in a real browser
 tools/serve.js        static server for playing on a phone
@@ -163,72 +220,34 @@ implementation of the rules to drift out of sync.
 ## Tests
 
 ```
-npm run audit      # every stage: par, solvability, physics invariants, no inert elements
+npm run audit      # rules suite, then every stage, then the campaign as a whole
 npm run qa         # real browser: plays every stage, then UI, undo, layout, touch, tilt, save
 npm test           # both
 npm run campaign   # rebuild src/stages.js from tools/campaign.js
 ```
 
-`audit` walks each stage's reachable state space checking that blocks never overlap, never
-enter walls, never leave the board and never sit on a goal instead of being collected —
-**including at every intermediate animation tick** — that the same input always produces
-the same result, that undo and restart restore state exactly, and that a tilt which changes
-nothing never costs a move. It also proves the rules did not grow: any board character
-outside `.#o@`, or any stage field outside the five the rules define, is a failure.
+**`audit` has three parts.** First a **rules suite**: 32 property tests on purpose-built
+micro-boards, each pinning one rule to a board that does nothing except demonstrate it.
+These do not depend on the campaign at all, so they keep working — and keep failing usefully
+— no matter what the generator ships next. Then **per stage**: par is the proven shortest,
+blocks never overlap or enter walls or leave the board or rest on a goal that should have
+taken them (*including at every intermediate animation tick*), bookkeeping never drifts, the
+same input always gives the same result, and every piece is load-bearing. Then the
+**campaign as a whole**: each device is introduced by a stage that explains it, no two
+stages are the same puzzle, and nothing uses more rules at once than the design allows.
 
-Counting is done as a layered breadth-first sweep rather than a recursive descent, because
-at fifty moves a descent is 4⁵⁰ sequences and the state space is a few thousand nodes. The
-auditor writes its own sweep rather than calling the generator's — an auditor that shares
-arithmetic with the thing it audits cannot catch that arithmetic being wrong.
+Per-stage checks include deliberately hostile operation sequences — the same direction nine
+times, undo held past the beginning of the stage, restart pressed on the winning move — none
+of which is a plausible way to play, which is exactly why they are the ones that find bugs.
+Two real defects came out of writing them: undo and restart were both being silently ignored
+while a slide was animating.
 
-`qa` drives a mobile-sized Chromium: plays **every** stage through the real keyboard and
-touch paths, then checks undo/restart, input hammering, the stage menu, the unlock window,
-reload persistence, corrupted-save recovery, and the device-tilt handler's mapping,
-debounce and re-arm. It also verifies what the rules promise — that no reachable position
-anywhere ever loses a block.
+Counting in the audit is deliberately its own implementation rather than a call into the
+generator's measurement code. An auditor that shares arithmetic with the thing it audits
+cannot catch that arithmetic being wrong — and on 235 boards the two implementations agree
+exactly.
 
-## Inspecting a stage
-
-```
-node tools/probe.js "" 5
-```
-
-prints the board, its solution as a filmstrip, and a verdict on every element:
-
-```
-#5 LAP  3×3   par 6   ways 1   luck 0.024%   states 16   dead 0   set-up 3   chain 1
-
-  start   L       D       R       U       R       U
-  @▓o     @▓o     ·▓o     ·▓o     ·▓o     ·▓o     ·▓o
-  ···     ···     @··     ··@     ·@·     ··@     ···
-  ·@▓     @·▓     @·▓     ·@▓     ··▓     ··▓     ··▓
-
-    reshapes      block 0,0   (par 6→3)
-    reshapes      wall  1,0   (par 6→2)
-    load-bearing  goal  2,0   (removing it leaves no board at all)
-    reshapes      block 1,2   (par 6→5)
-    reshapes      wall  2,2   (par 6→4)
-```
-
-Five elements, five different puzzles if you take any one away. `luck` is the share of
-random par-length tilt sequences that happen to clear the stage. `set-up` is how many tilts
-run before the first block is collected.
-
-## Rebuilding the campaign
-
-```
-node tools/campaign.js --fresh --workers 5
-```
-
-Searches every generated slot from scratch and rewrites `src/stages.js`. Results are cached
-per slot under `tools/.campaign-cache/`, so re-running without `--fresh` only redoes
-selection and emission, and `--only 17` re-searches a single stage.
-
-Editing a slot's par band, element budget or `want` and re-running is the intended way to
-change the campaign — `src/stages.js` is an artifact, not a source file. Every `want` in
-that file was set from a measured sample of what boards of that length actually look like;
-asking a slot for more than its population contains is how a search runs forever and finds
-nothing.
-
-To make the game harder, raise a par band or ask for more retreat. Do not add a fifth
-thing.
+`qa` drives a real mobile-sized Chromium through the real input path: it plays all twenty
+stages to par, destroys a block on purpose and checks the game announces it and offers the
+way back, verifies each colour has a distinct shape and not merely a distinct hue, and
+checks the board fits five viewports from a 320px phone to a tablet.

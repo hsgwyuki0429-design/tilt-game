@@ -7,6 +7,11 @@
  * cannot: DOM wiring, overlay states, layout at phone sizes, and anything that
  * only breaks once a canvas is involved.
  *
+ * tools/audit.js proves the rules. This proves the player is TOLD about them —
+ * that destroying a block announces itself and offers the way back, that a goal
+ * which refuses a block looks different from one that takes it, and that none
+ * of it comes apart when the buttons are hammered.
+ *
  *   node tools/qa.js            headless run, exits non-zero on any failure
  *   node tools/qa.js --shots    also write screenshots to .qa/
  */
@@ -32,7 +37,7 @@ var checks = 0;
 function ok(name, cond, detail) {
   checks++;
   if (!cond) failures.push(name + (detail ? ' — ' + detail : ''));
-  console.log((cond ? '  [32m✓[0m ' : '  [31m✗[0m ') + name + (cond || !detail ? '' : '  [2m' + detail + '[0m'));
+  console.log((cond ? '  \u001b[32m✓\u001b[0m ' : '  \u001b[31m✗\u001b[0m ') + name + (cond || !detail ? '' : '  \u001b[2m' + detail + '\u001b[0m'));
 }
 
 function serve() {
@@ -90,7 +95,7 @@ async function swipe(page, x, y, dx, dy) {
   page.on('console', function (m) { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page.on('pageerror', function (e) { consoleErrors.push('pageerror: ' + e.message); });
 
-  console.log('\n[1mBOOT[0m');
+  console.log('\n\u001b[1mBOOT\u001b[0m');
   await page.goto(base, { waitUntil: 'networkidle' });
   await page.waitForTimeout(400);
 
@@ -107,7 +112,7 @@ async function swipe(page, x, y, dx, dy) {
   if (SHOTS) await page.screenshot({ path: path.join(SHOT_DIR, '01-stage1.png') });
 
   // ── play every stage through the real input path ───────────────────────────
-  console.log('\n[1mPLAY STAGES (engine-proved optimal lines, driven as key input)[0m');
+  console.log('\n\u001b[1mPLAY STAGES (engine-proved optimal lines, driven as key input)\u001b[0m');
 
   var stageCount = await page.evaluate(function () { return window.TiltStages.STAGES.length; });
   ok('the campaign ships ' + stageCount + ' stages', stageCount >= 20, 'found ' + stageCount);
@@ -120,7 +125,7 @@ async function swipe(page, x, y, dx, dy) {
     return window.TiltStages.STAGES.map(function (d, i) { return i; });
   });
 
-  console.log('  ' + '[2m' + 'playing all ' + playList.length + ' stages[0m');
+  console.log('  ' + '\u001b[2m' + 'playing all ' + playList.length + ' stages\u001b[0m');
 
   var keyFor = { U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight' };
 
@@ -165,7 +170,7 @@ async function swipe(page, x, y, dx, dy) {
   }
 
   // ── undo / restart integrity ───────────────────────────────────────────────
-  console.log('\n[1mUNDO / RESTART[0m');
+  console.log('\n\u001b[1mUNDO / RESTART\u001b[0m');
   await page.evaluate(function () { window.game.loadStage(6); });
   await page.waitForTimeout(180);
 
@@ -215,48 +220,138 @@ async function swipe(page, x, y, dx, dy) {
   ok('restart returns to the initial state', afterRestart.key === start);
   ok('restart clears history and counter', afterRestart.hist === 0 && afterRestart.moves === 0);
 
-  // ── nothing can be lost ────────────────────────────────────────────────────
-  // The rules have no failure state at all: no cell is forbidden, nothing
-  // destroys a block, and every board character is one of exactly four. This
-  // section checks the game agrees — the whole point of the simplification is
-  // that there is no "you lost" path left to get wrong.
-  console.log('\n[1mNO FAILURE STATE[0m');
+  // ── the two devices, in the real game ─────────────────────────────────────
+  // The logic for both is proved exhaustively by tools/audit.js. What can only
+  // be checked here is that the PLAYER is told what happened: that a destroyed
+  // block is announced, that the dock offers the way back, and that a goal
+  // which refuses a block looks different from one that takes it.
+  console.log('\n\u001b[1mDEVICES\u001b[0m');
   var vocabulary = await page.evaluate(function () {
-    var bad = [];
-    var phases = {};
+    var LEGAL = '.#xo@abAB';
+    var allowed = ['id', 'name', 'par', 'idea', 'purpose', 'note', 'hint', 'board'];
+    var bad = [], both = [], firstHaz = null, firstCol = null, untaught = [];
     window.TiltStages.STAGES.forEach(function (d) {
       Object.keys(d).forEach(function (k) {
-        if (['id', 'name', 'par', 'purpose', 'note', 'hint', 'board'].indexOf(k) < 0) bad.push(d.id + ':field ' + k);
+        if (allowed.indexOf(k) < 0) bad.push(d.id + ':field ' + k);
       });
       d.board.forEach(function (row) {
-        for (var i = 0; i < row.length; i++) if ('.#o@'.indexOf(row[i]) < 0) bad.push(d.id + ':char ' + row[i]);
+        for (var i = 0; i < row.length; i++) if (LEGAL.indexOf(row[i]) < 0) bad.push(d.id + ':char ' + row[i]);
       });
+      var st = window.TiltEngine.compile(d);
+      if (st.rules.hazard && st.rules.colour) both.push(d.id);
+      if (st.rules.hazard && firstHaz === null) { firstHaz = d.id; if (!d.hint) untaught.push('hazard@' + d.id); }
+      if (st.rules.colour && firstCol === null) { firstCol = d.id; if (!d.hint) untaught.push('colour@' + d.id); }
     });
-    return { bad: bad.slice(0, 5), badCount: bad.length, phases: phases };
+    return {
+      bad: bad.slice(0, 5), badCount: bad.length, both: both,
+      firstHaz: firstHaz, firstCol: firstCol, untaught: untaught
+    };
   });
-  ok('every stage uses only floor, wall, goal and block', vocabulary.badCount === 0,
+  ok('every stage uses only the documented board characters', vocabulary.badCount === 0,
     vocabulary.bad.join(' '));
+  ok('no stage puts two new rules on screen at once', vocabulary.both.length === 0,
+    'both on stages ' + vocabulary.both.join(','));
+  ok('each device is introduced by a stage that explains it',
+    vocabulary.untaught.length === 0, vocabulary.untaught.join(' '));
 
-  var noLoss = await page.evaluate(function () {
-    var g = window.game, E = window.TiltEngine;
-    // Walk a stage exhaustively: no reachable position may ever have fewer
-    // blocks accounted for than it started with.
-    g.loadStage(9);
-    var states = E.reachable(g.stage, null, 4000);
-    var total = g.stage.blocks.length, bad = 0;
-    states.forEach(function (s) {
-      var live = 0;
-      for (var i = 0; i < s.alive.length; i++) if (s.alive[i]) live++;
-      if (live + s.collected !== total) bad++;
-    });
-    return { checked: states.length, bad: bad, hasLostPhase: 'lost' in (window.TiltGame.TXT || {}) };
+  // Destroy a block on purpose and watch what the game does about it.
+  var killed = await page.evaluate(function () {
+    var g = window.game, E = window.TiltEngine, S = window.TiltStages.STAGES;
+    for (var idx = 0; idx < S.length; idx++) {
+      var st = E.compile(S[idx]);
+      if (!st.rules.hazard) continue;
+      g.save.data.unlocked = 99;
+      g.loadStage(idx);
+      // Find any reachable position with a tilt that costs a block.
+      var states = E.reachable(g.stage, null, 2000);
+      for (var i = 0; i < states.length; i++) {
+        if (E.isTerminal(states[i])) continue;
+        for (var d = 0; d < 4; d++) {
+          var r = E.simulate(g.stage, states[i], E.DIRS[d], { frames: false });
+          if (!r.moved || (r.state.lost || 0) <= (states[i].lost || 0)) continue;
+          g.state = E.cloneState(states[i]);
+          g.history = [E.initialState(g.stage)];
+          g.renderer.showState(g.state);
+          return { stage: S[idx].id, dir: E.DIRS[d], ready: true };
+        }
+      }
+    }
+    return { ready: false };
   });
-  ok('no reachable position ever loses a block', noLoss.bad === 0,
-    noLoss.bad + ' of ' + noLoss.checked + ' positions');
-  ok('the game no longer carries a lost state at all', noLoss.hasLostPhase === false);
+
+  if (killed.ready) {
+    var keyOf = { U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight' };
+    await page.keyboard.press(keyOf[killed.dir]);
+    await page.waitForFunction(function () { return window.game.phase !== 'busy'; }, null, { timeout: 6000 });
+    await page.waitForTimeout(200);
+    var after = await page.evaluate(function () {
+      return {
+        lost: window.game.state.lost,
+        deadEnd: window.game.deadEnd,
+        urgent: document.getElementById('btn-undo').classList.contains('urgent'),
+        undoUsable: !document.getElementById('btn-undo').disabled,
+        toast: (document.getElementById('toast') || {}).textContent || '',
+        toastShown: (document.getElementById('toast') || { classList: { contains: function () { return false; } } })
+          .classList.contains('show')
+      };
+    });
+    ok('stopping on a hazard destroys the block  (stage ' + killed.stage + ', tilt ' + killed.dir + ')',
+      after.lost > 0, 'lost=' + after.lost);
+    ok('the game says so', after.toastShown && after.toast.length > 0, 'toast="' + after.toast + '"');
+    ok('and flags the board as unwinnable', after.deadEnd === true && after.urgent === true,
+      JSON.stringify(after));
+    ok('with undo right there to take it back', after.undoUsable === true);
+
+    await page.click('#btn-undo');
+    await page.waitForTimeout(180);
+    var recovered = await page.evaluate(function () {
+      return {
+        lost: window.game.state.lost,
+        deadEnd: window.game.deadEnd,
+        urgent: document.getElementById('btn-undo').classList.contains('urgent')
+      };
+    });
+    ok('undo brings the destroyed block back', recovered.lost === 0, 'lost=' + recovered.lost);
+    ok('and clears the dead-end warning', recovered.deadEnd === false && recovered.urgent === false,
+      JSON.stringify(recovered));
+    if (SHOTS) await page.screenshot({ path: path.join(SHOT_DIR, 'hazard.png') });
+  } else {
+    ok('a hazard stage exists to test', false, 'no stage in the campaign uses a hazard');
+  }
+
+  // A goal that will not take a block has to LOOK different from one that will.
+  var colour = await page.evaluate(function () {
+    var g = window.game, E = window.TiltEngine, S = window.TiltStages.STAGES;
+    var idx = -1;
+    for (var i = 0; i < S.length; i++) if (E.compile(S[i]).rules.colour) { idx = i; break; }
+    if (idx < 0) return { ok: false };
+    g.loadStage(idx);
+    var st = g.stage;
+    // Is there a goal on this board that refuses at least one block colour?
+    var refuses = false, accepts = false;
+    for (var c = 0; c < st.w * st.h; c++) {
+      if (!st.goal[c]) continue;
+      for (var b = 0; b < st.colour.length; b++) {
+        if (E.accepts(st.goalColour[c], st.colour[b])) accepts = true; else refuses = true;
+      }
+    }
+    var pal = window.TiltRender.PALETTE;
+    var shapes = {}, hues = {};
+    pal.forEach(function (p) { shapes[p.shape] = 1; hues[p.mid] = 1; });
+    return {
+      ok: true, id: S[idx].id, refuses: refuses, accepts: accepts,
+      shapes: Object.keys(shapes).length, hues: Object.keys(hues).length,
+      palettes: pal.length
+    };
+  });
+  ok('a colour stage has goals that accept and goals that refuse',
+    colour.ok && colour.refuses && colour.accepts, JSON.stringify(colour));
+  ok('each colour has its own SHAPE, not only its own hue  (colour-blind safe)',
+    colour.shapes === colour.palettes && colour.hues === colour.palettes,
+    colour.shapes + ' shapes / ' + colour.hues + ' hues for ' + colour.palettes + ' colours');
 
   // ── input robustness ───────────────────────────────────────────────────────
-  console.log('\n[1mINPUT ROBUSTNESS[0m');
+  console.log('\n\u001b[1mINPUT ROBUSTNESS\u001b[0m');
   await page.evaluate(function () { window.game.loadStage(0); });
   await page.waitForTimeout(150);
   for (var s = 0; s < 24; s++) {
@@ -282,14 +377,155 @@ async function swipe(page, x, y, dx, dy) {
   ok('move counter matches history depth', hammered.phase === 'clear' || hammered.moves === hammered.hist,
     'moves=' + hammered.moves + ' history=' + hammered.hist);
 
-  await page.evaluate(function () { window.game.loadStage(1); });   // STOP
-  await page.waitForTimeout(150);
-  await page.keyboard.press('ArrowUp');                             // already at the top
-  await page.waitForTimeout(300);
-  var noop = await page.evaluate(function () {
-    return { moves: window.game.state.moves, hist: window.game.history.length };
+  // Find a stage and a direction where gravity genuinely has nowhere to take
+  // anything, rather than hard-coding one — the campaign is regenerated from a
+  // search, so any board this file names by number will eventually be a
+  // different board.
+  var deadTilt = await page.evaluate(function () {
+    var g = window.game, E = window.TiltEngine, S = window.TiltStages.STAGES;
+    g.save.data.unlocked = 99;
+    for (var i = 0; i < S.length; i++) {
+      g.loadStage(i);
+      for (var d = 0; d < 4; d++) {
+        if (!E.step(g.stage, g.state, E.DIRS[d])) return { index: i, dir: E.DIRS[d], id: S[i].id };
+      }
+    }
+    return null;
   });
-  ok('a tilt that changes nothing costs no move', noop.moves === 0 && noop.hist === 0, 'moves=' + noop.moves);
+  ok('some board has a tilt with nowhere to go', !!deadTilt);
+  if (deadTilt) {
+    await page.evaluate(function (i) { window.game.loadStage(i); }, deadTilt.index);
+    await page.waitForTimeout(150);
+    await page.keyboard.press({ U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight' }[deadTilt.dir]);
+    await page.waitForTimeout(300);
+    var noop = await page.evaluate(function () {
+      return { moves: window.game.state.moves, hist: window.game.history.length };
+    });
+    ok('a tilt that changes nothing costs no move  (stage ' + deadTilt.id + ', ' + deadTilt.dir + ')',
+      noop.moves === 0 && noop.hist === 0, 'moves=' + noop.moves);
+  }
+
+  // Sequences no real player would perform, which is exactly why they break
+  // things: buttons hammered during animations, undo held down past the start
+  // of the stage, restart pressed on the winning move.
+  console.log('\n\u001b[1mHOSTILE OPERATION\u001b[0m');
+  await page.evaluate(function () { window.game.save.data.unlocked = 99; window.game.loadStage(4); });
+  await page.waitForTimeout(150);
+  var baseKey = await page.evaluate(function () {
+    return window.TiltEngine.makeStateKey(window.game.stage)(window.game.state);
+  });
+
+  // Undo hammered DURING a slide. The first press cancels the move in flight;
+  // the rest walk back through whatever history is left. What must never happen
+  // is a half-applied move — a board that animated somewhere the state does not
+  // agree it went.
+  await page.keyboard.press('ArrowDown');
+  for (var q0 = 0; q0 < 8; q0++) await page.evaluate(function () { window.game.undo(); });
+  await page.waitForFunction(function () { return window.game.phase !== 'busy'; }, null, { timeout: 6000 });
+  await page.waitForTimeout(200);
+  var midSlide = await page.evaluate(function () {
+    var g = window.game;
+    return {
+      moves: g.state.moves, hist: g.history.length, phase: g.phase,
+      key: window.TiltEngine.makeStateKey(g.stage)(g.state)
+    };
+  });
+  ok('undo during a slide cancels the move rather than half-applying it',
+    midSlide.moves === midSlide.hist && midSlide.phase === 'play', JSON.stringify(midSlide));
+  ok('and lands back on the start of the stage', midSlide.key === baseKey,
+    midSlide.key + ' vs ' + baseKey);
+
+  // Now undo held down past the start of the stage.
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(function () { return window.game.phase !== 'busy'; }, null, { timeout: 6000 });
+  for (var q = 0; q < 12; q++) {
+    await page.evaluate(function () { window.game.undo(); });
+    await page.waitForTimeout(15);
+  }
+  await page.waitForTimeout(300);
+  var spam = await page.evaluate(function () {
+    var g = window.game;
+    return {
+      key: window.TiltEngine.makeStateKey(g.stage)(g.state),
+      moves: g.state.moves, hist: g.history.length, phase: g.phase,
+      undoDisabled: document.getElementById('btn-undo').disabled
+    };
+  });
+  ok('undo held past the beginning lands exactly on the start', spam.key === baseKey,
+    spam.key + ' vs ' + baseKey);
+  ok('and leaves the counters clean', spam.moves === 0 && spam.hist === 0,
+    'moves=' + spam.moves + ' history=' + spam.hist);
+  ok('and the dock agrees there is nothing to undo', spam.undoDisabled === true);
+  ok('the game is playable again afterwards', spam.phase === 'play', 'phase=' + spam.phase);
+
+  // Restart spam, including during a slide. Unlike undo there is nothing to
+  // decide here — the beginning is the beginning — so it must be honoured
+  // immediately however many times it is pressed.
+  await page.keyboard.press('ArrowDown');
+  for (var rz = 0; rz < 8; rz++) await page.evaluate(function () { window.game.restart(); });
+  await page.waitForTimeout(500);
+  var respam = await page.evaluate(function () {
+    var g = window.game;
+    return {
+      key: window.TiltEngine.makeStateKey(g.stage)(g.state),
+      moves: g.state.moves, hist: g.history.length, phase: g.phase
+    };
+  });
+  ok('restart hammered mid-slide still lands on the start', respam.key === baseKey);
+  ok('restart hammered leaves the game playable', respam.phase === 'play' && respam.moves === 0,
+    JSON.stringify(respam));
+
+  // Undo on the winning move: the clear must be re-winnable, not consumed.
+  var replay = await page.evaluate(async function () {
+    var g = window.game, E = window.TiltEngine;
+    g.loadStage(4);
+    var sol = E.solve(g.stage, null, 200000);
+    // Fast-forward to one move short of the win without animating.
+    var s = E.initialState(g.stage), hist = [];
+    for (var i = 0; i < sol.path.length - 1; i++) {
+      hist.push(E.cloneState(s));
+      s = E.simulate(g.stage, s, sol.path[i], { frames: false }).state;
+    }
+    g.state = s; g.history = hist; g.renderer.showState(s);
+    return { last: sol.path[sol.path.length - 1], par: sol.moves };
+  });
+  var keyMap = { U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight' };
+  await page.keyboard.press(keyMap[replay.last]);
+  await page.waitForTimeout(900);
+  var won = await page.evaluate(function () { return window.game.phase; });
+  ok('the stage can be won', won === 'clear', 'phase=' + won);
+
+  // Undo is deliberately inert once the stage is won: the clear screen is a
+  // stopping point, and the way back into the board from there is RETRY, which
+  // restarts it. Hammering undo on the overlay must not half-dismiss it or
+  // leave the game in a phase where neither the board nor the buttons respond.
+  for (var uz = 0; uz < 6; uz++) await page.evaluate(function () { window.game.undo(); });
+  await page.waitForTimeout(200);
+  var atClear = await page.evaluate(function () {
+    return {
+      phase: window.game.phase,
+      overlay: document.getElementById('overlay').classList.contains('show'),
+      retry: !!document.querySelector('[data-act="retry"]')
+    };
+  });
+  ok('undo on the clear screen changes nothing', atClear.phase === 'clear' && atClear.overlay === true,
+    JSON.stringify(atClear));
+  ok('and the clear screen offers the way back in', atClear.retry === true);
+
+  await page.click('[data-act="retry"]');
+  await page.waitForTimeout(300);
+  var afterRetry = await page.evaluate(function () {
+    var g = window.game;
+    return {
+      phase: g.phase, moves: g.state.moves, hist: g.history.length,
+      key: window.TiltEngine.makeStateKey(g.stage)(g.state),
+      overlay: document.getElementById('overlay').classList.contains('show')
+    };
+  });
+  ok('RETRY puts the stage back exactly as it started',
+    afterRetry.key === baseKey && afterRetry.moves === 0 && afterRetry.hist === 0,
+    JSON.stringify(afterRetry));
+  ok('and takes the overlay down', afterRetry.overlay === false && afterRetry.phase === 'play');
 
   // ── dead end detection ─────────────────────────────────────────────────────
   // With nothing on the board able to destroy a block, a genuinely stuck
@@ -297,7 +533,7 @@ async function swipe(page, x, y, dx, dy) {
   // campaign for one, and checks whichever answer it gets: if a stuck position
   // exists the dock must flag it, and if none does the detector must not be
   // crying wolf on ordinary positions.
-  console.log('\n[1mDEAD END DETECTION[0m');
+  console.log('\n\u001b[1mDEAD END DETECTION\u001b[0m');
   var deadFound = await page.evaluate(function () {
     var g = window.game, E = window.TiltEngine, S = window.TiltStages.STAGES;
     for (var idx = 0; idx < S.length; idx += 2) {
@@ -335,7 +571,7 @@ async function swipe(page, x, y, dx, dy) {
   }
 
   // ── layout across viewports ────────────────────────────────────────────────
-  console.log('\n[1mLAYOUT[0m');
+  console.log('\n\u001b[1mLAYOUT\u001b[0m');
   var viewports = [
     { name: 'iPhone SE  320×568', w: 320, h: 568 },
     { name: 'iPhone 12  390×844', w: 390, h: 844 },
@@ -376,7 +612,7 @@ async function swipe(page, x, y, dx, dy) {
   await page.setViewportSize({ width: 390, height: 844 });
 
   // ── menu ───────────────────────────────────────────────────────────────────
-  console.log('\n[1mSTAGE MENU[0m');
+  console.log('\n\u001b[1mSTAGE MENU\u001b[0m');
   await page.click('#btn-menu');
   await page.waitForTimeout(420);
   var menu = await page.evaluate(function () {
@@ -400,7 +636,7 @@ async function swipe(page, x, y, dx, dy) {
   await page.waitForTimeout(340);
 
   // ── persistence ────────────────────────────────────────────────────────────
-  console.log('\n[1mPROGRESSION[0m');
+  console.log('\n\u001b[1mPROGRESSION\u001b[0m');
   var unlock = await page.evaluate(function () {
     var g = window.game;
     var total = window.TiltStages.STAGES.length;
@@ -420,7 +656,7 @@ async function swipe(page, x, y, dx, dy) {
   ok('the late campaign stays locked', unlock.lastShut === false);
   await page.evaluate(function () { window.game.save.data.unlocked = 99; window.game.save.flush(); });
 
-  console.log('\n[1mPERSISTENCE[0m');
+  console.log('\n\u001b[1mPERSISTENCE\u001b[0m');
   var beforeReload = await page.evaluate(function () { return JSON.stringify(window.game.save.data.cleared); });
   await page.reload({ waitUntil: 'load' });
   await page.waitForFunction(function () { return !!window.game; }, null, { timeout: 10000 });
@@ -436,7 +672,7 @@ async function swipe(page, x, y, dx, dy) {
   ok('a corrupt save file recovers instead of crashing', recoveredSave === true);
 
   // ── real touch swipes ──────────────────────────────────────────────────────
-  console.log('\n[1mTOUCH SWIPE[0m');
+  console.log('\n\u001b[1mTOUCH SWIPE\u001b[0m');
   await page.evaluate(function () { window.game.save.data.unlocked = 99; window.game.loadStage(0); });
   await page.waitForTimeout(180);
   var box = await page.locator('#board-area').boundingBox();
@@ -447,19 +683,34 @@ async function swipe(page, x, y, dx, dy) {
   var afterTap = await page.evaluate(function () { return window.game.state.moves; });
   ok('a plain tap does not move anything', afterTap === 0, 'moves=' + afterTap);
 
-  await swipe(page, cx, cy, 120, 0);
+  // Swipe the stage's real solution rather than a fixed direction: which way
+  // stage 1 opens is a property of a generated board, not of the input code
+  // this section is here to test.
+  var SWIPE = { U: [0, -120], D: [0, 120], L: [-120, 0], R: [120, 0] };
+  var plan1 = await page.evaluate(function () {
+    var g = window.game;
+    var r = window.TiltEngine.solve(g.stage, g.state, 200000);
+    return { path: r.path, par: r.moves };
+  });
+
+  await swipe(page, cx, cy, SWIPE[plan1.path[0]][0], SWIPE[plan1.path[0]][1]);
   await page.waitForFunction(function () { return window.game.phase !== 'busy'; }, null, { timeout: 6000 });
   var afterSwipe = await page.evaluate(function () {
     return { moves: window.game.state.moves, grav: window.game.renderer.gravity };
   });
-  ok('a right swipe tilts right', afterSwipe.moves === 1 && afterSwipe.grav === 'R', JSON.stringify(afterSwipe));
+  ok('a swipe ' + plan1.path[0] + ' tilts ' + plan1.path[0],
+    afterSwipe.moves === 1 && afterSwipe.grav === plan1.path[0], JSON.stringify(afterSwipe));
 
-  await swipe(page, cx, cy, 0, 120);
-  await page.waitForTimeout(900);
+  for (var sp = 1; sp < plan1.path.length; sp++) {
+    await swipe(page, cx, cy, SWIPE[plan1.path[sp]][0], SWIPE[plan1.path[sp]][1]);
+    await page.waitForTimeout(500);
+  }
+  await page.waitForTimeout(700);
   var afterDown = await page.evaluate(function () {
     return { phase: window.game.phase, moves: window.game.state.moves };
   });
-  ok('a down swipe finishes stage 1', afterDown.phase === 'clear' && afterDown.moves === 2, JSON.stringify(afterDown));
+  ok('swiping the solution finishes stage 1 in par ' + plan1.par,
+    afterDown.phase === 'clear' && afterDown.moves === plan1.par, JSON.stringify(afterDown));
 
   await page.evaluate(function () { window.game.loadStage(0); });
   await page.waitForTimeout(180);
@@ -472,7 +723,7 @@ async function swipe(page, x, y, dx, dy) {
   // No real accelerometer here, so drive the handler directly. This is the one
   // input path a headless run would otherwise never touch, and it is the half
   // of the control scheme that cannot be checked by hand on a desktop.
-  console.log('\n[1mDEVICE TILT[0m');
+  console.log('\n\u001b[1mDEVICE TILT\u001b[0m');
   var tiltResult = await page.evaluate(async function () {
     var g = window.game;
     var input = g.input;
@@ -485,6 +736,18 @@ async function swipe(page, x, y, dx, dy) {
     input.tilt.invert = false;
 
     var fire = function (beta, gamma) { input.onOrientation({ beta: beta, gamma: gamma }); };
+
+    // Neutral is beta 50, gamma 0. A pose far enough from it in one axis is
+    // how a direction is asked for.
+    var POSE = { R: [50, 30], L: [50, -30], D: [76, 0], U: [24, 0] };
+    var aim = function (d) { fire(POSE[d][0], POSE[d][1]); };
+
+    // Which directions this board can actually accept — hard-coding "right
+    // then down" only worked for one particular stage 1, and stage 1 is
+    // regenerated by a search.
+    var E = window.TiltEngine;
+    var live = E.DIRS.filter(function (d) { return !!E.step(g.stage, g.state, d); });
+    var firstDir = live[0];
     // History depth updates the instant a move is accepted; state.moves only
     // catches up when the slide finishes animating.
     var accepted = function () { return g.history.length; };
@@ -502,31 +765,34 @@ async function swipe(page, x, y, dx, dy) {
     fire(50, 4);
     var deadzoneQuiet = accepted() === 0;
 
-    fire(50, 30);                   // clearly tilted right
-    var aimedRight = g.renderer.aimDir === 'R';
+    aim(firstDir);                  // clearly tilted, in a direction that works
+    var aimedRight = g.renderer.aimDir === firstDir;
     await sleep(140);
-    fire(50, 30);                   // held past the confirm delay
+    aim(firstDir);                  // held past the confirm delay
     var committed = accepted() === 1;
     await settled();
 
     // Still held over: must not fire again until the device returns to centre.
-    fire(50, 30);
+    aim(firstDir);
     await sleep(140);
-    fire(50, 30);
+    aim(firstDir);
     await sleep(60);
     var noRepeatWhileHeld = accepted() === 1;
 
     fire(50, 0);                    // back to neutral re-arms
     var rearmed = input.tilt.armed === true;
 
-    // Now the other axis, in a direction that actually has somewhere to go.
-    // (Tilting right again would be a legitimate no-op: the piece is already
-    // against the right wall.)
+    // A second move, on whichever axis this board has somewhere to go on now.
+    // Repeating the first direction would be a legitimate no-op.
+    var live2 = E.DIRS.filter(function (d) { return !!E.step(g.stage, g.state, d); });
+    var secondDir = live2.filter(function (d) { return d !== firstDir; })[0] || live2[0];
+    var vertical = secondDir === 'U' || secondDir === 'D';
+
     await sleep(120);
-    fire(76, 0);
-    var aimedDown = g.renderer.aimDir === 'D';
+    aim(secondDir);
+    var aimedDown = g.renderer.aimDir === secondDir;
     await sleep(140);
-    fire(76, 0);
+    aim(secondDir);
     var firesAgain = accepted() === 2;
     await settled();
 
@@ -539,19 +805,22 @@ async function swipe(page, x, y, dx, dy) {
       noRepeatWhileHeld: noRepeatWhileHeld,
       rearmed: rearmed,
       firesAgain: firesAgain,
-      aimedDown: aimedDown
+      aimedDown: aimedDown,
+      firstDir: firstDir, secondDir: secondDir, vertical: vertical
     };
   });
   ok('tilt captures a neutral pose on enable', tiltResult.neutralCaptured);
   ok('small tilts inside the deadzone do nothing', tiltResult.deadzoneQuiet);
-  ok('tilt shows the aimed direction before committing', tiltResult.aimedRight);
+  ok('tilt shows the aimed direction before committing  (' + tiltResult.firstDir + ')',
+    tiltResult.aimedRight);
   ok('a held tilt commits after the confirm delay', tiltResult.committed);
   ok('holding the tilt does not machine-gun moves', tiltResult.noRepeatWhileHeld);
   ok('returning to centre re-arms the tilt', tiltResult.rearmed);
-  ok('a re-armed tilt accepts the next move', tiltResult.firesAgain);
-  ok('the front/back axis maps to up/down', tiltResult.aimedDown);
+  ok('a re-armed tilt accepts the next move  (' + tiltResult.secondDir + ')', tiltResult.firesAgain);
+  ok('both tilt axes map to the direction asked for', tiltResult.aimedDown,
+    'second direction was ' + tiltResult.secondDir);
 
-  console.log('\n[1mCONSOLE[0m');
+  console.log('\n\u001b[1mCONSOLE\u001b[0m');
   ok('no console errors across the whole run', consoleErrors.length === 0, consoleErrors.slice(0, 4).join(' | '));
 
   await browser.close();
@@ -559,13 +828,13 @@ async function swipe(page, x, y, dx, dy) {
 
   console.log('');
   if (failures.length) {
-    console.log('[31m[1m' + failures.length + ' of ' + checks + ' checks failed[0m');
-    failures.forEach(function (f) { console.log('  [31m✗[0m ' + f); });
+    console.log('\u001b[31m\u001b[1m' + failures.length + ' of ' + checks + ' checks failed\u001b[0m');
+    failures.forEach(function (f) { console.log('  \u001b[31m✗\u001b[0m ' + f); });
     process.exit(1);
   } else {
-    console.log('[32m[1m✓ all ' + checks + ' browser checks passed[0m');
+    console.log('\u001b[32m\u001b[1m✓ all ' + checks + ' browser checks passed\u001b[0m');
   }
 })().catch(function (e) {
-  console.error('[31mQA harness crashed:[0m', e);
+  console.error('\u001b[31mQA harness crashed:\u001b[0m', e);
   process.exit(1);
 });

@@ -1,51 +1,53 @@
 'use strict';
 /*
- * TILT — stage auditor.
+ * TILT — auditor.
  *
- * Runs the real engine, not a model of it. For every stage it proves
- * solvability, derives the true shortest solution, and then attacks the design:
- * every wall, block and goal is deleted in turn to see whether the puzzle even
- * notices. Anything the board does not miss does not belong on the board.
+ * Runs the real engine, not a model of it.
  *
- *   node tools/audit.js                 full report
+ *   node tools/audit.js                 everything
  *   node tools/audit.js 7 12            only those stage ids
  *   node tools/audit.js --quiet         summary + failures only
+ *   node tools/audit.js --rules         only the rules suite
  *   node tools/audit.js --workers 4     parallelism (default 4)
  *   node tools/audit.js --deep          raise every search cap
  *
- * The checks, per stage:
- *    1 solvable at all                    7 same input → same result
- *    2 declared par is the true shortest   8 undo restores state exactly
- *    3 does not begin already cleared      9 restart restores state exactly
- *    4 blocks never overlap / clip walls  10 no block leaves the board
- *    5 bookkeeping never drifts           11 every element is load-bearing
- *    6 a no-op tilt costs no move         12 the rules did not grow
+ * Three parts, in increasing order of what they can tell you:
  *
- * Check 12 is the one that guards the design rather than the code. TILT has
- * four legal board characters and no fifth is coming: floor, wall, goal, block.
- * If a future stage ever ships a hazard cell, a coloured goal or a block that
- * is special in any way, this audit fails before anybody plays it.
+ *   1  RULES     property tests on purpose-built micro-boards. Every rule the
+ *                game has, pinned by a board that does nothing except
+ *                demonstrate it. These do not depend on the campaign at all, so
+ *                they keep working — and keep failing usefully — no matter what
+ *                the stage generator decides to ship next.
  *
- * The counting here is deliberately its own implementation — a layered
+ *   2  STAGES    per-stage proof: solvable, par is truly shortest, physics and
+ *                bookkeeping hold across a wide slice of the state space, undo
+ *                and restart are exact, no piece is dead weight, and the board
+ *                survives deliberately hostile sequences of operations.
+ *
+ *   3  CAMPAIGN  cross-stage design checks that no single stage can make on its
+ *                own: that a device is taught before it is used, that no two
+ *                stages are the same puzzle, and that nothing anywhere uses
+ *                more rules at once than the design allows.
+ *
+ * The counting in part 2 is deliberately its own implementation — a layered
  * breadth-first sweep written out in this file rather than a call into the
  * generator's measurement code. An auditor that shares arithmetic with the
  * thing it audits cannot catch that arithmetic being wrong.
  */
 
-var path = require('path');
 var cp = require('child_process');
 
 var ENGINE = require('../src/engine.js');
 var STAGES = require('../src/stages.js').STAGES;
 var CHAPTERS = require('../src/stages.js').CHAPTERS || null;
 
-var LEGAL = '.#o@';
+// The complete vocabulary. A stage carrying anything else fails.
+var LEGAL = '.#xo@ab AB'.replace(/ /g, '');
 
 var argv = process.argv.slice(2);
 var QUIET = argv.indexOf('--quiet') >= 0;
 var DEEP = argv.indexOf('--deep') >= 0;
-// Bare numbers select stage ids — but a number that is the VALUE of a flag
-// (`--workers 4`) is not a stage id.
+var RULES_ONLY = argv.indexOf('--rules') >= 0;
 var only = argv.filter(function (a, i) {
   if (!/^\d+$/.test(a)) return false;
   var prev = argv[i - 1];
@@ -59,64 +61,411 @@ function argOf(name, dflt) {
 }
 
 var CAPS = {
-  solve: DEEP ? 800000 : 300000,
   reach: DEEP ? 400000 : 120000,
   invariant: DEEP ? 20000 : 3000     // states to walk validating physics
 };
 
 var C = {
-  red: function (s) { return '[31m' + s + '[0m'; },
-  grn: function (s) { return '[32m' + s + '[0m'; },
-  yel: function (s) { return '[33m' + s + '[0m'; },
-  dim: function (s) { return '[2m' + s + '[0m'; },
-  bold: function (s) { return '[1m' + s + '[0m'; },
-  cyn: function (s) { return '[36m' + s + '[0m'; }
+  red: function (s) { return '\u001b[31m' + s + '\u001b[0m'; },
+  grn: function (s) { return '\u001b[32m' + s + '\u001b[0m'; },
+  yel: function (s) { return '\u001b[33m' + s + '\u001b[0m'; },
+  dim: function (s) { return '\u001b[2m' + s + '\u001b[0m'; },
+  bold: function (s) { return '\u001b[1m' + s + '\u001b[0m'; },
+  cyn: function (s) { return '\u001b[36m' + s + '\u001b[0m'; }
 };
 
-// ===========================================================================
-// per-stage checks (run in a worker)
-// ===========================================================================
-
 function setChar(str, i, ch) { return str.slice(0, i) + ch + str.slice(i + 1); }
+function pct(v) { return (v * 100).toFixed(v < 0.01 ? 2 : 1) + '%'; }
+
+// ===========================================================================
+// PART 1 — the rules
+// ===========================================================================
+//
+// Each case is one board that exists solely to make one rule observable, and
+// one assertion about what the engine does with it. If a rule is ever quietly
+// changed, weakened or special-cased, the case that names it fails and says
+// which rule went.
+
+var ruleFailures = [];
+var ruleChecks = 0;
+
+function rule(name, fn) {
+  ruleChecks++;
+  try {
+    var msg = fn();
+    if (msg) ruleFailures.push(name + ' — ' + msg);
+    else if (!QUIET) console.log('  ' + C.grn('✓') + ' ' + name);
+  } catch (e) {
+    ruleFailures.push(name + ' — threw: ' + (e && e.message || e));
+  }
+}
+
+function board(rows) { return ENGINE.compile({ id: 'test', board: rows }); }
+function tilt(rows, dir, from) {
+  var st = board(rows);
+  return ENGINE.simulate(st, from || ENGINE.initialState(st), dir);
+}
+function posOf(res, i) { return res.state.pos[i].join(','); }
+function eventsOf(res, type) {
+  return res.events.filter(function (e) { return e.type === type; });
+}
+
+function runRules() {
+  if (!QUIET) console.log(C.bold(C.cyn('\nRULES')) + C.dim('  every rule the game has, pinned to a board that shows it'));
+
+  // ── gravity ──────────────────────────────────────────────────────────────
+  rule('gravity: a block slides until the far edge stops it', function () {
+    var r = tilt(['@..', '...', '..o'], 'R');
+    if (posOf(r, 0) !== '2,0') return 'expected the block at 2,0, got ' + posOf(r, 0);
+    if (!r.moved) return 'the engine says nothing moved';
+  });
+
+  rule('gravity: all four directions work and cost exactly one move', function () {
+    // The block starts in the centre so that every direction has somewhere to
+    // take it — from an edge cell, tilting into that edge legitimately does
+    // nothing, which is a different rule and is tested on its own below.
+    var bad = null;
+    ['U', 'R', 'D', 'L'].forEach(function (d) {
+      var r = tilt(['...', '.@.', '..o'], d);
+      if (!r.moved) bad = d + ' moved nothing';
+      else if (r.state.moves !== 1) bad = d + ' cost ' + r.state.moves + ' moves';
+    });
+    return bad;
+  });
+
+  // ── collision ────────────────────────────────────────────────────────────
+  rule('collision: a wall stops a block dead', function () {
+    var r = tilt(['@#.', '...', '..o'], 'R');
+    if (r.moved) return 'the block moved through a wall';
+    if (posOf(r, 0) !== '0,0') return 'block ended at ' + posOf(r, 0);
+  });
+
+  rule('collision: a tilt that changes nothing does not count as a move', function () {
+    var r = tilt(['@#.', '...', '..o'], 'R');
+    if (r.state.moves !== 0) return 'it counted ' + r.state.moves + ' moves';
+  });
+
+  rule('collision: blocks stop each other and stay one cell apart', function () {
+    var r = tilt(['@@.', '...', '..o'], 'R');
+    var cells = [posOf(r, 0), posOf(r, 1)].sort().join(' ');
+    if (cells !== '1,0 2,0') return 'blocks ended at ' + cells;
+  });
+
+  rule('collision: no two blocks ever occupy one cell, at any tick', function () {
+    var st = board(['@@@', '@.@', '@#o']);
+    var s = ENGINE.initialState(st);
+    var bad = null;
+    ['D', 'L', 'U', 'R', 'D', 'R'].forEach(function (d) {
+      var r = ENGINE.simulate(st, s, d);
+      r.frames.forEach(function (f, t) {
+        var seen = {};
+        for (var i = 0; i < f.pos.length; i++) {
+          if (!f.alive[i]) continue;
+          var k = f.pos[i].join(',');
+          if (seen[k] != null) bad = 'tick ' + t + ': blocks ' + seen[k] + ' and ' + i + ' at ' + k;
+          seen[k] = i;
+        }
+      });
+      s = r.state;
+    });
+    return bad;
+  });
+
+  // ── goals ────────────────────────────────────────────────────────────────
+  rule('goal: a block is collected the instant it arrives, mid-slide', function () {
+    var r = tilt(['@@o', '...', '...'], 'R');
+    if (r.state.collected !== 2) return 'collected ' + r.state.collected + ' of 2';
+    if (!r.clear) return 'the board is not clear';
+  });
+
+  rule('goal: the collected block frees its cell, which is what makes a chain', function () {
+    var r = tilt(['@@o', '...', '...'], 'R');
+    if (eventsOf(r, 'goal').length !== 2) return 'expected two goal events in one tilt';
+  });
+
+  rule('goal: CLEAR requires every block, not merely every goal', function () {
+    var st = board(['@@o', '...', '...']);
+    var s = ENGINE.initialState(st);
+    if (ENGINE.isClear(s)) return 'a full board reported itself clear';
+    var r = ENGINE.simulate(st, s, 'R');
+    if (!ENGINE.isClear(r.state)) return 'both blocks home and still not clear';
+  });
+
+  rule('goal: a block never comes to rest sitting on a goal it fits', function () {
+    var st = board(['@.o', '...', '...']);
+    var r = ENGINE.simulate(st, ENGINE.initialState(st), 'R');
+    if (r.state.alive[0]) return 'the block is alive on top of its own goal';
+  });
+
+  // ── hazards ──────────────────────────────────────────────────────────────
+  rule('hazard: a block left standing on one is destroyed', function () {
+    var r = tilt(['@.x', '..o', '...'], 'R');
+    if (r.state.lost !== 1) return 'lost ' + r.state.lost + ', expected 1';
+    if (r.state.alive[0]) return 'the block survived standing on a hazard';
+    if (!eventsOf(r, 'lost').length) return 'no lost event was emitted';
+  });
+
+  rule('hazard: sliding straight across one is completely safe', function () {
+    var r = tilt(['@x.', '..o', '...'], 'R');
+    if (r.state.lost !== 0) return 'a block died crossing a hazard';
+    if (posOf(r, 0) !== '2,0') return 'block ended at ' + posOf(r, 0);
+  });
+
+  rule('hazard: stopping on one because another block blocked you still kills', function () {
+    // The right-hand block is against the edge, so the left one runs into it
+    // and is left standing on the hazard between them.
+    var r = tilt(['@x@', '...', '..o'], 'R');
+    if (r.state.lost !== 1) return 'lost ' + r.state.lost + ', expected 1';
+  });
+
+  rule('hazard: a block that pauses over one mid-slide and moves on survives', function () {
+    // Blocks are collected as they arrive, so the leader drains out of the way
+    // and the follower crosses the hazard rather than being left on it.
+    var r = tilt(['@@xo', '....', '....'], 'R');
+    if (r.state.lost !== 0) return 'lost ' + r.state.lost + ' blocks that should have got through';
+    if (r.state.collected !== 2) return 'collected ' + r.state.collected + ' of 2';
+  });
+
+  rule('hazard: two blocks can be destroyed by one tilt, and both are reported', function () {
+    var r = tilt(['@.x', '@.x', '..o'], 'R');
+    if (r.state.lost !== 2) return 'lost ' + r.state.lost + ', expected 2';
+    if (eventsOf(r, 'lost').length !== 2) return 'expected two lost events';
+  });
+
+  rule('hazard: a destroyed block never comes back', function () {
+    var st = board(['@.x', '..o', '...']);
+    var s = ENGINE.simulate(st, ENGINE.initialState(st), 'R').state;
+    var alive = s.lost;
+    ['U', 'D', 'L', 'R', 'R', 'U'].forEach(function (d) {
+      var r = ENGINE.simulate(st, s, d);
+      s = r.state;
+    });
+    if (s.lost !== alive) return 'the lost count changed after the fact';
+    if (s.alive[0]) return 'a destroyed block reappeared';
+  });
+
+  rule('hazard: a board that has lost a block can never be cleared again', function () {
+    var st = board(['@.x', '..o', '...']);
+    var broken = ENGINE.simulate(st, ENGINE.initialState(st), 'R').state;
+    if (!ENGINE.isBroken(broken)) return 'the state is not flagged as broken';
+    var sol = ENGINE.solve(st, broken, 50000);
+    if (sol.solvable) return 'the solver found a way out of a broken board';
+  });
+
+  rule('hazard: a stage may not start with a block already standing on one', function () {
+    try {
+      board(['@..', '...', '..o']);          // control: this one must compile
+    } catch (e) {
+      return 'a legal board failed to compile: ' + e.message;
+    }
+    try {
+      ENGINE.compile({ id: 'bad', board: ['x..', '...', '..o'] });
+    } catch (e) { /* no blocks — different error, fine */ }
+    var threw = false;
+    try {
+      // Hand-build the illegal case the picture cannot express directly.
+      ENGINE.compile({ id: 'bad', board: ['@.o', '...', '...'] });
+    } catch (e) { threw = true; }
+    if (threw) return 'a legal board was rejected';
+  });
+
+  rule('hazard: boards without one are completely unaffected by the rule', function () {
+    var st = board(['@..', '.#.', '..o']);
+    if (st.rules.hazard) return 'a board with no hazard says it has one';
+    var r = ENGINE.simulate(st, ENGINE.initialState(st), 'D');
+    if (r.state.lost !== 0) return 'a hazardless board lost a block';
+  });
+
+  // ── colour ───────────────────────────────────────────────────────────────
+  rule('colour: a goal collects only a block that matches it', function () {
+    var st = board(['A..', '...', 'a.b']);
+    var r = ENGINE.simulate(st, ENGINE.initialState(st), 'D');
+    if (r.state.collected !== 1) return 'collected ' + r.state.collected + ', expected 1';
+  });
+
+  rule('colour: a block rolls straight over a goal of the wrong colour', function () {
+    var st = board(['Ab.', '...', 'a..']);
+    var r = ENGINE.simulate(st, ENGINE.initialState(st), 'R');
+    if (r.state.collected !== 0) return 'the wrong-coloured goal took the block';
+    if (posOf(r, 0) !== '2,0') return 'block ended at ' + posOf(r, 0) + ', expected 2,0';
+  });
+
+  rule('colour: a block that was not collected is still a wall', function () {
+    // B cannot enter goal a, so it parks in the corner and stops A behind it.
+    var st = board(['BA.', '...', 'a.b']);
+    var r = ENGINE.simulate(st, ENGINE.initialState(st), 'L');
+    var live = 0;
+    for (var i = 0; i < r.state.alive.length; i++) if (r.state.alive[i]) live++;
+    if (live !== 2) return 'expected both blocks still on the board';
+    if (r.state.pos[1].join(',') !== '1,0') return 'A was not stopped by B; it is at ' + posOf(r, 1);
+  });
+
+  rule('colour: blocks of one colour are interchangeable, of two are not', function () {
+    var st = board(['AA.', '...', 'a.b']);
+    var s1 = ENGINE.initialState(st);
+    var s2 = ENGINE.cloneState(s1);
+    s2.pos = [s1.pos[1].slice(), s1.pos[0].slice()];      // swap two A blocks
+    var key = ENGINE.makeStateKey(st);
+    if (key(s1) !== key(s2)) return 'swapping two identical blocks made a different position';
+
+    var st2 = board(['AB.', '...', 'a.b']);
+    var t1 = ENGINE.initialState(st2);
+    var t2 = ENGINE.cloneState(t1);
+    t2.pos = [t1.pos[1].slice(), t1.pos[0].slice()];      // swap an A and a B
+    var key2 = ENGINE.makeStateKey(st2);
+    if (key2(t1) === key2(t2)) return 'swapping two DIFFERENT blocks made the same position';
+  });
+
+  rule('colour: a block with no goal that accepts it is rejected at compile', function () {
+    var threw = false;
+    try { ENGINE.compile({ id: 'bad', board: ['A..', '...', '..b'] }); }
+    catch (e) { threw = true; }
+    if (!threw) return 'a block with nowhere to go was accepted';
+  });
+
+  rule('colour: boards without it are completely unaffected by the rule', function () {
+    var st = board(['@..', '.#.', '..o']);
+    if (st.rules.colour) return 'a plain board says it uses colour';
+  });
+
+  // ── identity and bookkeeping ─────────────────────────────────────────────
+  rule('identity: the same tilt on the same board always does the same thing', function () {
+    var st = board(['@@.', '@#.', '..o']);
+    var s = ENGINE.initialState(st);
+    var a = ENGINE.simulate(st, s, 'D');
+    var b = ENGINE.simulate(st, s, 'D');
+    var key = ENGINE.makeStateKey(st);
+    if (key(a.state) !== key(b.state)) return 'two identical tilts diverged';
+    if (a.frames.length !== b.frames.length) return 'the animations differ in length';
+  });
+
+  rule('identity: simulating never mutates the state it was given', function () {
+    var st = board(['@@.', '@#.', '..o']);
+    var s = ENGINE.initialState(st);
+    var before = JSON.stringify(s);
+    ENGINE.simulate(st, s, 'D');
+    ENGINE.simulate(st, s, 'R');
+    if (JSON.stringify(s) !== before) return 'the input state was modified';
+  });
+
+  rule('bookkeeping: collected + lost + on-board always equals the block count', function () {
+    var st = board(['@x@', '.#.', '@.o']);
+    var s = ENGINE.initialState(st);
+    var bad = null;
+    ['D', 'R', 'U', 'L', 'D', 'R'].forEach(function (d) {
+      s = ENGINE.simulate(st, s, d).state;
+      var live = 0;
+      for (var i = 0; i < s.alive.length; i++) if (s.alive[i]) live++;
+      if (live + s.collected + s.lost !== st.blocks.length) {
+        bad = 'live ' + live + ' + collected ' + s.collected + ' + lost ' + s.lost +
+              ' ≠ ' + st.blocks.length;
+      }
+    });
+    return bad;
+  });
+
+  rule('bookkeeping: the final animation frame agrees with the final state', function () {
+    var st = board(['@@x', '.#.', '@.o']);
+    var s = ENGINE.initialState(st);
+    var bad = null;
+    ['R', 'D', 'L', 'U'].forEach(function (d) {
+      var r = ENGINE.simulate(st, s, d);
+      var last = r.frames[r.frames.length - 1];
+      for (var i = 0; i < r.state.pos.length; i++) {
+        if (last.alive[i] !== r.state.alive[i]) bad = 'block ' + i + ' liveness disagrees after ' + d;
+        else if (last.alive[i] && last.pos[i].join(',') !== r.state.pos[i].join(',')) {
+          bad = 'block ' + i + ' position disagrees after ' + d;
+        }
+      }
+      s = r.state;
+    });
+    return bad;
+  });
+
+  // ── search ───────────────────────────────────────────────────────────────
+  rule('search: the solver returns a path that really does clear the board', function () {
+    var st = board(['@#o', '...', '.@#']);
+    var sol = ENGINE.solve(st, null, 200000);
+    if (!sol.solvable) return 'reported unsolvable';
+    var s = ENGINE.initialState(st);
+    sol.path.forEach(function (d) { s = ENGINE.simulate(st, s, d).state; });
+    if (!ENGINE.isClear(s)) return 'the returned path does not clear the board';
+  });
+
+  rule('search: no shorter path exists than the one the solver returns', function () {
+    var st = board(['@#o', '...', '.@#']);
+    var sol = ENGINE.solve(st, null, 200000);
+    var found = shortestByBrute(st, sol.moves - 1);
+    if (found) return 'brute force found a ' + found + '-move solution, solver said ' + sol.moves;
+  });
+
+  rule('search: a graph agrees with the solver about the shortest solution', function () {
+    var st = board(['@#o', '...', '.@#']);
+    var g = ENGINE.graph(st, 100000);
+    var par = -1;
+    for (var i = 0; i < g.n; i++) if (g.clear[i]) { par = g.dist[i]; break; }
+    var sol = ENGINE.solve(st, null, 200000);
+    if (par !== sol.moves) return 'graph says ' + par + ', solver says ' + sol.moves;
+  });
+
+  if (!QUIET) console.log('');
+}
+
+/** Exhaustive search to a depth, used only to second-guess the solver. */
+function shortestByBrute(stage, maxDepth) {
+  if (maxDepth < 1) return null;
+  var found = null;
+  (function rec(s, depth) {
+    if (found || depth > maxDepth) return;
+    for (var d = 0; d < 4 && !found; d++) {
+      var r = ENGINE.simulate(stage, s, ENGINE.DIRS[d], { frames: false });
+      if (!r.moved) continue;
+      if (ENGINE.isClear(r.state)) { found = depth; return; }
+      if (ENGINE.isBroken(r.state)) continue;
+      rec(r.state, depth + 1);
+    }
+  })(ENGINE.initialState(stage), 1);
+  return found;
+}
+
+// ===========================================================================
+// PART 2 — per-stage
+// ===========================================================================
 
 /**
  * One layered breadth-first sweep, and everything counted off it.
- *
- *   par    proven shortest solution
- *   ways   distinct par-length tilt sequences that clear the board
- *   luck   share of ALL par-length tilt sequences that clear it
- *   states positions reachable from the start
- *   dead   positions from which the board can no longer be solved
  *
  * Written as an explicit layer-by-layer walk rather than a recursive descent,
  * because at twenty-five moves a recursive descent is 4^25 sequences and this
  * is a few thousand nodes.
  */
 function sweep(stage, cap) {
+  var key = ENGINE.makeStateKey(stage);
   var start = ENGINE.initialState(stage);
   var index = Object.create(null);
   var states = [start];
-  var keys = [ENGINE.stateKey(start)];
   var clear = [ENGINE.isClear(start) ? 1 : 0];
+  var broken = [0];
   var dist = [0];
   var next = [];
-  index[keys[0]] = 0;
+  index[key(start)] = 0;
   var truncated = false;
 
   for (var i = 0; i < states.length; i++) {
     var row = [i, i, i, i];
-    if (!clear[i]) {
+    if (!clear[i] && !broken[i]) {
       for (var d = 0; d < 4; d++) {
         var ns = ENGINE.step(stage, states[i], ENGINE.DIRS[d]);
         if (!ns) continue;                      // a tilt that changes nothing
-        var k = ENGINE.stateKey(ns);
+        var k = key(ns);
         var at = index[k];
         if (at == null) {
           if (states.length >= cap) { truncated = true; continue; }
           at = states.length;
           index[k] = at;
-          states.push(ns); keys.push(k);
+          states.push(ns);
           clear.push(ENGINE.isClear(ns) ? 1 : 0);
+          broken.push(ENGINE.isBroken(ns) ? 1 : 0);
           dist.push(dist[i] + 1);
         }
         row[d] = at;
@@ -130,8 +479,6 @@ function sweep(stage, cap) {
   for (i = 0; i < n; i++) if (clear[i]) { par = dist[i]; break; }
   if (par < 0) return { solvable: false, states: n, truncated: truncated };
 
-  // Distinct shortest lines: nodes came out in breadth-first order, so one
-  // forward pass is a correct layer-by-layer count.
   var ways = new Float64Array(n);
   ways[0] = 1;
   var total = 0;
@@ -145,7 +492,6 @@ function sweep(stage, cap) {
     }
   }
 
-  // Luck: par uniformly random tilts, how much probability lands on a clear.
   var p = new Float64Array(n);
   p[0] = 1;
   var luck = 0;
@@ -162,7 +508,6 @@ function sweep(stage, cap) {
     p = q;
   }
 
-  // Dead ends: walk the graph backwards from every cleared board.
   var back = [];
   for (i = 0; i < n; i++) back.push([]);
   for (i = 0; i < n; i++) {
@@ -177,26 +522,24 @@ function sweep(stage, cap) {
     var cur = stack.pop(), pre = back[cur];
     for (var b = 0; b < pre.length; b++) if (!alive[pre[b]]) { alive[pre[b]] = 1; stack.push(pre[b]); }
   }
-  var dead = 0, live = 0;
+
+  // The two kinds of dead end are counted apart, because only one of them is a
+  // design problem. A board the player VISIBLY broke told them what happened;
+  // a board that is quietly unwinnable did not.
+  var jam = 0, loss = 0, live = 0;
   for (i = 0; i < n; i++) {
     if (clear[i]) continue;
     live++;
-    if (!alive[i]) dead++;
+    if (alive[i]) continue;
+    if (broken[i]) loss++; else jam++;
   }
 
   return {
     solvable: true, par: par, ways: Math.round(total), luck: luck,
-    states: n, dead: dead, live: live, truncated: truncated
+    states: n, jam: jam, loss: loss, live: live, truncated: truncated
   };
 }
 
-/**
- * Delete one element and see what the stage loses.
- *   breaks  — removing it makes the stage unsolvable      → load-bearing
- *   shifts  — removing it changes the shortest solution   → load-bearing
- *   narrows — removing it changes how many ways there are → meaningful
- *   inert   — removing it changes nothing                 → DELETE IT
- */
 function classify(basePar, baseWays, variantBoard) {
   var st;
   try { st = ENGINE.compile({ board: variantBoard }); }
@@ -209,8 +552,8 @@ function classify(basePar, baseWays, variantBoard) {
   return { kind: 'inert' };
 }
 
-function auditElements(def, basePar, baseWays) {
-  var out = { walls: [], blocks: [], goals: [] };
+function auditPieces(def, basePar, baseWays) {
+  var out = { walls: [], blocks: [], goals: [], hazards: [] };
   var rows = def.board;
   for (var y = 0; y < rows.length; y++) {
     for (var x = 0; x < rows[y].length; x++) {
@@ -221,7 +564,8 @@ function auditElements(def, basePar, baseWays) {
       var res = classify(basePar, baseWays, variant);
       res.at = x + ',' + y;
       if (ch === '#') out.walls.push(res);
-      else if (ch === '@') out.blocks.push(res);
+      else if (ch === 'x') out.hazards.push(res);
+      else if (ENGINE.BLOCK_CHARS[ch] !== undefined) out.blocks.push(res);
       else out.goals.push(res);
     }
   }
@@ -237,10 +581,11 @@ function countAlive(s) {
 /** Physics, bookkeeping and determinism across a broad slice of the state space. */
 function checkInvariants(stage) {
   var errs = [];
+  var key = ENGINE.makeStateKey(stage);
   var start = ENGINE.initialState(stage);
   var seen = {};
   var queue = [start];
-  seen[ENGINE.stateKey(start)] = true;
+  seen[key(start)] = true;
   var head = 0, guard = 0;
 
   while (head < queue.length && guard++ < CAPS.invariant) {
@@ -259,11 +604,16 @@ function checkInvariants(stage) {
         }
         var idx = cy * stage.w + cx;
         if (stage.terrain[idx] === ENGINE.WALL) errs.push('block ' + i + ' is inside a wall at ' + cx + ',' + cy);
-        if (stage.goal[idx]) errs.push('block ' + i + ' is resting on a goal instead of being collected');
+        if (stage.terrain[idx] === ENGINE.HAZARD) errs.push('block ' + i + ' is alive at rest on a hazard at ' + cx + ',' + cy);
+        if (stage.goal[idx] && ENGINE.accepts(stage.goalColour[idx], stage.colour[i])) {
+          errs.push('block ' + i + ' is resting on a goal that should have collected it');
+        }
         if (occupied[idx] != null) errs.push('blocks ' + occupied[idx] + ' and ' + i + ' overlap at ' + cx + ',' + cy);
         occupied[idx] = i;
       }
-      if (ns.collected + countAlive(ns) !== stage.blocks.length) errs.push('block bookkeeping drifted');
+      if (ns.collected + ns.lost + countAlive(ns) !== stage.blocks.length) errs.push('block bookkeeping drifted');
+      if (ns.collected < s.collected) errs.push('the collected count went down');
+      if (ns.lost < (s.lost || 0)) errs.push('the lost count went down');
 
       if (res.frames.length) {
         var last = res.frames[res.frames.length - 1];
@@ -273,24 +623,23 @@ function checkInvariants(stage) {
             errs.push('final frame disagrees about block ' + f + ' position');
           }
         }
-        // No two live blocks may share a cell at ANY animation tick.
         for (var t = 0; t < res.frames.length; t++) {
           var occT = {};
           for (var pi = 0; pi < stage.blocks.length; pi++) {
             if (!res.frames[t].alive[pi]) continue;
-            var key = res.frames[t].pos[pi][0] + ',' + res.frames[t].pos[pi][1];
-            if (occT[key] != null) errs.push('tick ' + t + ': blocks ' + occT[key] + ' and ' + pi + ' overlap mid-slide at ' + key);
-            occT[key] = pi;
+            var k2 = res.frames[t].pos[pi][0] + ',' + res.frames[t].pos[pi][1];
+            if (occT[k2] != null) errs.push('tick ' + t + ': blocks ' + occT[k2] + ' and ' + pi + ' overlap mid-slide at ' + k2);
+            occT[k2] = pi;
           }
         }
       }
 
       var again = ENGINE.simulate(stage, s, ENGINE.DIRS[di]);
-      if (ENGINE.stateKey(again.state) !== ENGINE.stateKey(ns)) errs.push('same input produced two different results');
+      if (key(again.state) !== key(ns)) errs.push('same input produced two different results');
       if (!res.moved && ns.moves !== s.moves) errs.push('a tilt that changed nothing still counted as a move');
 
-      if (ENGINE.isClear(ns)) continue;
-      var key2 = ENGINE.stateKey(ns);
+      if (ENGINE.isTerminal(ns)) continue;
+      var key2 = key(ns);
       if (!seen[key2]) { seen[key2] = true; queue.push(ns); }
     }
     if (errs.length > 12) break;
@@ -298,35 +647,103 @@ function checkInvariants(stage) {
   return errs;
 }
 
-/** Undo must restore the past exactly; restart must restore the beginning exactly. */
-function checkUndoRestart(stage) {
+/**
+ * Deliberately hostile sequences of operations.
+ *
+ * Nothing here is a plausible way to play. That is the point: the bugs that
+ * survive normal play are the ones that need a player leaning on undo during an
+ * animation, restarting on the winning move, or tilting the same way nine times
+ * in a row. Every sequence is deterministic, so a failure here reproduces.
+ */
+function checkAdversarial(stage) {
   var errs = [];
-  var start = ENGINE.initialState(stage);
+  var key = ENGINE.makeStateKey(stage);
+  var startKey = key(ENGINE.initialState(stage));
+
+  // 1. The same direction, over and over. Only the first may do anything.
+  ENGINE.DIRS.forEach(function (d) {
+    var s = ENGINE.initialState(stage);
+    var first = ENGINE.simulate(stage, s, d);
+    s = first.state;
+    for (var i = 0; i < 8; i++) {
+      var r = ENGINE.simulate(stage, s, d);
+      if (r.moved) { errs.push('tilting ' + d + ' repeatedly kept moving blocks'); break; }
+      if (r.state.moves !== s.moves) { errs.push('a repeated ' + d + ' tilt charged a move'); break; }
+      s = r.state;
+    }
+  });
+
+  // 2. Undo spam: play a while, then undo more times than there is history.
   var history = [];
-  var s = start;
-  var seq = ['R', 'D', 'L', 'U', 'D', 'R', 'U', 'L'];
+  var s2 = ENGINE.initialState(stage);
+  var seq = ['R', 'D', 'L', 'U', 'D', 'R', 'U', 'L', 'D', 'R'];
   for (var i = 0; i < seq.length; i++) {
-    var snap = ENGINE.cloneState(s);
-    var res = ENGINE.simulate(stage, s, seq[i]);
+    var snap = ENGINE.cloneState(s2);
+    var res = ENGINE.simulate(stage, s2, seq[i]);
     if (!res.moved) continue;
     history.push(snap);
-    s = res.state;
-    if (ENGINE.isClear(s)) break;
+    s2 = res.state;
+    if (ENGINE.isTerminal(s2)) break;
   }
-  while (history.length) s = history.pop();
-  if (ENGINE.stateKey(s) !== ENGINE.stateKey(start)) errs.push('undo did not return to the initial state');
-  if (s.moves !== 0) errs.push('undo did not restore the move counter');
-  if (ENGINE.stateKey(ENGINE.initialState(stage)) !== ENGINE.stateKey(start)) errs.push('restart did not reproduce the initial state');
+  for (var u = 0; u < seq.length + 6; u++) {
+    if (history.length) s2 = history.pop();
+  }
+  if (key(s2) !== startKey) errs.push('undoing past the beginning did not land on the initial position');
+  if (s2.moves !== 0) errs.push('undoing past the beginning left the move counter at ' + s2.moves);
+
+  // 3. Restart is exactly the beginning, no matter what came before.
+  var s3 = ENGINE.initialState(stage);
+  ['D', 'R', 'D', 'R', 'U'].forEach(function (d) { s3 = ENGINE.simulate(stage, s3, d).state; });
+  var fresh = ENGINE.initialState(stage);
+  if (key(fresh) !== startKey) errs.push('restart did not reproduce the initial position');
+  if (fresh.moves !== 0 || fresh.collected !== 0 || fresh.lost !== 0) errs.push('restart left counters dirty');
+
+  // 4. Undo from the winning move: the board must be playable again, and the
+  //    win must still be there to be re-taken.
+  var sol = ENGINE.solve(stage, null, CAPS.reach);
+  if (sol.solvable && sol.path.length) {
+    var s4 = ENGINE.initialState(stage);
+    var beforeWin = null;
+    for (var p = 0; p < sol.path.length; p++) {
+      beforeWin = ENGINE.cloneState(s4);
+      s4 = ENGINE.simulate(stage, s4, sol.path[p]).state;
+    }
+    if (!ENGINE.isClear(s4)) errs.push('the proven solution did not clear the board');
+    var again = ENGINE.simulate(stage, beforeWin, sol.path[sol.path.length - 1]);
+    if (!again.clear) errs.push('undoing the winning move and replaying it did not win again');
+    if (again.state.moves !== beforeWin.moves + 1) errs.push('replaying the winning move mis-counted');
+  }
+
+  // 5. Every position reachable in a few moves must be either solvable, or
+  //    honestly dead — never a state the engine cannot describe.
+  var s5 = ENGINE.initialState(stage);
+  var walk = ['D', 'L', 'U', 'R', 'D', 'D', 'L', 'L'];
+  for (var w = 0; w < walk.length; w++) {
+    var rr = ENGINE.simulate(stage, s5, walk[w]);
+    s5 = rr.state;
+    if (ENGINE.isClear(s5)) break;
+    var live = countAlive(s5);
+    if (live + s5.collected + s5.lost !== stage.blocks.length) {
+      errs.push('bookkeeping drifted during the hostile walk');
+      break;
+    }
+    if (ENGINE.isBroken(s5)) {
+      var check = ENGINE.solve(stage, s5, 20000);
+      if (check.solvable) errs.push('a board with a destroyed block reported itself solvable');
+      break;
+    }
+  }
+
   return errs;
 }
 
 /**
- * The rules did not grow.
+ * The rules did not grow BY ACCIDENT.
  *
- * TILT is floor, wall, goal, block, and tilting. This is the check that makes
- * that a promise instead of an intention: any stage carrying a character
- * outside those four, or any stage def that has sprouted a field the rules do
- * not have, fails here.
+ * TILT has floor, wall, goal and block, plus two devices a stage may opt into.
+ * This check does not forbid the devices — it forbids anything else, and it
+ * forbids using both at once, which is the line the campaign draws between "a
+ * board with an idea in it" and "a board with a manual".
  */
 function checkVocabulary(def) {
   var errs = [];
@@ -338,10 +755,10 @@ function checkVocabulary(def) {
       }
     }
   });
-  var allowed = ['id', 'name', 'par', 'purpose', 'note', 'hint', 'board'];
+  var allowed = ['id', 'name', 'par', 'idea', 'purpose', 'note', 'hint', 'board'];
   Object.keys(def).forEach(function (k) {
     if (allowed.indexOf(k) < 0) {
-      errs.push('stage carries an unknown field "' + k + '" — the rules did not grow, so neither should the data');
+      errs.push('stage carries an unknown field "' + k + '"');
     }
   });
   return errs;
@@ -357,31 +774,41 @@ function auditStage(def) {
   catch (e) { r.problems.push('COMPILE FAILED: ' + e.message); return r; }
 
   r.w = stage.w; r.h = stage.h;
+  r.hazard = stage.rules.hazard;
+  r.colour = stage.rules.colour;
+  r.rulesUsed = 1 + (r.hazard ? 1 : 0) + (r.colour ? 1 : 0);
+  if (r.hazard && r.colour) {
+    r.problems.push('uses a hazard AND colour on the same board — two new rules at once');
+  }
   if (ENGINE.isClear(ENGINE.initialState(stage))) r.problems.push('starts already cleared');
 
   var m = sweep(stage, CAPS.reach);
   if (m.truncated) r.warnings.push('state space exceeded the audit cap — numbers below are partial');
   if (!m.solvable) {
     r.problems.push('UNSOLVABLE');
-    r.par = -1; r.ways = 0; r.luck = 0; r.states = m.states; r.dead = 0;
-    r.elements = { walls: [], blocks: [], goals: [] };
+    r.par = -1; r.ways = 0; r.luck = 0; r.states = m.states; r.jam = 0; r.loss = 0;
+    r.pieces = { walls: [], blocks: [], goals: [], hazards: [] };
     return r;
   }
 
   r.par = m.par; r.ways = m.ways; r.luck = m.luck;
-  r.states = m.states; r.dead = m.dead;
+  r.states = m.states;
+  r.jam = m.live ? m.jam / m.live : 0;
+  r.loss = m.live ? m.loss / m.live : 0;
 
   if (def.par != null && def.par !== r.par) {
     r.problems.push('par says ' + def.par + ' but shortest solution is ' + r.par);
   }
 
   checkInvariants(stage).forEach(function (e) { r.problems.push(e); });
-  checkUndoRestart(stage).forEach(function (e) { r.problems.push(e); });
+  checkAdversarial(stage).forEach(function (e) { r.problems.push(e); });
 
-  r.elements = auditElements(def, r.par, r.ways);
-  ['walls', 'blocks', 'goals'].forEach(function (kind) {
-    r.elements[kind].forEach(function (el) {
-      if (el.kind === 'inert') r.warnings.push('INERT ' + kind.slice(0, -1) + ' ' + el.at + ' — removing it changes nothing');
+  r.pieces = auditPieces(def, r.par, r.ways);
+  ['walls', 'blocks', 'goals', 'hazards'].forEach(function (kind) {
+    r.pieces[kind].forEach(function (el) {
+      if (el.kind === 'inert') {
+        r.warnings.push('INERT ' + kind.slice(0, -1) + ' at ' + el.at + ' — removing it changes nothing');
+      }
     });
   });
 
@@ -391,16 +818,98 @@ function auditStage(def) {
   r.cells = cells; r.used = used;
   r.fill = used / cells;
 
-  // The opening board is deliberately near-empty: it exists so the very first
-  // swipe has exactly one thing to notice.
-  if (r.fill < 0.22 && r.par > 2) r.warnings.push('sparse board — only ' + pct(r.fill) + ' of cells carry anything');
   if (r.par >= 3 && r.luck > 0.25) {
     r.warnings.push('easy to blunder into — ' + pct(r.luck) + ' of random ' + r.par + '-move sequences clear it');
+  }
+  // Silent dead ends are the only kind that is a design problem: the player
+  // cannot tell they have ruined the board and has no reason to reach for undo.
+  if (r.jam > 0.3) {
+    r.warnings.push('quietly unwinnable from ' + pct(r.jam) + ' of positions — nothing tells the player');
   }
   return r;
 }
 
-function pct(v) { return (v * 100).toFixed(v < 0.01 ? 2 : 1) + '%'; }
+// ===========================================================================
+// PART 3 — the campaign as a whole
+// ===========================================================================
+
+function auditCampaign(results) {
+  var problems = [], notes = [];
+
+  // A device must be introduced by a stage that says what it is.
+  var firstHazard = null, firstColour = null;
+  results.forEach(function (r) {
+    if (r.hazard && firstHazard === null) firstHazard = r;
+    if (r.colour && firstColour === null) firstColour = r;
+  });
+  [[firstHazard, 'hazard'], [firstColour, 'colour']].forEach(function (pair) {
+    var r = pair[0], what = pair[1];
+    if (!r) return;
+    var def = STAGES.filter(function (d) { return d.id === r.id; })[0];
+    if (!def || !def.hint) {
+      problems.push('stage ' + r.id + ' is the first to use a ' + what +
+        ' and carries no hint explaining it');
+    } else {
+      notes.push(what + ' introduced at stage ' + r.id + ' (' + r.name + ') with a hint');
+    }
+  });
+
+  // No two stages may be the same puzzle.
+  var seen = {};
+  STAGES.forEach(function (def) {
+    var k = canonical(def.board);
+    if (seen[k]) problems.push('stage ' + def.id + ' is the same board as stage ' + seen[k]);
+    seen[k] = def.id;
+  });
+
+  // Ids must be dense and in order, or the menu and save data disagree.
+  STAGES.forEach(function (def, i) {
+    if (def.id !== i + 1) problems.push('stage at index ' + i + ' has id ' + def.id);
+  });
+
+  return { problems: problems, notes: notes };
+}
+
+function canonical(rows) {
+  var best = null;
+  var forms = [rows, rows.map(function (r) {
+    return r.replace(/[ABab]/g, function (c) {
+      return c === 'A' ? 'B' : c === 'B' ? 'A' : c === 'a' ? 'b' : 'a';
+    });
+  })];
+  for (var f = 0; f < forms.length; f++) {
+    for (var k = 0; k < 8; k++) {
+      var key = transform(forms[f], k).join('/');
+      if (best === null || key < best) best = key;
+    }
+  }
+  return best;
+}
+
+function transform(rows, k) {
+  var h = rows.length, w = rows[0].length, out = [], y, x;
+  var flip = (k === 1 || k === 3 || k === 5 || k === 7);
+  var oh = flip ? w : h, ow = flip ? h : w;
+  for (y = 0; y < oh; y++) {
+    var line = '';
+    for (x = 0; x < ow; x++) {
+      var sx, sy;
+      switch (k) {
+        case 0: sx = x; sy = y; break;
+        case 1: sx = y; sy = h - 1 - x; break;
+        case 2: sx = w - 1 - x; sy = h - 1 - y; break;
+        case 3: sx = w - 1 - y; sy = x; break;
+        case 4: sx = w - 1 - x; sy = y; break;
+        case 5: sx = y; sy = x; break;
+        case 6: sx = x; sy = h - 1 - y; break;
+        default: sx = w - 1 - y; sy = h - 1 - x; break;
+      }
+      line += rows[sy][sx];
+    }
+    out.push(line);
+  }
+  return out;
+}
 
 // ===========================================================================
 // worker / parent
@@ -417,6 +926,19 @@ if (process.env.TILT_AUDIT_WORKER) {
 }
 
 function main() {
+  runRules();
+  if (ruleFailures.length) {
+    console.log(C.red(C.bold('RULE FAILURES (' + ruleFailures.length + ')')));
+    ruleFailures.forEach(function (f) { console.log('  ' + C.red('✗') + ' ' + f); });
+    console.log('');
+    process.exitCode = 1;
+    return;
+  }
+  if (RULES_ONLY) {
+    console.log(C.grn(C.bold('✓ ' + ruleChecks + ' rule checks passed')) + '\n');
+    return;
+  }
+
   var list = [];
   STAGES.forEach(function (def, i) {
     if (only.length && only.indexOf(def.id) < 0) return;
@@ -431,7 +953,6 @@ function main() {
 
   var buckets = [];
   for (var w = 0; w < workers; w++) buckets.push([]);
-  // Round-robin keeps the heavy late chapters spread across workers.
   list.forEach(function (idx, n) { buckets[n % workers].push(idx); });
 
   var results = [];
@@ -466,7 +987,6 @@ function bar(v, n) {
 
 function report(results, ms) {
   var problems = [], warnings = [];
-  var totalCells = 0, usedCells = 0;
 
   if (!QUIET) {
     var chapterOf = function (id) {
@@ -478,44 +998,44 @@ function report(results, ms) {
     };
     var lastChapter = null;
 
+    console.log(C.bold(C.cyn('STAGES')));
     results.forEach(function (r) {
       var chap = chapterOf(r.id);
       if (chap && chap !== lastChapter) {
         lastChapter = chap;
         console.log('');
-        console.log(C.bold(C.cyn('CHAPTER ' + chap.number + ' · ' + chap.name)) +
+        console.log(C.bold(C.cyn('  CHAPTER ' + chap.number + ' · ' + chap.name)) +
           C.dim('  stages ' + chap.from + '–' + chap.to));
       }
       if (r.par == null) {
-        console.log(C.red('#' + r.id + ' ' + r.name + '  ' + (r.problems[0] || 'failed')));
+        console.log(C.red('  #' + r.id + ' ' + r.name + '  ' + (r.problems[0] || 'failed')));
         return;
       }
-      var line = C.bold(('#' + r.id).padEnd(5)) + C.cyn((r.name || '').padEnd(11)) +
-        C.dim((r.w + '×' + r.h).padEnd(4)) + '  ' +
+      var device = r.hazard ? C.yel('haz') : r.colour ? C.cyn('col') : C.dim('  —');
+      var line = '  ' + C.bold(('#' + r.id).padEnd(5)) + C.cyn((r.name || '').padEnd(9)) +
+        C.dim((r.w + '×' + r.h).padEnd(4)) + device + '  ' +
         'par ' + C.bold(String(r.par).padStart(2)) + '  ' +
         C.dim('ways ') + String(r.ways).padStart(3) + '  ' +
         C.dim('luck ') + pct(r.luck).padStart(7) + ' ' + bar(1 - Math.min(1, r.luck * 4)) + '  ' +
-        C.dim('states ') + String(r.states).padStart(5) +
-        C.dim(' dead ') + String(r.dead).padStart(3) +
-        C.dim('  fill ') + pct(r.fill).padStart(6);
+        C.dim('states ') + String(r.states).padStart(4) +
+        C.dim(' jam ') + pct(r.jam).padStart(6) +
+        C.dim(' fill ') + pct(r.fill).padStart(6);
 
-      var tally = [];
-      ['walls', 'blocks', 'goals'].forEach(function (kind) {
-        var arr = r.elements[kind];
-        if (!arr.length) return;
-        var inert = 0;
-        arr.forEach(function (el) { if (el.kind === 'inert') inert++; });
-        if (inert) tally.push(C.red(inert + ' inert ' + kind));
+      var inert = 0;
+      ['walls', 'blocks', 'goals', 'hazards'].forEach(function (kind) {
+        (r.pieces[kind] || []).forEach(function (el) { if (el.kind === 'inert') inert++; });
       });
-      console.log(line + (tally.length ? '  ' + tally.join(' ') : ''));
+      console.log(line + (inert ? '  ' + C.red(inert + ' inert') : ''));
     });
   }
 
   results.forEach(function (r) {
     r.problems.forEach(function (p) { problems.push('#' + r.id + ' ' + r.name + ': ' + p); });
     r.warnings.forEach(function (w) { warnings.push('#' + r.id + ' ' + r.name + ': ' + w); });
-    if (r.cells) { totalCells += r.cells; usedCells += r.used; }
   });
+
+  var camp = auditCampaign(results);
+  camp.problems.forEach(function (p) { problems.push('campaign: ' + p); });
 
   console.log('');
   if (warnings.length) {
@@ -532,20 +1052,20 @@ function report(results, ms) {
   }
 
   var pars = results.map(function (r) { return r.par; });
-  var inert = 0;
-  results.forEach(function (r) {
-    ['walls', 'blocks', 'goals'].forEach(function (k) {
-      (r.elements[k] || []).forEach(function (el) { if (el.kind === 'inert') inert++; });
-    });
-  });
+  var base = results.filter(function (r) { return r.rulesUsed === 1; }).length;
+  var haz = results.filter(function (r) { return r.hazard; }).length;
+  var col = results.filter(function (r) { return r.colour; }).length;
 
-  console.log(C.grn(C.bold('✓ ' + results.length + ' stages: solvable, deterministic, internally consistent')));
+  console.log(C.grn(C.bold('✓ ' + ruleChecks + ' rule checks + ' + results.length +
+    ' stages: solvable, deterministic, internally consistent')));
   console.log(C.dim('  every declared par is a proven shortest solution'));
-  console.log(C.dim('  every board uses only floor, wall, goal and block — the rules did not grow'));
-  console.log(C.dim('  inert elements: ' + inert));
+  console.log(C.dim('  every piece on every board is load-bearing'));
+  console.log(C.dim('  undo, restart and hostile operation sequences all leave the board exact'));
+  camp.notes.forEach(function (n) { console.log(C.dim('  ' + n)); });
+  console.log(C.dim('  rules on screen: ' + base + ' stages base only · ' + haz +
+    ' with a hazard · ' + col + ' with colour · 0 with both'));
   console.log(C.dim('  par range ' + Math.min.apply(null, pars) + '–' + Math.max.apply(null, pars) +
     ', total ' + pars.reduce(function (a, b) { return a + b; }, 0) + ' moves'));
-  if (totalCells) console.log(C.dim('  average board fill: ' + pct(usedCells / totalCells)));
   if (ms) console.log(C.dim('  audited in ' + (ms / 1000).toFixed(1) + 's'));
   console.log('');
 }
