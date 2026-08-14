@@ -19,6 +19,7 @@ var chromium = pw.chromium, devices = pw.devices;
 
 var ROOT = path.join(__dirname, '..');
 var SHOTS = process.argv.indexOf('--shots') >= 0;
+var ALL = process.argv.indexOf('--all') >= 0;
 var SHOT_DIR = path.join(ROOT, '.qa');
 
 var MIME = {
@@ -107,14 +108,40 @@ async function swipe(page, x, y, dx, dy) {
   if (SHOTS) await page.screenshot({ path: path.join(SHOT_DIR, '01-stage1.png') });
 
   // ── play every stage through the real input path ───────────────────────────
-  console.log('\n[1mPLAY ALL STAGES (engine-proved optimal lines, driven as key input)[0m');
+  console.log('\n[1mPLAY STAGES (engine-proved optimal lines, driven as key input)[0m');
 
   var stageCount = await page.evaluate(function () { return window.TiltStages.STAGES.length; });
-  ok('twenty stages ship', stageCount === 20, 'found ' + stageCount);
+  ok('one hundred stages ship', stageCount === 100, 'found ' + stageCount);
+
+  // Solvability of all 100 is proven by tools/audit.js; this harness is here to
+  // exercise the UI. By default it plays every hand-authored stage plus a
+  // spread from each generated chapter, which covers every element combination
+  // without spending ten minutes replaying boards the solver already cleared.
+  // --all plays the entire campaign.
+  var playList = await page.evaluate(function (all) {
+    var S = window.TiltStages.STAGES, C = window.TiltStages.CHAPTERS || [];
+    if (all) return S.map(function (d, i) { return i; });
+    var picked = [];
+    S.forEach(function (d, i) { if (d.id <= 20) picked.push(i); });
+    C.forEach(function (c) {
+      if (c.to <= 20) return;
+      var idx = [];
+      S.forEach(function (d, i) { if (d.id >= c.from && d.id <= c.to) idx.push(i); });
+      // first, middle and last of each chapter: easiest, median and hardest
+      [0, Math.floor(idx.length / 2), idx.length - 1].forEach(function (k) {
+        if (idx[k] != null && picked.indexOf(idx[k]) < 0) picked.push(idx[k]);
+      });
+    });
+    return picked.sort(function (a, b) { return a - b; });
+  }, ALL);
+
+  console.log('  ' + '[2m' + 'playing ' + playList.length + ' of ' + stageCount +
+    ' stages' + (ALL ? '' : '  (--all for the full campaign)') + '[0m');
 
   var keyFor = { U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight' };
 
-  for (var i = 0; i < stageCount; i++) {
+  for (var pi = 0; pi < playList.length; pi++) {
+    var i = playList[pi];
     await page.evaluate(function (idx) {
       window.game.save.data.unlocked = 99;
       window.game.loadStage(idx);
@@ -148,8 +175,8 @@ async function swipe(page, x, y, dx, dy) {
     ok('stage ' + String(plan.id).padStart(2, '0') + ' ' + plan.name.padEnd(8) + ' cleared in par ' + plan.par,
       good, 'phase=' + res.phase + ' moves=' + res.moves + ' overlay=' + res.overlayText.trim() + ' best=' + res.best);
 
-    if (SHOTS && (plan.id === 7 || plan.id === 20)) {
-      await page.screenshot({ path: path.join(SHOT_DIR, 'clear-' + String(plan.id).padStart(2, '0') + '.png') });
+    if (SHOTS && (plan.id === 7 || plan.id === 20 || plan.id === 100)) {
+      await page.screenshot({ path: path.join(SHOT_DIR, 'clear-' + String(plan.id).padStart(3, '0') + '.png') });
     }
   }
 
@@ -327,17 +354,42 @@ async function swipe(page, x, y, dx, dy) {
     return {
       shown: document.getElementById('menu').classList.contains('show'),
       cells: document.querySelectorAll('#stage-grid .cell').length,
-      done: document.querySelectorAll('#stage-grid .cell.done').length
+      chapters: document.querySelectorAll('#stage-grid .chap-head').length,
+      done: document.querySelectorAll('#stage-grid .cell.done').length,
+      expectChapters: (window.TiltStages.CHAPTERS || []).length,
+      progress: (document.getElementById('menu-progress') || {}).textContent || ''
     };
   });
   ok('menu opens', menu.shown);
-  ok('menu lists all twenty stages', menu.cells === 20, 'cells=' + menu.cells);
-  ok('cleared stages are marked', menu.done === 20, 'done=' + menu.done);
+  ok('menu lists all one hundred stages', menu.cells === 100, 'cells=' + menu.cells);
+  ok('menu groups them into chapters', menu.chapters === menu.expectChapters && menu.chapters === 10,
+    'chapters=' + menu.chapters);
+  ok('cleared stages are marked', menu.done > 0, 'done=' + menu.done);
+  ok('menu shows overall progress', /\d+/.test(menu.progress), menu.progress);
   if (SHOTS) await page.screenshot({ path: path.join(SHOT_DIR, 'menu.png') });
   await page.click('#btn-close');
   await page.waitForTimeout(340);
 
   // ── persistence ────────────────────────────────────────────────────────────
+  console.log('\n[1mPROGRESSION[0m');
+  var unlock = await page.evaluate(function () {
+    var g = window.game;
+    g.save.reset();
+    var W = window.TiltSave.Save.SKIP_WINDOW;
+    return {
+      window: W,
+      firstOpen: g.save.isUnlocked(1),
+      windowOpen: g.save.isUnlocked(1 + W),
+      beyondShut: g.save.isUnlocked(2 + W),
+      lastShut: g.save.isUnlocked(100)
+    };
+  });
+  ok('stage 1 is open on a fresh save', unlock.firstOpen === true);
+  ok('a stuck player may still reach ' + unlock.window + ' stages ahead', unlock.windowOpen === true);
+  ok('but no further than that', unlock.beyondShut === false);
+  ok('the late campaign stays locked', unlock.lastShut === false);
+  await page.evaluate(function () { window.game.save.data.unlocked = 99; window.game.save.flush(); });
+
   console.log('\n[1mPERSISTENCE[0m');
   var beforeReload = await page.evaluate(function () { return JSON.stringify(window.game.save.data.cleared); });
   await page.reload({ waitUntil: 'load' });
