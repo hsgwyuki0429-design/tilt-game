@@ -7,19 +7,30 @@
  * it only knows how to make a board to a budget and how to tell whether that
  * board is any good.
  *
- * The quality bar, in the order it is applied (cheapest test first):
+ * There are exactly three things to place — walls, blocks, goals — and the
+ * budget for each is fixed before the search starts. Nothing here can invent a
+ * new kind of element to make a board harder, because there is no such thing
+ * to invent. Depth has to come from WHERE the three things go.
+ *
+ * That constraint is also why the search hill-climbs instead of merely
+ * sampling. Boards that need twelve or twenty tilts are a vanishing fraction of
+ * random layouts, but they are a short walk from ordinary ones: nudge a single
+ * wall and a six-move board becomes a nine-move board. So the generator throws
+ * a random board down, then keeps moving one element at a time for as long as
+ * the shortest solution keeps getting longer. The element budget never grows —
+ * only the thinking does.
+ *
+ * The quality bar, cheapest test first:
  *
  *   compiles → not already solved → shortest solution inside the target band
- *   → few enough distinct optimal lines → low enough luck → required chain /
- *   danger properties → and finally: every single element is load-bearing.
+ *   → few enough distinct optimal lines → low enough luck → and finally:
+ *   every single element is load-bearing.
  *
- * That last test is the expensive one and the one that matters. A board passes
- * only if deleting ANY wall, pit, goal or block measurably changes the puzzle.
+ * That last test is the expensive one and the one that matters. A board ships
+ * only if deleting ANY wall, block or goal measurably changes the puzzle.
  */
 
 var E = require('../../src/engine.js');
-
-var LETTERS = 'ABCDEFGH';
 
 // ---------------------------------------------------------------------------
 // deterministic RNG — a campaign must rebuild byte-identically from its seed
@@ -45,137 +56,74 @@ Rng.prototype.shuffle = function (a) {
 };
 
 // ---------------------------------------------------------------------------
-// generation
+// boards as pictures
 // ---------------------------------------------------------------------------
+
+var WALL = '#', GOAL = 'o', BLOCK = '@', FLOOR = '.';
 
 function setCh(s, i, c) { return s.slice(0, i) + c + s.slice(i + 1); }
 
-/**
- * spec: { w, h, walls, pits, goals, pieces, big, colors }
- * where the element counts are [min,max] pairs and `goals` counts goal CELLS.
- *
- * Placement order is deliberate. Blocks go down first, then goals shaped to
- * receive them, then walls and pits fill what is left.
- *
- * The reason is multi-cell blocks. A horizontal 2-cell block can only ever be
- * collected on two horizontally adjacent goals of its colour — scatter the
- * goals at random and almost every board with a wide block is born unsolvable.
- * Reserving a matching-orientation goal pair per big block is what makes the
- * search for those chapters productive instead of a lottery.
- */
-function generate(spec, rng) {
-  var W = spec.w, H = spec.h;
-  var terrain = [], pieces = [], y;
-  for (y = 0; y < H; y++) {
-    terrain.push(new Array(W + 1).join('.'));
-    pieces.push(new Array(W + 1).join('.'));
+function cloneBoard(rows) { return rows.slice(); }
+
+function cellsOf(rows, ch) {
+  var out = [];
+  for (var y = 0; y < rows.length; y++) {
+    for (var x = 0; x < rows[y].length; x++) if (rows[y][x] === ch) out.push([x, y]);
   }
+  return out;
+}
+
+function put(rows, c, ch) { rows[c[1]] = setCh(rows[c[1]], c[0], ch); }
+
+/** spec: { w, h, walls, blocks, goals } — each count a [min,max] pair. */
+function generate(spec, rng) {
+  var W = spec.w, H = spec.h, rows = [], y;
+  for (y = 0; y < H; y++) rows.push(new Array(W + 1).join(FLOOR));
+
+  var nWall = rng.range(spec.walls);
+  var nBlock = rng.range(spec.blocks);
+  var nGoal = rng.range(spec.goals);
+  // At least one empty cell, or gravity has nowhere to take anything.
+  if (nWall + nBlock + nGoal > W * H - 1) return null;
 
   var free = [];
   for (var yy = 0; yy < H; yy++) for (var xx = 0; xx < W; xx++) free.push([xx, yy]);
   rng.shuffle(free);
 
-  var nWall = rng.range(spec.walls);
-  var nPit = rng.range(spec.pits);
-  var nPiece = rng.range(spec.pieces);
-  var nBig = spec.big ? rng.range(spec.big) : 0;
-  var nColor = spec.colors || 1;
-  if (nBig > nPiece) nBig = nPiece;
-  var nGoal = Math.max(rng.range(spec.goals), nBig * 2);
+  var i;
+  for (i = 0; i < nBlock; i++) put(rows, free.pop(), BLOCK);
+  for (i = 0; i < nGoal; i++) put(rows, free.pop(), GOAL);
+  for (i = 0; i < nWall; i++) put(rows, free.pop(), WALL);
+  return rows;
+}
 
-  // Cells consumed: blocks (big ones take two), goals, walls, pits — plus at
-  // least one cell of slack so gravity has somewhere to move things.
-  if (nPiece + nBig + nGoal + nWall + nPit > W * H - 1) return null;
-
-  var open = {};
-  free.forEach(function (f) { open[f[0] + ',' + f[1]] = true; });
-  var claim = function (c) {
-    delete open[c[0] + ',' + c[1]];
-    free = free.filter(function (f) { return !(f[0] === c[0] && f[1] === c[1]); });
-  };
-  var put = function (layer, c, ch) { layer[c[1]] = setCh(layer[c[1]], c[0], ch); };
-
-  /** All free adjacent cell pairs, optionally restricted to one orientation. */
-  var pairsOf = function (horizOnly) {
-    var out = [];
-    free.forEach(function (f) {
-      var dirs = horizOnly === true ? [[1, 0]] : horizOnly === false ? [[0, 1]] : [[1, 0], [0, 1]];
-      dirs.forEach(function (d) {
-        var nx = f[0] + d[0], ny = f[1] + d[1];
-        if (open[nx + ',' + ny]) out.push({ cells: [f, [nx, ny]], horiz: d[0] === 1 });
-      });
-    });
-    return out;
-  };
-
-  var i, c;
-  var bigs = [];
-  var colors = {};
-  var placed = 0;
-
-  // 1. multi-cell blocks
-  for (i = 0; i < nBig; i++) {
-    var ps = pairsOf(null);
-    if (!ps.length) return null;
-    var pr = rng.pick(ps);
-    var L = LETTERS[placed++];
-    pr.cells.forEach(function (cc) { put(pieces, cc, L); claim(cc); });
-    colors[L] = nColor > 1 ? rng.int(nColor) : 0;
-    bigs.push({ letter: L, horiz: pr.horiz, color: colors[L] });
+/** Move one randomly chosen element to a randomly chosen empty cell. */
+function mutate(rows, rng) {
+  var out = cloneBoard(rows);
+  var occupied = [], empty = [];
+  for (var y = 0; y < out.length; y++) {
+    for (var x = 0; x < out[y].length; x++) {
+      if (out[y][x] === FLOOR) empty.push([x, y]);
+      else occupied.push([x, y]);
+    }
   }
-
-  // 2. single-cell blocks
-  for (i = 0; i < nPiece - nBig; i++) {
-    c = free.pop(); if (!c) return null;
-    var L2 = LETTERS[placed++];
-    put(pieces, c, L2);
-    claim(c);
-    colors[L2] = nColor > 1 ? rng.int(nColor) : 0;
-  }
-  if (!placed) return null;
-
-  // 3. one shape-matched goal pair per multi-cell block
-  var goalsLeft = nGoal;
-  for (i = 0; i < bigs.length; i++) {
-    var fit = pairsOf(bigs[i].horiz);
-    if (!fit.length) return null;
-    var gp = rng.pick(fit);
-    var ch = nColor > 1 ? String(bigs[i].color) : 'o';
-    gp.cells.forEach(function (cc) { put(terrain, cc, ch); claim(cc); });
-    goalsLeft -= 2;
-  }
-
-  // 4. remaining goal cells, covering every single-block colour first
-  var needColors = [];
-  if (nColor > 1) {
-    Object.keys(colors).forEach(function (k) {
-      var isBig = bigs.some(function (b) { return b.letter === k; });
-      if (!isBig && needColors.indexOf(colors[k]) < 0) needColors.push(colors[k]);
-    });
-  }
-  if (goalsLeft < needColors.length) goalsLeft = needColors.length;
-  for (i = 0; i < goalsLeft; i++) {
-    c = free.pop(); if (!c) return null;
-    var gc = i < needColors.length ? String(needColors[i]) : (nColor > 1 ? String(rng.int(nColor)) : 'o');
-    put(terrain, c, gc);
-    claim(c);
-  }
-
-  // 5. walls and pits fill what is left
-  for (i = 0; i < nWall; i++) { c = free.pop(); if (!c) return null; put(terrain, c, '#'); claim(c); }
-  for (i = 0; i < nPit; i++) { c = free.pop(); if (!c) return null; put(terrain, c, '*'); claim(c); }
-
-  return { terrain: terrain, pieces: pieces, colors: colors };
+  if (!occupied.length || !empty.length) return out;
+  var from = rng.pick(occupied);
+  var to = rng.pick(empty);
+  var ch = out[from[1]][from[0]];
+  put(out, from, FLOOR);
+  put(out, to, ch);
+  return out;
 }
 
 // ---------------------------------------------------------------------------
-// canonical form — two boards that differ only by rotation are one puzzle
+// canonical form — boards that differ only by rotation are one puzzle
 // ---------------------------------------------------------------------------
 
 function transform(rows, k) {
   var h = rows.length, w = rows[0].length, out = [], y, x;
-  var oh = (k === 1 || k === 3 || k === 5 || k === 7) ? w : h;
-  var ow = (k === 1 || k === 3 || k === 5 || k === 7) ? h : w;
+  var flip = (k === 1 || k === 3 || k === 5 || k === 7);
+  var oh = flip ? w : h, ow = flip ? h : w;
   for (y = 0; y < oh; y++) {
     var line = '';
     for (x = 0; x < ow; x++) {
@@ -197,166 +145,170 @@ function transform(rows, k) {
   return out;
 }
 
-function canonical(def) {
+function canonical(rows) {
   var best = null;
   for (var k = 0; k < 8; k++) {
-    var terr = transform(def.terrain, k);
-    var pcs = transform(def.pieces, k);
-    var map = {}, next = 0, relabelled = [];
-    for (var y = 0; y < pcs.length; y++) {
-      var line = '';
-      for (var x = 0; x < pcs[y].length; x++) {
-        var ch = pcs[y][x];
-        if (ch === '.') { line += '.'; continue; }
-        if (map[ch] == null) map[ch] = LETTERS[next++];
-        line += map[ch];
-      }
-      relabelled.push(line);
-    }
-    // Keyed by the NEW label so swapped letters cannot look like a new board.
-    var sig = Object.keys(map).map(function (src) {
-      return map[src] + ':' + ((def.colors && def.colors[src]) || 0);
-    }).sort().join(',');
-    var key = terr.join('/') + '|' + relabelled.join('/') + '|' + sig;
+    var key = transform(rows, k).join('/');
     if (best === null || key < best) best = key;
   }
   return best;
 }
 
 // ---------------------------------------------------------------------------
-// measurement
+// measurement — every number below is read off one reachability graph
 // ---------------------------------------------------------------------------
 
-/** Number of distinct shortest solutions, capped. */
-function countShortest(stage, par, cap) {
-  var count = 0;
-  (function walk(s, depth) {
-    if (count > cap || depth === par) return;
-    for (var i = 0; i < 4; i++) {
-      var ns = E.step(stage, s, E.DIRS[i]);
-      if (!ns || E.isLost(ns)) continue;
-      if (E.isClear(ns)) { if (depth + 1 === par) count++; continue; }
-      walk(ns, depth + 1);
-    }
-  })(E.initialState(stage), 0);
-  return count;
+/** Shortest solution length only. The cheap test, used inside the climb. */
+function parOf(rows, cap) {
+  var stage;
+  try { stage = E.compile({ board: rows }); } catch (e) { return -1; }
+  if (E.isClear(E.initialState(stage))) return -1;
+  var sol = E.solve(stage, null, cap || 60000);
+  return sol.solvable ? sol.moves : -1;
 }
 
 /**
- * Share of ALL par-length tilt sequences that happen to clear the board.
- * The lower this is, the more the stage demands an actual idea rather than
- * a lucky flail. Sampled once the exhaustive walk would get expensive.
+ * Everything the design gate wants to know, computed exactly from the graph.
+ *
+ *   par    shortest solution, in tilts
+ *   ways   how many distinct par-length tilt sequences clear the board
+ *   luck   share of ALL par-length tilt sequences that happen to clear it —
+ *          the probability a player who is not thinking wins anyway
+ *   dead   share of reachable positions from which the board can no longer be
+ *          solved; undo is free, but this is how unforgiving a stage feels
+ *   states how much board there is to think about
  */
-function solveRate(stage, par, rng, limit) {
-  if (par < 1) return 1;
-  var total = Math.pow(4, par);
-  if (total <= 300000) {
-    var wins = 0;
-    (function walk(s, depth) {
-      for (var i = 0; i < 4; i++) {
-        var ns = E.step(stage, s, E.DIRS[i]);
-        if (!ns || E.isLost(ns)) continue;
-        var rest = Math.pow(4, par - depth - 1);
-        if (E.isClear(ns)) { wins += rest; continue; }
-        if (depth + 1 < par) walk(ns, depth + 1);
-      }
-    })(E.initialState(stage), 0);
-    return wins / total;
+function measure(stage, cap) {
+  var g = E.graph(stage, cap || 60000);
+  if (!g) return null;
+
+  var n = g.n, i, d, j;
+
+  var par = -1;
+  for (i = 0; i < n; i++) {
+    if (g.clear[i]) { par = g.dist[i]; break; }   // BFS order: first clear is shortest
   }
-  // Beyond ~9 moves the exhaustive walk is millions of sequences, so sample.
-  // `bail` lets the caller stop the moment the board is already too lucky to
-  // ship, which is what makes long-par chapters searchable at all.
-  var trials = 5000, hit = 0;
-  var bailAt = limit != null ? Math.ceil(limit * trials) + 1 : Infinity;
-  for (var t = 0; t < trials; t++) {
-    var s = E.initialState(stage);
-    for (var m = 0; m < par; m++) {
-      var ns2 = E.step(stage, s, E.DIRS[rng ? rng.int(4) : Math.floor(Math.random() * 4)]);
-      if (!ns2 || E.isLost(ns2)) break;
-      s = ns2;
-      if (E.isClear(s)) { hit++; break; }
+  if (par < 1) return null;
+
+  // Distinct shortest lines. Nodes are in breadth-first order, so a single
+  // forward sweep is a correct dynamic program over the layers.
+  var ways = new Float64Array(n);
+  ways[0] = 1;
+  var total = 0;
+  for (i = 0; i < n; i++) {
+    if (!ways[i] || g.dist[i] >= par) continue;
+    for (d = 0; d < 4; d++) {
+      j = g.next[i][d];
+      if (j === i) continue;                       // a tilt that changes nothing
+      if (g.dist[j] !== g.dist[i] + 1) continue;
+      ways[j] += ways[i];
+      if (g.clear[j] && g.dist[j] === par) total += ways[i];
     }
-    if (hit >= bailAt) return hit / (t + 1);
   }
-  return hit / trials;
+
+  // Luck: walk `par` uniformly random tilts and see how much probability mass
+  // ends up on a cleared board. A tilt that moves nothing leaves you where you
+  // were and still burns one of the par moves.
+  var p = new Float64Array(n);
+  p[0] = 1;
+  var luck = 0;
+  for (var step = 0; step < par; step++) {
+    var q = new Float64Array(n);
+    for (i = 0; i < n; i++) {
+      if (!p[i]) continue;
+      for (d = 0; d < 4; d++) {
+        j = g.next[i][d];
+        if (g.clear[j]) luck += p[i] * 0.25;
+        else q[j] += p[i] * 0.25;
+      }
+    }
+    p = q;
+  }
+
+  // Dead ends: which positions can still reach a cleared board? Walk the graph
+  // backwards from every clear node.
+  var back = [];
+  for (i = 0; i < n; i++) back.push([]);
+  for (i = 0; i < n; i++) {
+    for (d = 0; d < 4; d++) {
+      j = g.next[i][d];
+      if (j !== i) back[j].push(i);
+    }
+  }
+  var alive = new Uint8Array(n);
+  var stack = [];
+  for (i = 0; i < n; i++) if (g.clear[i]) { alive[i] = 1; stack.push(i); }
+  while (stack.length) {
+    var cur = stack.pop();
+    var pre = back[cur];
+    for (var k = 0; k < pre.length; k++) if (!alive[pre[k]]) { alive[pre[k]] = 1; stack.push(pre[k]); }
+  }
+  var dead = 0, live = 0;
+  for (i = 0; i < n; i++) {
+    if (g.clear[i]) continue;
+    live++;
+    if (!alive[i]) dead++;
+  }
+
+  return {
+    par: par,
+    ways: Math.round(total),
+    luck: luck,
+    states: n,
+    dead: live ? dead / live : 0
+  };
 }
 
 /**
- * How many tilts anywhere in the reachable space actually cost you a block.
- * `firstOnly` stops at the first one — during a search we usually just need to
- * know whether the pit is a real threat or decoration.
+ * What the optimal line actually feels like to play.
+ *   chain      most blocks collected by a single tilt
+ *   chainLast  blocks collected by the FINAL tilt
+ *   opening    tilts played before the first block is collected — how long the
+ *              player has to arrange the board before anything pays off
  */
-function danger(stage, cap, firstOnly) {
-  var states = E.reachable(stage, null, cap || 4000);
-  var kills = 0;
-  for (var i = 0; i < states.length; i++) {
-    if (E.isClear(states[i])) continue;
-    for (var d = 0; d < 4; d++) {
-      var r = E.simulate(stage, states[i], E.DIRS[d], { frames: false });
-      if (r.moved && r.state.lost > 0) {
-        kills++;
-        if (firstOnly) return { kills: kills, states: states.length, partial: true };
-      }
-    }
-  }
-  return { kills: kills, states: states.length, partial: false };
-}
-
-/** Largest single-tilt cascade along the optimal line, and the size of the final one. */
-function chainOf(stage, path) {
-  var s = E.initialState(stage), max = 0, last = 0;
+function shapeOf(stage, path) {
+  var s = E.initialState(stage), max = 0, last = 0, opening = path.length;
   for (var i = 0; i < path.length; i++) {
-    var r = E.simulate(stage, s, path[i]);
+    var r = E.simulate(stage, s, path[i], { frames: false });
     var got = 0;
     for (var k = 0; k < r.events.length; k++) if (r.events[k].type === 'goal') got++;
     if (got > max) max = got;
+    if (got && opening === path.length) opening = i;
     if (i === path.length - 1) last = got;
     s = r.state;
   }
-  return { max: max, last: last };
-}
-
-function cloneDef(d) {
-  return {
-    id: d.id, name: d.name,
-    terrain: d.terrain.slice(), pieces: d.pieces.slice(),
-    colors: JSON.parse(JSON.stringify(d.colors || {}))
-  };
+  return { chain: max, chainLast: last, opening: opening };
 }
 
 /**
  * The deletion test. Returns the label of the first element the board turns out
  * not to need, or null if every one of them is load-bearing.
+ *
+ * Removing the last goal or the last block leaves something that will not
+ * compile at all, which is the strongest possible proof it was needed.
  */
-function findInert(def, stage, par, ways, nodeCap) {
+function findInert(rows, par, ways, cap) {
   var probe = function (variant, label) {
     var st;
-    try { st = E.compile(variant); } catch (e) { return null; }
-    var sol = E.solve(st, E.initialState(st), nodeCap || 80000);
-    if (!sol.solvable || sol.moves !== par) return null;      // it mattered
-    if (countShortest(st, sol.moves, 400) !== ways) return null;
-    return label;                                              // it did not
+    try { st = E.compile({ board: variant }); } catch (e) { return null; }
+    if (E.isClear(E.initialState(st))) return null;
+    var m = measure(st, cap || 60000);
+    if (!m) return null;
+    if (m.par !== par || m.ways !== ways) return null;   // it mattered
+    return label;                                        // it did not
   };
 
-  var h = def.terrain.length, w = def.terrain[0].length, y, x, hit;
-  for (y = 0; y < h; y++) {
-    for (x = 0; x < w; x++) {
-      var ch = def.terrain[y][x];
-      if (ch === '.') continue;
-      var v = cloneDef(def);
-      v.terrain[y] = setCh(v.terrain[y], x, '.');
-      hit = probe(v, (ch === '#' ? 'wall' : ch === '*' ? 'pit' : 'goal') + ' ' + x + ',' + y);
+  var h = rows.length, w = rows[0].length;
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      var ch = rows[y][x];
+      if (ch === FLOOR) continue;
+      var v = cloneBoard(rows);
+      v[y] = setCh(v[y], x, FLOOR);
+      var name = ch === WALL ? 'wall' : ch === GOAL ? 'goal' : 'block';
+      var hit = probe(v, name + ' ' + x + ',' + y);
       if (hit) return hit;
     }
-  }
-  for (var pi = 0; pi < stage.pieces.length; pi++) {
-    var L = stage.pieces[pi].letter;
-    var v2 = cloneDef(def);
-    for (y = 0; y < h; y++) {
-      for (x = 0; x < w; x++) if (v2.pieces[y][x] === L) v2.pieces[y] = setCh(v2.pieces[y], x, '.');
-    }
-    hit = probe(v2, 'block ' + L);
-    if (hit) return hit;
   }
   return null;
 }
@@ -367,67 +319,110 @@ function findInert(def, stage, par, ways, nodeCap) {
 
 /**
  * Returns a scored record, or null if the board fails any requirement.
- * `filters` may set: par, ways, luck, danger, chain, chainLast, minStates, loose.
+ * `filters` may set: par, ways, luck, maxDead, minStates, chain, chainLast,
+ * opening, loose, nodeCap.
  */
-function evaluate(def, filters, rng) {
+function evaluate(rows, filters, rng) {
+  filters = filters || {};
   var stage;
-  try { stage = E.compile(def); } catch (e) { return null; }
+  try { stage = E.compile({ board: rows }); } catch (e) { return null; }
+  if (E.isClear(E.initialState(stage))) return null;
 
-  var start = E.initialState(stage);
-  if (E.isClear(start)) return null;
+  var cap = filters.nodeCap || 60000;
+  var m = measure(stage, cap);
+  if (!m) return null;
 
-  var sol = E.solve(stage, start, filters.nodeCap || 200000);
-  if (!sol.solvable) return null;
-  var par = sol.moves;
-  if (filters.par && (par < filters.par[0] || par > filters.par[1])) return null;
+  if (filters.par && (m.par < filters.par[0] || m.par > filters.par[1])) return null;
+  if (filters.ways && (m.ways < filters.ways[0] || m.ways > filters.ways[1])) return null;
+  if (filters.luck != null && m.luck > filters.luck) return null;
+  if (filters.maxDead != null && m.dead > filters.maxDead) return null;
+  if (filters.minStates && m.states < filters.minStates) return null;
 
-  var ways = countShortest(stage, par, 400);
-  if (filters.ways && (ways < filters.ways[0] || ways > filters.ways[1])) return null;
+  var sol = E.solve(stage, null, cap);
+  var shape = shapeOf(stage, sol.path);
+  if (filters.chain && shape.chain < filters.chain) return null;
+  if (filters.chainLast && shape.chainLast < filters.chainLast) return null;
+  if (filters.opening && shape.opening < filters.opening) return null;
 
-  var luck = solveRate(stage, par, rng, filters.luck);
-  if (filters.luck != null && luck > filters.luck) return null;
-
-  var chain = chainOf(stage, sol.path);
-  if (filters.chain && chain.max < filters.chain) return null;
-  if (filters.chainLast && chain.last < filters.chainLast) return null;
-
-  var dg = danger(stage, filters.dangerCap || 4000, !!filters.danger && !filters.exactDanger);
-  if (filters.danger && dg.kills === 0) return null;
-  if (filters.minStates && dg.states < filters.minStates) return null;
+  var walls = cellsOf(rows, WALL).length;
+  var goals = cellsOf(rows, GOAL).length;
+  var blocks = cellsOf(rows, BLOCK).length;
+  var elements = walls + goals + blocks;
 
   if (!filters.loose) {
-    var inert = findInert(def, stage, par, ways, filters.nodeCap);
+    var inert = findInert(rows, m.par, m.ways, cap);
     if (inert) return null;
   }
 
-  // Prefer long, unlucky, branchy boards with a single clean idea running
-  // through them.
-  var score = par * 10
-    - luck * 500
-    - ways * 2.5
-    + Math.min(dg.states, 400) * 0.05
-    + (dg.kills ? 3 : 0)
-    + (chain.max > 1 ? chain.max * 2 : 0);
+  // What a good board looks like, as a number.
+  //
+  // Length is the point, so par dominates. But par bought with clutter is not
+  // what this game is for: every element on the board costs score, which is how
+  // "few pieces, deep puzzle" stops being a slogan and starts being a filter.
+  // The rest is polish — one clean line, no lucky wins, plenty of room to think,
+  // a long set-up before the first payoff, and a finish that lands more than one
+  // block at once.
+  var score = m.par * 14
+    - elements * 5
+    - m.ways * 6
+    - m.luck * 900
+    + Math.min(m.states, 900) * 0.02
+    + shape.opening * 2
+    + (shape.chain > 1 ? shape.chain * 5 : 0)
+    + (shape.chainLast > 1 ? 6 : 0);
 
   return {
-    def: def, stage: stage, par: par, ways: ways, luck: luck,
-    states: dg.states, kills: dg.kills,
-    chain: chain.max, chainLast: chain.last,
-    path: sol.path, score: score
+    board: rows, stage: stage, path: sol.path,
+    par: m.par, ways: m.ways, luck: m.luck, states: m.states, dead: m.dead,
+    chain: shape.chain, chainLast: shape.chainLast, opening: shape.opening,
+    walls: walls, goals: goals, blocks: blocks, elements: elements,
+    score: score
   };
+}
+
+/**
+ * Hill-climb one board towards a longer solution.
+ *
+ * Moves a single element at a time and keeps the change whenever the shortest
+ * solution grows. Sideways moves are accepted too — a board often has to go
+ * around a plateau before it can climb again — and the element budget is fixed
+ * throughout, so the result is a board that got deeper without getting busier.
+ */
+function climb(spec, rng, target, steps, cap) {
+  var rows = generate(spec, rng);
+  if (!rows) return null;
+  var best = parOf(rows, cap);
+  var stall = 0;
+
+  for (var i = 0; i < steps; i++) {
+    if (best >= target) break;
+    var cand = mutate(rows, rng);
+    var p = parOf(cand, cap);
+    if (p > best || (p === best && p > 0 && rng.next() < 0.35)) {
+      if (p > best) stall = 0;
+      rows = cand;
+      best = p;
+    } else if (++stall > 60) {
+      break;    // this basin has nothing more to give
+    }
+  }
+  return best > 0 ? rows : null;
 }
 
 module.exports = {
   Rng: Rng,
-  LETTERS: LETTERS,
+  WALL: WALL, GOAL: GOAL, BLOCK: BLOCK, FLOOR: FLOOR,
   generate: generate,
+  mutate: mutate,
+  climb: climb,
   canonical: canonical,
-  evaluate: evaluate,
-  countShortest: countShortest,
-  solveRate: solveRate,
-  danger: danger,
-  chainOf: chainOf,
+  transform: transform,
+  parOf: parOf,
+  measure: measure,
+  shapeOf: shapeOf,
   findInert: findInert,
-  cloneDef: cloneDef,
-  setCh: setCh
+  evaluate: evaluate,
+  cellsOf: cellsOf,
+  setCh: setCh,
+  cloneBoard: cloneBoard
 };

@@ -4,17 +4,30 @@
  *
  * Pure, deterministic puzzle logic. No DOM, no canvas, no timers.
  * Loadable both as a browser global (window.TiltEngine) and as a CommonJS
- * module (tools/audit.js), so the solver validates the *exact* same code the
- * player runs.
+ * module (tools/), so the solver validates the *exact* same code the player
+ * runs.
  *
- * THE RULES (all of them):
- *   1. The board is a grid of FLOOR / WALL / PIT cells. Some cells carry a GOAL.
- *   2. Pieces are rigid groups of cells with a colour.
- *   3. Tilting sends gravity one of four ways; every piece slides as far as it can.
- *   4. A piece whose cells all rest on goals accepting its colour is COLLECTED.
- *      A piece whose cells all rest on pits is LOST.
- *      Both happen mid-slide — that is where chain reactions come from.
- *   5. CLEAR when every piece is collected and none was lost.
+ * THE RULES. All of them:
+ *
+ *   1. The board is a grid of floor and wall cells. Some floor cells are goals.
+ *   2. Every block is the same block: one cell, no colour, no special case.
+ *   3. Tilting sends gravity one of four ways. Every block slides until
+ *      something stops it — the edge, a wall, or another block.
+ *   4. A block that arrives on a goal is collected and leaves, mid-slide.
+ *      That is where chain reactions come from.
+ *   5. CLEAR when every block has been collected.
+ *
+ * There is no sixth rule, and there will not be one. Nothing on the board can
+ * destroy a block, no block behaves differently from any other, and no cell is
+ * forbidden. A stage is hard because of where the walls, blocks and goals are
+ * and because of the order they have to be moved in — never because the rules
+ * grew.
+ *
+ * Because every block is identical, two positions that differ only by swapping
+ * blocks ARE the same position, and `stateKey` says so. That is not an
+ * optimisation bolted on afterwards; it is what "all blocks are the same"
+ * means, and it is why the solver agrees with the player about how long a
+ * stage really is.
  */
 (function (root, factory) {
   var api = factory();
@@ -25,98 +38,54 @@
   var DIRS = ['U', 'R', 'D', 'L'];
   var DV = { U: [0, -1], R: [1, 0], D: [0, 1], L: [-1, 0] };
 
-  var FLOOR = 0, WALL = 1, PIT = 2;
-  var GOAL_NONE = -1, GOAL_ANY = -2;
-  var MAX_COLORS = 3;
+  var FLOOR = 0, WALL = 1;
 
   // ---------------------------------------------------------------------------
   // Stage compilation
   // ---------------------------------------------------------------------------
   //
-  // Stages are authored as two aligned ASCII layers so they can be read and
-  // edited as pictures:
+  // A stage is one ASCII picture, because there is only one kind of everything:
   //
-  //   terrain: '.' floor   '#' wall   '*' pit
-  //            'o' goal (any colour)  '0'/'1'/'2' goal (that colour only)
-  //   pieces:  '.' empty   'A'..'Z'  one letter = one piece
-  //            (a letter repeated over adjacent cells = one multi-cell piece)
-  //   colors:  { A: 0, B: 1, ... }   defaults to colour 0
+  //     '.'  floor        '#'  wall
+  //     'o'  goal         '@'  block (standing on floor)
+  //
+  //   board: ['@..',
+  //           '.#.',
+  //           '..o']
 
   function fail(def, msg) {
     throw new Error('stage ' + (def && def.id != null ? def.id : '?') + ': ' + msg);
   }
 
   function compile(def) {
-    if (!def.terrain || !def.terrain.length) fail(def, 'terrain missing');
-    if (!def.pieces) fail(def, 'pieces layer missing');
+    var rows = def.board;
+    if (!rows || !rows.length) fail(def, 'board missing');
 
-    var h = def.terrain.length;
-    var w = def.terrain[0].length;
-    if (def.pieces.length !== h) fail(def, 'pieces layer has ' + def.pieces.length + ' rows, terrain has ' + h);
-
+    var h = rows.length;
+    var w = rows[0].length;
     var terrain = new Uint8Array(w * h);
-    var goal = new Int8Array(w * h);
+    var goal = new Uint8Array(w * h);
+    var blocks = [];
     var y, x, i, ch;
 
     for (y = 0; y < h; y++) {
-      if (def.terrain[y].length !== w) fail(def, 'terrain row ' + y + ' is ' + def.terrain[y].length + ' wide, expected ' + w);
-      if (def.pieces[y].length !== w) fail(def, 'pieces row ' + y + ' is ' + def.pieces[y].length + ' wide, expected ' + w);
+      if (rows[y].length !== w) fail(def, 'row ' + y + ' is ' + rows[y].length + ' wide, expected ' + w);
       for (x = 0; x < w; x++) {
         i = y * w + x;
-        ch = def.terrain[y][x];
-        goal[i] = GOAL_NONE;
-        if (ch === '.') { terrain[i] = FLOOR; }
+        ch = rows[y][x];
+        if (ch === '.') { /* floor */ }
         else if (ch === '#') { terrain[i] = WALL; }
-        else if (ch === '*') { terrain[i] = PIT; }
-        else if (ch === 'o') { terrain[i] = FLOOR; goal[i] = GOAL_ANY; }
-        else if (ch >= '0' && ch <= '2') { terrain[i] = FLOOR; goal[i] = ch.charCodeAt(0) - 48; }
-        else fail(def, 'unknown terrain char "' + ch + '" at ' + x + ',' + y);
+        else if (ch === 'o') { goal[i] = 1; }
+        else if (ch === '@') { blocks.push([x, y]); }
+        else fail(def, 'unknown board character "' + ch + '" at ' + x + ',' + y);
       }
     }
 
-    // Gather pieces by letter.
-    var byLetter = Object.create(null);
-    for (y = 0; y < h; y++) {
-      for (x = 0; x < w; x++) {
-        ch = def.pieces[y][x];
-        if (ch === '.') continue;
-        if (!(ch >= 'A' && ch <= 'Z')) fail(def, 'unknown piece char "' + ch + '" at ' + x + ',' + y);
-        if (!byLetter[ch]) byLetter[ch] = [];
-        byLetter[ch].push([x, y]);
-      }
-    }
+    if (!blocks.length) fail(def, 'no blocks');
 
-    var letters = Object.keys(byLetter).sort();
-    var pieces = letters.map(function (L, idx) {
-      var cells = byLetter[L];
-      var color = (def.colors && def.colors[L] != null) ? def.colors[L] : 0;
-      if (!(color >= 0 && color < MAX_COLORS)) fail(def, 'piece ' + L + ' has invalid colour ' + color);
-      cells.forEach(function (c) {
-        var t = terrain[c[1] * w + c[0]];
-        if (t === WALL) fail(def, 'piece ' + L + ' starts inside a wall at ' + c[0] + ',' + c[1]);
-        if (t === PIT) fail(def, 'piece ' + L + ' starts inside a pit at ' + c[0] + ',' + c[1]);
-      });
-      if (!isConnected(cells)) fail(def, 'piece ' + L + ' is not a single connected shape');
-      return { id: idx, letter: L, color: color, cells: cells };
-    });
-
-    if (!pieces.length) fail(def, 'no pieces');
-
-    // No two pieces may share a cell.
-    var seen = Object.create(null);
-    pieces.forEach(function (p) {
-      p.cells.forEach(function (c) {
-        var k = c[0] + ',' + c[1];
-        if (seen[k]) fail(def, 'pieces ' + seen[k] + ' and ' + p.letter + ' overlap at ' + k);
-        seen[k] = p.letter;
-      });
-    });
-
-    // A cell may not be both a goal and a pit — the outcome would be ambiguous.
-    for (i = 0; i < w * h; i++) {
-      if (terrain[i] === PIT && goal[i] !== GOAL_NONE) fail(def, 'cell ' + (i % w) + ',' + Math.floor(i / w) + ' is both pit and goal');
-      if (terrain[i] === WALL && goal[i] !== GOAL_NONE) fail(def, 'cell ' + (i % w) + ',' + Math.floor(i / w) + ' is both wall and goal');
-    }
+    var goalCount = 0;
+    for (i = 0; i < w * h; i++) if (goal[i]) goalCount++;
+    if (!goalCount) fail(def, 'no goals');
 
     return {
       id: def.id,
@@ -126,43 +95,22 @@
       w: w, h: h,
       terrain: terrain,
       goal: goal,
-      pieces: pieces,
+      blocks: blocks,
       par: def.par != null ? def.par : null,
       def: def
     };
   }
 
-  function isConnected(cells) {
-    if (cells.length <= 1) return true;
-    var key = function (c) { return c[0] + ',' + c[1]; };
-    var set = Object.create(null);
-    cells.forEach(function (c) { set[key(c)] = true; });
-    var stack = [cells[0]], seen = Object.create(null);
-    seen[key(cells[0])] = true;
-    var n = 1;
-    while (stack.length) {
-      var c = stack.pop();
-      var nb = [[c[0] + 1, c[1]], [c[0] - 1, c[1]], [c[0], c[1] + 1], [c[0], c[1] - 1]];
-      for (var i = 0; i < nb.length; i++) {
-        var k = key(nb[i]);
-        if (set[k] && !seen[k]) { seen[k] = true; n++; stack.push(nb[i]); }
-      }
-    }
-    return n === cells.length;
-  }
-
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
-  // A state is just an offset per piece plus liveness. Shapes are rigid, so an
-  // (dx,dy) offset from the authored cells is a complete description.
+  // A state is a live position per block. `alive[i] === 0` means block i has
+  // already been collected, and its position is then meaningless.
 
   function initialState(stage) {
-    var n = stage.pieces.length;
     return {
-      off: stage.pieces.map(function () { return [0, 0]; }),
-      alive: stage.pieces.map(function () { return 1; }),
-      lost: 0,
+      pos: stage.blocks.map(function (b) { return [b[0], b[1]]; }),
+      alive: stage.blocks.map(function () { return 1; }),
       collected: 0,
       moves: 0
     };
@@ -170,96 +118,87 @@
 
   function cloneState(s) {
     return {
-      off: s.off.map(function (o) { return [o[0], o[1]]; }),
+      pos: s.pos.map(function (p) { return [p[0], p[1]]; }),
       alive: s.alive.slice(),
-      lost: s.lost,
       collected: s.collected,
       moves: s.moves
     };
   }
 
+  /**
+   * The identity of a position, as the player sees it.
+   *
+   * Blocks are interchangeable, so the key is the SET of occupied cells, not
+   * which block is where. Sorting is what makes two boards that differ only by
+   * a swap compare equal — and since the physics treats every block the same,
+   * they really do have the same future.
+   */
   function stateKey(s) {
-    var parts = [];
-    for (var i = 0; i < s.off.length; i++) {
-      parts.push(s.alive[i] ? (s.off[i][0] + '.' + s.off[i][1]) : 'x');
+    var cells = [];
+    for (var i = 0; i < s.pos.length; i++) {
+      if (s.alive[i]) cells.push(s.pos[i][0] + '.' + s.pos[i][1]);
     }
-    return parts.join('|');
+    cells.sort();
+    return cells.join('|');
   }
 
-  function pieceCells(stage, s, i) {
-    var o = s.off[i], base = stage.pieces[i].cells, out = new Array(base.length);
-    for (var k = 0; k < base.length; k++) out[k] = [base[k][0] + o[0], base[k][1] + o[1]];
-    return out;
-  }
-
-  function isClear(s) { return s.lost === 0 && s.collected === s.alive.length; }
-  function isLost(s) { return s.lost > 0; }
+  function isClear(s) { return s.collected === s.pos.length; }
 
   // ---------------------------------------------------------------------------
   // Simulation
   // ---------------------------------------------------------------------------
   //
-  // One "tick" = one pass in which every piece advances at most one cell,
+  // One "tick" = one pass in which every block advances at most one cell,
   // front-most first. Repeating passes until nothing moves reproduces
-  // simultaneous sliding exactly, keeps trains of pieces spaced correctly, and
-  // lets a collected piece free the cell behind it inside the same slide —
+  // simultaneous sliding exactly, keeps trains of blocks correctly spaced, and
+  // lets a collected block free the cell behind it inside the same slide —
   // which is precisely the chain reaction.
   //
-  // Returns { state, moved, frames, events, clear, lost }.
-  //   frames[t] = { off, alive } snapshot after t ticks (frames[0] = start)
-  //   events    = [{ t, type: 'goal'|'pit'|'stop', piece, cells }]
+  // Returns { state, moved, frames, events, clear }.
+  //   frames[t] = { pos, alive } snapshot after t ticks (frames[0] = start)
+  //   events    = [{ t, type: 'goal'|'stop', block, cell }]
 
   function simulate(stage, s0, dir, opts) {
     var wantFrames = !opts || opts.frames !== false;
     var d = DV[dir];
     if (!d) throw new Error('bad direction ' + dir);
     var dx = d[0], dy = d[1];
-    var w = stage.w, h = stage.h, n = stage.pieces.length;
+    var w = stage.w, h = stage.h, n = s0.pos.length;
 
-    var off = s0.off.map(function (o) { return [o[0], o[1]]; });
+    var pos = s0.pos.map(function (p) { return [p[0], p[1]]; });
     var alive = s0.alive.slice();
-    var lost = s0.lost, collected = s0.collected;
+    var collected = s0.collected;
+    var i, k;
 
-    // Live occupancy grid: -1 empty, else piece index.
+    // Live occupancy grid: -1 empty, else block index.
     var occ = new Int16Array(w * h).fill(-1);
-    var i, k, cells;
     for (i = 0; i < n; i++) {
-      if (!alive[i]) continue;
-      cells = stage.pieces[i].cells;
-      for (k = 0; k < cells.length; k++) {
-        occ[(cells[k][1] + off[i][1]) * w + cells[k][0] + off[i][0]] = i;
-      }
+      if (alive[i]) occ[pos[i][1] * w + pos[i][0]] = i;
     }
 
     var frames = [];
     var events = [];
     var snapshot = function () {
-      return { off: off.map(function (o) { return [o[0], o[1]]; }), alive: alive.slice() };
+      return { pos: pos.map(function (p) { return [p[0], p[1]]; }), alive: alive.slice() };
     };
     if (wantFrames) frames.push(snapshot());
 
-    var movedTotal = new Array(n).fill(0);
     var movingLast = new Array(n).fill(false);
     var order = [];
     for (i = 0; i < n; i++) order.push(i);
 
-    // Leading edge along the gravity axis — how far "downstream" the piece is.
-    var lead = function (idx) {
-      var c = stage.pieces[idx].cells, best = -Infinity, v;
-      for (var q = 0; q < c.length; q++) {
-        v = (c[q][0] + off[idx][0]) * dx + (c[q][1] + off[idx][1]) * dy;
-        if (v > best) best = v;
-      }
-      return best;
-    };
+    // How far "downstream" a block is along the gravity axis.
+    var lead = function (idx) { return pos[idx][0] * dx + pos[idx][1] * dy; };
 
     var guard = w * h * (n + 1) + 16;
     var anythingMoved = false;
 
     while (guard-- > 0) {
-      var tIndex = frames.length; // frame index this pass will produce
+      var tIndex = frames.length;   // the frame index this pass will produce
       var live = order.filter(function (idx) { return alive[idx]; });
-      // Front-most first; ties broken by id so the result is fully deterministic.
+      // Front-most first; ties broken by index so a run is fully deterministic.
+      // Blocks that tie are in parallel lanes and cannot interact, so the
+      // tiebreak never changes the outcome — only the trace.
       live.sort(function (a, b) {
         var la = lead(a), lb = lead(b);
         return lb !== la ? lb - la : a - b;
@@ -270,56 +209,35 @@
 
       for (var q = 0; q < live.length; q++) {
         i = live[q];
-        if (!alive[i]) continue;
-        cells = pieceCells(stage, { off: off }, i);
+        var nx = pos[i][0] + dx, ny = pos[i][1] + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        var ni = ny * w + nx;
+        if (stage.terrain[ni] === WALL) continue;
+        if (occ[ni] !== -1) continue;
 
-        var can = true;
-        for (k = 0; k < cells.length; k++) {
-          var nx = cells[k][0] + dx, ny = cells[k][1] + dy;
-          if (nx < 0 || ny < 0 || nx >= w || ny >= h) { can = false; break; }
-          var ni = ny * w + nx;
-          if (stage.terrain[ni] === WALL) { can = false; break; }
-          var o = occ[ni];
-          if (o !== -1 && o !== i) { can = false; break; }
-        }
-        if (!can) continue;
-
-        for (k = 0; k < cells.length; k++) occ[cells[k][1] * w + cells[k][0]] = -1;
-        off[i][0] += dx; off[i][1] += dy;
-        var moved = [];
-        for (k = 0; k < cells.length; k++) moved.push([cells[k][0] + dx, cells[k][1] + dy]);
-        for (k = 0; k < moved.length; k++) occ[moved[k][1] * w + moved[k][0]] = i;
+        occ[pos[i][1] * w + pos[i][0]] = -1;
+        pos[i][0] = nx; pos[i][1] = ny;
+        occ[ni] = i;
 
         movedThisPass = true;
         anythingMoved = true;
-        movedTotal[i]++;
         movingNow[i] = true;
 
-        // Drains resolve the instant the piece arrives, so the piece behind can
-        // keep going in this very slide.
-        var allGoal = true, allPit = true;
-        for (k = 0; k < moved.length; k++) {
-          var mi = moved[k][1] * w + moved[k][0];
-          var g = stage.goal[mi];
-          if (!(g === GOAL_ANY || g === stage.pieces[i].color)) allGoal = false;
-          if (stage.terrain[mi] !== PIT) allPit = false;
-        }
-        if (allGoal) {
-          alive[i] = 0; collected++;
-          for (k = 0; k < moved.length; k++) occ[moved[k][1] * w + moved[k][0]] = -1;
-          events.push({ t: tIndex, type: 'goal', piece: i, cells: moved });
-        } else if (allPit) {
-          alive[i] = 0; lost++;
-          for (k = 0; k < moved.length; k++) occ[moved[k][1] * w + moved[k][0]] = -1;
-          events.push({ t: tIndex, type: 'pit', piece: i, cells: moved });
+        // The goal drains the instant the block arrives, so whatever is behind
+        // it can keep going inside this same slide.
+        if (stage.goal[ni]) {
+          alive[i] = 0;
+          collected++;
+          occ[ni] = -1;
+          events.push({ t: tIndex, type: 'goal', block: i, cell: [nx, ny] });
         }
       }
 
-      // A piece that was sliding and has now stopped: that is an impact.
+      // A block that was sliding and has now stopped: that is an impact.
       if (wantFrames) {
         for (i = 0; i < n; i++) {
           if (movingLast[i] && !movingNow[i] && alive[i]) {
-            events.push({ t: tIndex - 1, type: 'stop', piece: i, cells: pieceCells(stage, { off: off }, i) });
+            events.push({ t: tIndex - 1, type: 'stop', block: i, cell: [pos[i][0], pos[i][1]] });
           }
         }
         movingLast = movingNow;
@@ -330,9 +248,8 @@
     }
 
     var state = {
-      off: off,
+      pos: pos,
       alive: alive,
-      lost: lost,
       collected: collected,
       moves: s0.moves + (anythingMoved ? 1 : 0)
     };
@@ -342,12 +259,11 @@
       moved: anythingMoved,
       frames: frames,
       events: events,
-      clear: isClear(state),
-      lost: state.lost > 0
+      clear: isClear(state)
     };
   }
 
-  /** Fast path for search: returns the next state only, or null if nothing moved. */
+  /** Fast path for search: the next state only, or null if nothing moved. */
   function step(stage, s, dir) {
     var r = simulate(stage, s, dir, { frames: false });
     return r.moved ? r.state : null;
@@ -364,7 +280,6 @@
   function solve(stage, from, limitNodes) {
     var start = from ? cloneState(from) : initialState(stage);
     var cap = limitNodes || 400000;
-    if (isLost(start)) return { solvable: false, moves: -1, path: null, visited: 0, truncated: false };
     if (isClear(start)) return { solvable: true, moves: 0, path: [], visited: 1, truncated: false };
 
     var seen = Object.create(null);
@@ -379,7 +294,6 @@
         var dir = DIRS[di];
         var ns = step(stage, node.s, dir);
         if (!ns) continue;
-        if (isLost(ns)) continue; // losing a piece can never be undone
         var key = stateKey(ns);
         if (seen[key]) continue;
         seen[key] = true;
@@ -392,7 +306,7 @@
     return { solvable: false, moves: -1, path: null, visited: visited, truncated: false };
   }
 
-  /** All states reachable from the start without losing a piece. */
+  /** Every position reachable from the start. */
   function reachable(stage, from, limitNodes) {
     var start = from ? cloneState(from) : initialState(stage);
     var cap = limitNodes || 400000;
@@ -407,7 +321,7 @@
       if (isClear(s)) continue;
       for (var di = 0; di < 4; di++) {
         var ns = step(stage, s, DIRS[di]);
-        if (!ns || isLost(ns)) continue;
+        if (!ns) continue;
         var key = stateKey(ns);
         if (seen[key]) continue;
         seen[key] = true;
@@ -417,21 +331,70 @@
     return list;
   }
 
+  /**
+   * The whole reachable position graph in one pass.
+   *
+   * Everything the design tools want to know — how long the stage really is,
+   * how many optimal lines it has, how much of it is a dead end, how lucky a
+   * random player could get — is a question about this graph. Building it once
+   * and answering from it is both exact and far cheaper than re-walking the
+   * board per question.
+   *
+   * Returns null if the graph exceeds `cap`, which is the tools' signal that a
+   * board is too sprawling to be worth measuring.
+   *
+   *   keys    canonical key per node, in breadth-first order from the start
+   *   next    next[i][d] = node index after tilting DIRS[d], or i if nothing moved
+   *   clear   1 if the node is a cleared board
+   *   dist    moves from the start (breadth-first, so shortest)
+   */
+  function graph(stage, cap) {
+    cap = cap || 200000;
+    var start = initialState(stage);
+    var index = Object.create(null);
+    var states = [start], keys = [stateKey(start)];
+    var next = [], clear = [isClear(start) ? 1 : 0], dist = [0];
+    index[keys[0]] = 0;
+
+    for (var i = 0; i < states.length; i++) {
+      var row = [0, 0, 0, 0];
+      if (!clear[i]) {
+        for (var d = 0; d < 4; d++) {
+          var ns = step(stage, states[i], DIRS[d]);
+          if (!ns) { row[d] = i; continue; }     // a tilt that changes nothing
+          var k = stateKey(ns);
+          var at = index[k];
+          if (at == null) {
+            if (states.length >= cap) return null;
+            at = states.length;
+            index[k] = at;
+            states.push(ns); keys.push(k);
+            clear.push(isClear(ns) ? 1 : 0);
+            dist.push(dist[i] + 1);
+          }
+          row[d] = at;
+        }
+      } else {
+        row = [i, i, i, i];
+      }
+      next.push(row);
+    }
+
+    return { states: states, keys: keys, next: next, clear: clear, dist: dist, n: states.length };
+  }
+
   return {
     DIRS: DIRS, DV: DV,
-    FLOOR: FLOOR, WALL: WALL, PIT: PIT,
-    GOAL_NONE: GOAL_NONE, GOAL_ANY: GOAL_ANY,
-    MAX_COLORS: MAX_COLORS,
+    FLOOR: FLOOR, WALL: WALL,
     compile: compile,
     initialState: initialState,
     cloneState: cloneState,
     stateKey: stateKey,
-    pieceCells: pieceCells,
     isClear: isClear,
-    isLost: isLost,
     simulate: simulate,
     step: step,
     solve: solve,
-    reachable: reachable
+    reachable: reachable,
+    graph: graph
   };
 });

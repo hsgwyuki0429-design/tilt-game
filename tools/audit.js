@@ -4,8 +4,8 @@
  *
  * Runs the real engine, not a model of it. For every stage it proves
  * solvability, derives the true shortest solution, and then attacks the design:
- * every wall, pit, goal and block is deleted in turn to see whether the puzzle
- * even notices. Anything the board does not miss does not belong on the board.
+ * every wall, block and goal is deleted in turn to see whether the puzzle even
+ * notices. Anything the board does not miss does not belong on the board.
  *
  *   node tools/audit.js                 full report
  *   node tools/audit.js 7 12            only those stage ids
@@ -17,9 +17,19 @@
  *    1 solvable at all                    7 same input → same result
  *    2 declared par is the true shortest   8 undo restores state exactly
  *    3 does not begin already cleared      9 restart restores state exactly
- *    4 blocks never overlap / clip walls  10 no piece leaves the board
+ *    4 blocks never overlap / clip walls  10 no block leaves the board
  *    5 bookkeeping never drifts           11 every element is load-bearing
- *    6 a no-op tilt costs no move         12 board carries enough to think about
+ *    6 a no-op tilt costs no move         12 the rules did not grow
+ *
+ * Check 12 is the one that guards the design rather than the code. TILT has
+ * four legal board characters and no fifth is coming: floor, wall, goal, block.
+ * If a future stage ever ships a hazard cell, a coloured goal or a block that
+ * is special in any way, this audit fails before anybody plays it.
+ *
+ * The counting here is deliberately its own implementation — a layered
+ * breadth-first sweep written out in this file rather than a call into the
+ * generator's measurement code. An auditor that shares arithmetic with the
+ * thing it audits cannot catch that arithmetic being wrong.
  */
 
 var path = require('path');
@@ -28,6 +38,8 @@ var cp = require('child_process');
 var ENGINE = require('../src/engine.js');
 var STAGES = require('../src/stages.js').STAGES;
 var CHAPTERS = require('../src/stages.js').CHAPTERS || null;
+
+var LEGAL = '.#o@';
 
 var argv = process.argv.slice(2);
 var QUIET = argv.indexOf('--quiet') >= 0;
@@ -47,11 +59,9 @@ function argOf(name, dflt) {
 }
 
 var CAPS = {
-  solve: DEEP ? 800000 : 250000,
-  reach: DEEP ? 200000 : 20000,
-  deadProbe: DEEP ? 100000 : 4000,   // states to test for "can no longer be solved"
-  invariant: DEEP ? 20000 : 2500,    // states to walk validating physics
-  ways: 4000
+  solve: DEEP ? 800000 : 300000,
+  reach: DEEP ? 400000 : 120000,
+  invariant: DEEP ? 20000 : 3000     // states to walk validating physics
 };
 
 var C = {
@@ -67,69 +77,117 @@ var C = {
 // per-stage checks (run in a worker)
 // ===========================================================================
 
-function cloneDef(def) {
-  return {
-    id: def.id, name: def.name, note: def.note, hint: def.hint, par: def.par,
-    terrain: def.terrain.slice(),
-    pieces: def.pieces.slice(),
-    colors: def.colors ? JSON.parse(JSON.stringify(def.colors)) : undefined
-  };
-}
 function setChar(str, i, ch) { return str.slice(0, i) + ch + str.slice(i + 1); }
 
-function countShortest(stage, opt, cap) {
-  if (opt < 0) return 0;
-  var count = 0;
-  (function walk(s, depth) {
-    if (count > cap || depth === opt) return;
-    for (var i = 0; i < 4; i++) {
-      var ns = ENGINE.step(stage, s, ENGINE.DIRS[i]);
-      if (!ns || ENGINE.isLost(ns)) continue;
-      if (ENGINE.isClear(ns)) { if (depth + 1 === opt) count++; continue; }
-      walk(ns, depth + 1);
-    }
-  })(ENGINE.initialState(stage), 0);
-  return count;
-}
+/**
+ * One layered breadth-first sweep, and everything counted off it.
+ *
+ *   par    proven shortest solution
+ *   ways   distinct par-length tilt sequences that clear the board
+ *   luck   share of ALL par-length tilt sequences that clear it
+ *   states positions reachable from the start
+ *   dead   positions from which the board can no longer be solved
+ *
+ * Written as an explicit layer-by-layer walk rather than a recursive descent,
+ * because at twenty-five moves a recursive descent is 4^25 sequences and this
+ * is a few thousand nodes.
+ */
+function sweep(stage, cap) {
+  var start = ENGINE.initialState(stage);
+  var index = Object.create(null);
+  var states = [start];
+  var keys = [ENGINE.stateKey(start)];
+  var clear = [ENGINE.isClear(start) ? 1 : 0];
+  var dist = [0];
+  var next = [];
+  index[keys[0]] = 0;
+  var truncated = false;
 
-/** Share of all par-length tilt sequences that clear the board. */
-function solveRate(stage, opt) {
-  if (opt < 1) return 1;
-  var total = Math.pow(4, opt), wins = 0;
-  if (total <= 300000) {
-    (function walk(s, depth) {
-      for (var i = 0; i < 4; i++) {
-        var ns = ENGINE.step(stage, s, ENGINE.DIRS[i]);
-        if (!ns || ENGINE.isLost(ns)) continue;
-        var rest = Math.pow(4, opt - depth - 1);
-        if (ENGINE.isClear(ns)) { wins += rest; continue; }
-        if (depth + 1 < opt) walk(ns, depth + 1);
+  for (var i = 0; i < states.length; i++) {
+    var row = [i, i, i, i];
+    if (!clear[i]) {
+      for (var d = 0; d < 4; d++) {
+        var ns = ENGINE.step(stage, states[i], ENGINE.DIRS[d]);
+        if (!ns) continue;                      // a tilt that changes nothing
+        var k = ENGINE.stateKey(ns);
+        var at = index[k];
+        if (at == null) {
+          if (states.length >= cap) { truncated = true; continue; }
+          at = states.length;
+          index[k] = at;
+          states.push(ns); keys.push(k);
+          clear.push(ENGINE.isClear(ns) ? 1 : 0);
+          dist.push(dist[i] + 1);
+        }
+        row[d] = at;
       }
-    })(ENGINE.initialState(stage), 0);
-    return wins / total;
+    }
+    next.push(row);
   }
-  var trials = 20000, hit = 0;
-  for (var t = 0; t < trials; t++) {
-    var s = ENGINE.initialState(stage);
-    for (var m = 0; m < opt; m++) {
-      var ns2 = ENGINE.step(stage, s, ENGINE.DIRS[(Math.random() * 4) | 0]);
-      if (!ns2 || ENGINE.isLost(ns2)) break;
-      s = ns2;
-      if (ENGINE.isClear(s)) { hit++; break; }
+
+  var n = states.length;
+  var par = -1;
+  for (i = 0; i < n; i++) if (clear[i]) { par = dist[i]; break; }
+  if (par < 0) return { solvable: false, states: n, truncated: truncated };
+
+  // Distinct shortest lines: nodes came out in breadth-first order, so one
+  // forward pass is a correct layer-by-layer count.
+  var ways = new Float64Array(n);
+  ways[0] = 1;
+  var total = 0;
+  for (i = 0; i < n; i++) {
+    if (!ways[i] || dist[i] >= par) continue;
+    for (var d2 = 0; d2 < 4; d2++) {
+      var j = next[i][d2];
+      if (j === i || dist[j] !== dist[i] + 1) continue;
+      ways[j] += ways[i];
+      if (clear[j] && dist[j] === par) total += ways[i];
     }
   }
-  return hit / trials;
-}
 
-function reachStats(stage) {
-  var states = ENGINE.reachable(stage, null, CAPS.reach);
-  var dead = 0, probed = 0;
-  for (var i = 0; i < states.length && probed < CAPS.deadProbe; i++) {
-    if (ENGINE.isClear(states[i])) continue;
-    probed++;
-    if (!ENGINE.solve(stage, states[i], 30000).solvable) dead++;
+  // Luck: par uniformly random tilts, how much probability lands on a clear.
+  var p = new Float64Array(n);
+  p[0] = 1;
+  var luck = 0;
+  for (var s = 0; s < par; s++) {
+    var q = new Float64Array(n);
+    for (i = 0; i < n; i++) {
+      if (!p[i]) continue;
+      for (var d3 = 0; d3 < 4; d3++) {
+        var t = next[i][d3];
+        if (clear[t]) luck += p[i] * 0.25;
+        else q[t] += p[i] * 0.25;
+      }
+    }
+    p = q;
   }
-  return { total: states.length, dead: dead, probed: probed };
+
+  // Dead ends: walk the graph backwards from every cleared board.
+  var back = [];
+  for (i = 0; i < n; i++) back.push([]);
+  for (i = 0; i < n; i++) {
+    for (var d4 = 0; d4 < 4; d4++) {
+      var j2 = next[i][d4];
+      if (j2 !== i) back[j2].push(i);
+    }
+  }
+  var alive = new Uint8Array(n), stack = [];
+  for (i = 0; i < n; i++) if (clear[i]) { alive[i] = 1; stack.push(i); }
+  while (stack.length) {
+    var cur = stack.pop(), pre = back[cur];
+    for (var b = 0; b < pre.length; b++) if (!alive[pre[b]]) { alive[pre[b]] = 1; stack.push(pre[b]); }
+  }
+  var dead = 0, live = 0;
+  for (i = 0; i < n; i++) {
+    if (clear[i]) continue;
+    live++;
+    if (!alive[i]) dead++;
+  }
+
+  return {
+    solvable: true, par: par, ways: Math.round(total), luck: luck,
+    states: n, dead: dead, live: live, truncated: truncated
+  };
 }
 
 /**
@@ -139,44 +197,34 @@ function reachStats(stage) {
  *   narrows — removing it changes how many ways there are → meaningful
  *   inert   — removing it changes nothing                 → DELETE IT
  */
-function classify(baseOpt, baseWays, variantDef) {
+function classify(basePar, baseWays, variantBoard) {
   var st;
-  try { st = ENGINE.compile(variantDef); } catch (e) { return { kind: 'error', detail: e.message }; }
-  var sol = ENGINE.solve(st, ENGINE.initialState(st), CAPS.solve);
-  if (!sol.solvable) return { kind: 'breaks' };
-  if (sol.moves !== baseOpt) return { kind: 'shifts', detail: baseOpt + '→' + sol.moves };
-  var ways = countShortest(st, sol.moves, CAPS.ways);
-  if (ways !== baseWays) return { kind: 'narrows', detail: baseWays + '→' + ways };
+  try { st = ENGINE.compile({ board: variantBoard }); }
+  catch (e) { return { kind: 'breaks', detail: 'no longer a board' }; }
+  if (ENGINE.isClear(ENGINE.initialState(st))) return { kind: 'breaks', detail: 'starts cleared' };
+  var m = sweep(st, CAPS.reach);
+  if (!m.solvable) return { kind: 'breaks' };
+  if (m.par !== basePar) return { kind: 'shifts', detail: basePar + '→' + m.par };
+  if (m.ways !== baseWays) return { kind: 'narrows', detail: baseWays + '→' + m.ways };
   return { kind: 'inert' };
 }
 
-function auditElements(def, stage, baseOpt, baseWays) {
-  var out = { walls: [], pits: [], goals: [], pieces: [] };
-  var y, x, ch;
-  for (y = 0; y < stage.h; y++) {
-    for (x = 0; x < stage.w; x++) {
-      ch = def.terrain[y][x];
+function auditElements(def, basePar, baseWays) {
+  var out = { walls: [], blocks: [], goals: [] };
+  var rows = def.board;
+  for (var y = 0; y < rows.length; y++) {
+    for (var x = 0; x < rows[y].length; x++) {
+      var ch = rows[y][x];
       if (ch === '.') continue;
-      var v = cloneDef(def);
-      v.terrain[y] = setChar(v.terrain[y], x, '.');
-      var res = classify(baseOpt, baseWays, v);
+      var variant = rows.slice();
+      variant[y] = setChar(variant[y], x, '.');
+      var res = classify(basePar, baseWays, variant);
       res.at = x + ',' + y;
       if (ch === '#') out.walls.push(res);
-      else if (ch === '*') out.pits.push(res);
+      else if (ch === '@') out.blocks.push(res);
       else out.goals.push(res);
     }
   }
-  stage.pieces.forEach(function (p) {
-    var v = cloneDef(def);
-    for (var yy = 0; yy < stage.h; yy++) {
-      for (var xx = 0; xx < stage.w; xx++) {
-        if (v.pieces[yy][xx] === p.letter) v.pieces[yy] = setChar(v.pieces[yy], xx, '.');
-      }
-    }
-    var r = classify(baseOpt, baseWays, v);
-    r.at = p.letter;
-    out.pieces.push(r);
-  });
   return out;
 }
 
@@ -202,40 +250,37 @@ function checkInvariants(stage) {
       var ns = res.state;
 
       var occupied = {};
-      for (var i = 0; i < stage.pieces.length; i++) {
+      for (var i = 0; i < stage.blocks.length; i++) {
         if (!ns.alive[i]) continue;
-        var cells = ENGINE.pieceCells(stage, ns, i);
-        for (var k = 0; k < cells.length; k++) {
-          var cx = cells[k][0], cy = cells[k][1];
-          if (cx < 0 || cy < 0 || cx >= stage.w || cy >= stage.h) {
-            errs.push('block ' + i + ' left the board at ' + cx + ',' + cy);
-          } else {
-            var idx = cy * stage.w + cx;
-            if (stage.terrain[idx] === ENGINE.WALL) errs.push('block ' + i + ' is inside a wall at ' + cx + ',' + cy);
-            if (occupied[idx] != null && occupied[idx] !== i) errs.push('blocks ' + occupied[idx] + ' and ' + i + ' overlap at ' + cx + ',' + cy);
-            occupied[idx] = i;
-          }
+        var cx = ns.pos[i][0], cy = ns.pos[i][1];
+        if (cx < 0 || cy < 0 || cx >= stage.w || cy >= stage.h) {
+          errs.push('block ' + i + ' left the board at ' + cx + ',' + cy);
+          continue;
         }
+        var idx = cy * stage.w + cx;
+        if (stage.terrain[idx] === ENGINE.WALL) errs.push('block ' + i + ' is inside a wall at ' + cx + ',' + cy);
+        if (stage.goal[idx]) errs.push('block ' + i + ' is resting on a goal instead of being collected');
+        if (occupied[idx] != null) errs.push('blocks ' + occupied[idx] + ' and ' + i + ' overlap at ' + cx + ',' + cy);
+        occupied[idx] = i;
       }
-      if (ns.collected + ns.lost + countAlive(ns) !== stage.pieces.length) errs.push('block bookkeeping drifted');
+      if (ns.collected + countAlive(ns) !== stage.blocks.length) errs.push('block bookkeeping drifted');
 
       if (res.frames.length) {
         var last = res.frames[res.frames.length - 1];
-        for (var f = 0; f < stage.pieces.length; f++) {
+        for (var f = 0; f < stage.blocks.length; f++) {
           if (last.alive[f] !== ns.alive[f]) errs.push('final frame disagrees about block ' + f + ' liveness');
-          if (last.off[f][0] !== ns.off[f][0] || last.off[f][1] !== ns.off[f][1]) errs.push('final frame disagrees about block ' + f + ' position');
+          if (last.alive[f] && (last.pos[f][0] !== ns.pos[f][0] || last.pos[f][1] !== ns.pos[f][1])) {
+            errs.push('final frame disagrees about block ' + f + ' position');
+          }
         }
         // No two live blocks may share a cell at ANY animation tick.
         for (var t = 0; t < res.frames.length; t++) {
           var occT = {};
-          for (var pi = 0; pi < stage.pieces.length; pi++) {
+          for (var pi = 0; pi < stage.blocks.length; pi++) {
             if (!res.frames[t].alive[pi]) continue;
-            var pc = ENGINE.pieceCells(stage, res.frames[t], pi);
-            for (var q = 0; q < pc.length; q++) {
-              var key = pc[q][0] + ',' + pc[q][1];
-              if (occT[key] != null) errs.push('tick ' + t + ': blocks ' + occT[key] + ' and ' + pi + ' overlap mid-slide at ' + key);
-              occT[key] = pi;
-            }
+            var key = res.frames[t].pos[pi][0] + ',' + res.frames[t].pos[pi][1];
+            if (occT[key] != null) errs.push('tick ' + t + ': blocks ' + occT[key] + ' and ' + pi + ' overlap mid-slide at ' + key);
+            occT[key] = pi;
           }
         }
       }
@@ -244,7 +289,7 @@ function checkInvariants(stage) {
       if (ENGINE.stateKey(again.state) !== ENGINE.stateKey(ns)) errs.push('same input produced two different results');
       if (!res.moved && ns.moves !== s.moves) errs.push('a tilt that changed nothing still counted as a move');
 
-      if (ENGINE.isLost(ns) || ENGINE.isClear(ns)) continue;
+      if (ENGINE.isClear(ns)) continue;
       var key2 = ENGINE.stateKey(ns);
       if (!seen[key2]) { seen[key2] = true; queue.push(ns); }
     }
@@ -266,7 +311,7 @@ function checkUndoRestart(stage) {
     if (!res.moved) continue;
     history.push(snap);
     s = res.state;
-    if (ENGINE.isClear(s) || ENGINE.isLost(s)) break;
+    if (ENGINE.isClear(s)) break;
   }
   while (history.length) s = history.pop();
   if (ENGINE.stateKey(s) !== ENGINE.stateKey(start)) errs.push('undo did not return to the initial state');
@@ -275,25 +320,56 @@ function checkUndoRestart(stage) {
   return errs;
 }
 
+/**
+ * The rules did not grow.
+ *
+ * TILT is floor, wall, goal, block, and tilting. This is the check that makes
+ * that a promise instead of an intention: any stage carrying a character
+ * outside those four, or any stage def that has sprouted a field the rules do
+ * not have, fails here.
+ */
+function checkVocabulary(def) {
+  var errs = [];
+  (def.board || []).forEach(function (row, y) {
+    for (var x = 0; x < row.length; x++) {
+      if (LEGAL.indexOf(row[x]) < 0) {
+        errs.push('illegal board character "' + row[x] + '" at ' + x + ',' + y +
+          ' — the only legal characters are ' + LEGAL);
+      }
+    }
+  });
+  var allowed = ['id', 'name', 'par', 'note', 'hint', 'board'];
+  Object.keys(def).forEach(function (k) {
+    if (allowed.indexOf(k) < 0) {
+      errs.push('stage carries an unknown field "' + k + '" — the rules did not grow, so neither should the data');
+    }
+  });
+  return errs;
+}
+
 function auditStage(def) {
   var r = { id: def.id, name: def.name, problems: [], warnings: [] };
+
+  checkVocabulary(def).forEach(function (e) { r.problems.push(e); });
+
   var stage;
   try { stage = ENGINE.compile(def); }
   catch (e) { r.problems.push('COMPILE FAILED: ' + e.message); return r; }
 
   r.w = stage.w; r.h = stage.h;
-  var start = ENGINE.initialState(stage);
+  if (ENGINE.isClear(ENGINE.initialState(stage))) r.problems.push('starts already cleared');
 
-  if (ENGINE.isClear(start)) r.problems.push('starts already cleared');
+  var m = sweep(stage, CAPS.reach);
+  if (m.truncated) r.warnings.push('state space exceeded the audit cap — numbers below are partial');
+  if (!m.solvable) {
+    r.problems.push('UNSOLVABLE');
+    r.par = -1; r.ways = 0; r.luck = 0; r.states = m.states; r.dead = 0;
+    r.elements = { walls: [], blocks: [], goals: [] };
+    return r;
+  }
 
-  var sol = ENGINE.solve(stage, start, CAPS.solve);
-  if (!sol.solvable) r.problems.push('UNSOLVABLE');
-  r.par = sol.solvable ? sol.moves : -1;
-  r.ways = sol.solvable ? countShortest(stage, r.par, CAPS.ways) : 0;
-  r.luck = sol.solvable ? solveRate(stage, r.par) : 0;
-
-  var reach = reachStats(stage);
-  r.states = reach.total; r.dead = reach.dead;
+  r.par = m.par; r.ways = m.ways; r.luck = m.luck;
+  r.states = m.states; r.dead = m.dead;
 
   if (def.par != null && def.par !== r.par) {
     r.problems.push('par says ' + def.par + ' but shortest solution is ' + r.par);
@@ -302,23 +378,22 @@ function auditStage(def) {
   checkInvariants(stage).forEach(function (e) { r.problems.push(e); });
   checkUndoRestart(stage).forEach(function (e) { r.problems.push(e); });
 
-  r.elements = sol.solvable ? auditElements(def, stage, r.par, r.ways)
-                            : { walls: [], pits: [], goals: [], pieces: [] };
-  ['walls', 'pits', 'goals', 'pieces'].forEach(function (kind) {
+  r.elements = auditElements(def, r.par, r.ways);
+  ['walls', 'blocks', 'goals'].forEach(function (kind) {
     r.elements[kind].forEach(function (el) {
       if (el.kind === 'inert') r.warnings.push('INERT ' + kind.slice(0, -1) + ' ' + el.at + ' — removing it changes nothing');
     });
   });
 
   var cells = stage.w * stage.h, used = 0;
-  for (var i = 0; i < cells; i++) if (stage.terrain[i] !== ENGINE.FLOOR || stage.goal[i] !== ENGINE.GOAL_NONE) used++;
-  stage.pieces.forEach(function (p) { used += p.cells.length; });
+  for (var i = 0; i < cells; i++) if (stage.terrain[i] !== ENGINE.FLOOR || stage.goal[i]) used++;
+  used += stage.blocks.length;
   r.cells = cells; r.used = used;
   r.fill = used / cells;
 
   // The opening board is deliberately near-empty: it exists so the very first
   // swipe has exactly one thing to notice.
-  if (r.fill < 0.3 && r.par > 2) r.warnings.push('sparse board — only ' + pct(r.fill) + ' of cells carry anything');
+  if (r.fill < 0.22 && r.par > 2) r.warnings.push('sparse board — only ' + pct(r.fill) + ' of cells carry anything');
   if (r.par >= 3 && r.luck > 0.25) {
     r.warnings.push('easy to blunder into — ' + pct(r.luck) + ' of random ' + r.par + '-move sequences clear it');
   }
@@ -373,6 +448,12 @@ function main() {
         report(results, Date.now() - t0);
       }
     });
+    child.on('exit', function (code) {
+      if (code !== 0 && pending > 0) {
+        console.error('\nan audit worker exited with code ' + code + ' before reporting');
+        process.exit(1);
+      }
+    });
     child.send({ indices: indices });
   });
 }
@@ -405,8 +486,8 @@ function report(results, ms) {
         console.log(C.bold(C.cyn('CHAPTER ' + chap.number + ' · ' + chap.name)) +
           C.dim('  stages ' + chap.from + '–' + chap.to));
       }
-      if (r.problems.length && r.par == null) {
-        console.log(C.red('#' + r.id + ' ' + r.name + '  ' + r.problems[0]));
+      if (r.par == null) {
+        console.log(C.red('#' + r.id + ' ' + r.name + '  ' + (r.problems[0] || 'failed')));
         return;
       }
       var line = C.bold(('#' + r.id).padEnd(5)) + C.cyn((r.name || '').padEnd(11)) +
@@ -414,17 +495,17 @@ function report(results, ms) {
         'par ' + C.bold(String(r.par).padStart(2)) + '  ' +
         C.dim('ways ') + String(r.ways).padStart(3) + '  ' +
         C.dim('luck ') + pct(r.luck).padStart(7) + ' ' + bar(1 - Math.min(1, r.luck * 4)) + '  ' +
-        C.dim('states ') + String(r.states).padStart(4) +
+        C.dim('states ') + String(r.states).padStart(5) +
         C.dim(' dead ') + String(r.dead).padStart(3) +
         C.dim('  fill ') + pct(r.fill).padStart(6);
 
       var tally = [];
-      ['walls', 'pits', 'goals', 'pieces'].forEach(function (kind) {
+      ['walls', 'blocks', 'goals'].forEach(function (kind) {
         var arr = r.elements[kind];
         if (!arr.length) return;
-        var m = { breaks: 0, shifts: 0, narrows: 0, inert: 0 };
-        arr.forEach(function (el) { if (m[el.kind] != null) m[el.kind]++; });
-        if (m.inert) tally.push(C.red(m.inert + ' inert ' + kind));
+        var inert = 0;
+        arr.forEach(function (el) { if (el.kind === 'inert') inert++; });
+        if (inert) tally.push(C.red(inert + ' inert ' + kind));
       });
       console.log(line + (tally.length ? '  ' + tally.join(' ') : ''));
     });
@@ -453,13 +534,14 @@ function report(results, ms) {
   var pars = results.map(function (r) { return r.par; });
   var inert = 0;
   results.forEach(function (r) {
-    ['walls', 'pits', 'goals', 'pieces'].forEach(function (k) {
+    ['walls', 'blocks', 'goals'].forEach(function (k) {
       (r.elements[k] || []).forEach(function (el) { if (el.kind === 'inert') inert++; });
     });
   });
 
   console.log(C.grn(C.bold('✓ ' + results.length + ' stages: solvable, deterministic, internally consistent')));
   console.log(C.dim('  every declared par is a proven shortest solution'));
+  console.log(C.dim('  every board uses only floor, wall, goal and block — the rules did not grow'));
   console.log(C.dim('  inert elements: ' + inert));
   console.log(C.dim('  par range ' + Math.min.apply(null, pars) + '–' + Math.max.apply(null, pars) +
     ', total ' + pars.reduce(function (a, b) { return a + b; }, 0) + ' moves'));

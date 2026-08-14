@@ -3,13 +3,17 @@
  * TILT — canvas renderer and effects.
  *
  * Two jobs, in this order of priority:
- *   1. Never hide information. Every piece, wall, pit and goal stays legible
- *      through every effect.
+ *   1. Never hide information. Every block, wall and goal stays legible through
+ *      every effect.
  *   2. Make the result of a tilt feel like it weighed something.
  *
  * Movement is replayed from the engine's tick frames, so what you watch is
  * exactly what the solver proved — the animation is a view of the simulation,
  * never a second implementation of it.
+ *
+ * There is one kind of block and it has one look. Nothing on this board is
+ * colour-coded, because nothing on this board behaves differently from anything
+ * else: if two things look the same here, they ARE the same.
  */
 (function (root) {
 
@@ -26,23 +30,14 @@
     wallTop: '#4a5480',
     wallMid: '#2e3557',
     wallLow: '#1b2040',
-    wallEdge: 'rgba(180,200,255,0.30)',
-    pitRim: 'rgba(120,60,110,0.55)',
-    neutralHi: '#eef3ff',
-    neutralMid: '#b9c6ee',
-    neutralLo: '#5a6595',
-    neutralGlow: 'rgba(200,215,255,0.45)'
+    wallEdge: 'rgba(180,200,255,0.30)'
   };
 
-  // Colour AND shape carry the identity, so the puzzle stays readable without
-  // relying on hue discrimination.
-  var COLORS = [
-    { hi: '#a9f4ff', mid: '#2ed3f2', lo: '#0a7fa0', glow: 'rgba(46,211,242,0.55)', glyph: 'circle' },
-    { hi: '#ffb6d4', mid: '#ff5c9e', lo: '#a92559', glow: 'rgba(255,92,158,0.52)', glyph: 'diamond' },
-    { hi: '#ffe3ab', mid: '#ffb43d', lo: '#a86c14', glow: 'rgba(255,180,61,0.52)', glyph: 'triangle' }
-  ];
-
-  function colorOf(i) { return COLORS[i % COLORS.length]; }
+  // The block, and the socket it is looking for. One palette each: the ring on
+  // the goal is the same shape as the dot on the block, which is the whole of
+  // the game's iconography.
+  var BLOCK = { hi: '#a9f4ff', mid: '#2ed3f2', lo: '#0a7fa0', glow: 'rgba(46,211,242,0.55)' };
+  var SOCKET = { mid: '#b9c6ee', glow: 'rgba(200,215,255,0.45)' };
 
   // -- timing -----------------------------------------------------------------
 
@@ -72,10 +67,9 @@
     this.gravity = null;     // last applied direction, shown on the board edge
     this.aimDir = null;      // live swipe direction, shown before commit
     this.clearGlow = 0;
-    this.lostGlow = 0;
     this.time = 0;
-    // Set by the game to hear about goals, pits and impacts as they appear on
-    // screen, so audio is driven by the same clock as the picture.
+    // Set by the game to hear about goals and impacts as they appear on screen,
+    // so audio is driven by the same clock as the picture.
     this.onEvent = null;
   }
 
@@ -89,7 +83,6 @@
     this.gravity = null;
     this.aimDir = null;
     this.clearGlow = 0;
-    this.lostGlow = 0;
     this.shake = 0;
     this.onEvent = null;
     this.layout();
@@ -159,12 +152,9 @@
         var i = y * st.w + x;
         var px = x * cell, py = y * cell;
         var inset = Math.max(1.5, cell * 0.035);
-        var t = st.terrain[i];
 
-        if (t === E.WALL) {
+        if (st.terrain[i] === E.WALL) {
           drawWall(g, px, py, cell);
-        } else if (t === E.PIT) {
-          drawPit(g, px, py, cell);
         } else {
           roundRect(g, px + inset, py + inset, cell - inset * 2, cell - inset * 2, cell * 0.13);
           g.fillStyle = THEME.floor;
@@ -206,61 +196,30 @@
     g.restore();
   }
 
-  function drawPit(g, px, py, cell) {
-    var cx = px + cell / 2, cy = py + cell / 2;
-    var rad = cell * 0.44;
-    var grad = g.createRadialGradient(cx, cy, rad * 0.1, cx, cy, rad);
-    grad.addColorStop(0, '#000005');
-    grad.addColorStop(0.55, '#0b0716');
-    grad.addColorStop(1, 'rgba(30,10,40,0.35)');
-    g.beginPath();
-    g.arc(cx, cy, rad, 0, Math.PI * 2);
-    g.fillStyle = grad;
-    g.fill();
-    g.strokeStyle = THEME.pitRim;
-    g.lineWidth = Math.max(2, cell * 0.045);
-    g.stroke();
-    // Concentric rings read as depth rather than as a dark tile, and the taper
-    // gives the hole a direction: inward.
-    for (var ri = 0; ri < 2; ri++) {
-      g.beginPath();
-      g.arc(cx, cy, rad * (0.70 - ri * 0.22), 0, Math.PI * 2);
-      g.strokeStyle = 'rgba(150,80,160,' + (0.26 - ri * 0.10) + ')';
-      g.lineWidth = Math.max(1, cell * 0.018);
-      g.stroke();
-    }
-  }
-
   // -- animation --------------------------------------------------------------
 
   /**
-   * Turn engine tick-frames into per-piece motion runs. A run is a stretch of
-   * consecutive ticks during which the piece is actually sliding; between runs
+   * Turn engine tick-frames into per-block motion runs. A run is a stretch of
+   * consecutive ticks during which the block is actually sliding; between runs
    * it is genuinely stopped, waiting for whatever is in front of it to clear.
    */
   Renderer.prototype.playMove = function (result, onDone) {
     var frames = result.frames;
-    var st = this.stage;
-    var n = st.pieces.length;
+    var n = this.stage.blocks.length;
     var runs = [];
-    var deaths = [];
 
     for (var i = 0; i < n; i++) {
-      var pieceRuns = [];
+      var blockRuns = [];
       var runStart = -1;
       for (var t = 1; t < frames.length; t++) {
-        var prev = frames[t - 1].off[i], cur = frames[t].off[i];
+        var prev = frames[t - 1].pos[i], cur = frames[t].pos[i];
         var moved = frames[t - 1].alive[i] && (prev[0] !== cur[0] || prev[1] !== cur[1]);
         if (moved && runStart < 0) runStart = t - 1;
-        if (!moved && runStart >= 0) { pieceRuns.push([runStart, t - 1]); runStart = -1; }
+        if (!moved && runStart >= 0) { blockRuns.push([runStart, t - 1]); runStart = -1; }
       }
-      if (runStart >= 0) pieceRuns.push([runStart, frames.length - 1]);
-      runs.push(pieceRuns);
+      if (runStart >= 0) blockRuns.push([runStart, frames.length - 1]);
+      runs.push(blockRuns);
     }
-
-    result.events.forEach(function (ev) {
-      if (ev.type === 'goal' || ev.type === 'pit') deaths.push(ev);
-    });
 
     var maxTick = frames.length - 1;
     this.anim = {
@@ -276,40 +235,43 @@
     };
   };
 
-  Renderer.prototype.animOffset = function (i, elapsed) {
+  Renderer.prototype.animPos = function (i, elapsed) {
     var a = this.anim;
     var rs = a.runs[i];
     var frames = a.frames;
-    if (!rs.length) return frames[0].off[i];
+    if (!rs.length) return frames[0].pos[i];
     for (var k = 0; k < rs.length; k++) {
       var s = rs[k][0], e = rs[k][1];
       var t0 = s * TICK, t1 = e * TICK + TAIL;
-      if (elapsed <= t0) return frames[s].off[i];
+      if (elapsed <= t0) return frames[s].pos[i];
       if (elapsed < t1) {
         var p = easeOut(clamp01((elapsed - t0) / (t1 - t0)));
-        var a0 = frames[s].off[i], a1 = frames[e].off[i];
+        var a0 = frames[s].pos[i], a1 = frames[e].pos[i];
         return [a0[0] + (a1[0] - a0[0]) * p, a0[1] + (a1[1] - a0[1]) * p];
       }
-      if (k === rs.length - 1) return frames[e].off[i];
+      if (k === rs.length - 1) return frames[e].pos[i];
       // otherwise fall through to the next run
     }
-    return frames[frames.length - 1].off[i];
+    return frames[frames.length - 1].pos[i];
   };
 
-  /** Squash factor for a piece that just slammed into something. */
+  /** Squash factor for a block that just slammed into something. */
   Renderer.prototype.impactOf = function (i, elapsed) {
     var a = this.anim;
     var rs = a.runs[i];
     if (!rs.length) return 0;
     for (var k = 0; k < rs.length; k++) {
-      var e = rs[k][1], s = rs[k][0];
+      var s = rs[k][0], e = rs[k][1];
       var end = e * TICK + TAIL;
       var dt = elapsed - end;
       if (dt >= 0 && dt < SQUASH) {
-        var dist = Math.abs(a.frames[e].off[i][0] - a.frames[s].off[i][0]) +
-                   Math.abs(a.frames[e].off[i][1] - a.frames[s].off[i][1]);
+        var dist = Math.abs(a.frames[e].pos[i][0] - a.frames[s].pos[i][0]) +
+                   Math.abs(a.frames[e].pos[i][1] - a.frames[s].pos[i][1]);
         var strength = Math.min(1, dist / 3) * 0.85 + 0.15;
-        return (1 - dt / SQUASH) * strength;
+        // Which way it was travelling, so the squash compresses along the
+        // direction of impact rather than always the same way.
+        var horiz = a.frames[e].pos[i][0] !== a.frames[s].pos[i][0];
+        return { amount: (1 - dt / SQUASH) * strength, horiz: horiz };
       }
     }
     return 0;
@@ -340,25 +302,14 @@
   };
 
   Renderer.prototype.fireEvent = function (ev) {
-    var st = this.stage;
-    var cells = ev.cells;
-    var cx = 0, cy = 0;
-    for (var i = 0; i < cells.length; i++) {
-      var r = this.cellRect(cells[i][0], cells[i][1]);
-      cx += r.x + r.s / 2; cy += r.y + r.s / 2;
-    }
-    cx /= cells.length; cy /= cells.length;
+    var r = this.cellRect(ev.cell[0], ev.cell[1]);
+    var cx = r.x + r.s / 2, cy = r.y + r.s / 2;
 
     if (ev.type === 'goal') {
-      var col = colorOf(st.pieces[ev.piece].color);
-      this.burst(cx, cy, col.mid, 9 + cells.length * 3, this.cell * 0.013);
-      this.ripple(cx, cy, col.mid, this.cell * 0.22, this.cell * 0.9, 360);
-      this.flashes.push({ cells: cells, life: 0, max: 420, col: col.mid });
+      this.burst(cx, cy, BLOCK.mid, 12, this.cell * 0.013);
+      this.ripple(cx, cy, BLOCK.mid, this.cell * 0.22, this.cell * 0.9, 360);
+      this.flashes.push({ cell: ev.cell, life: 0, max: 420 });
       this.shake = Math.min(this.shake + 1.1, 3);
-    } else if (ev.type === 'pit') {
-      this.burst(cx, cy, '#8f4a9c', 10, this.cell * 0.008);
-      this.ripple(cx, cy, 'rgba(160,80,170,0.9)', this.cell * 0.5, this.cell * 0.12, 340);
-      this.shake = Math.min(this.shake + 2.2, 4);
     } else if (ev.type === 'stop') {
       this.shake = Math.min(this.shake + 0.5, 2.5);
     }
@@ -398,9 +349,8 @@
     ctx.scale(this.dpr, this.dpr);
     ctx.clearRect(0, 0, this.cssW, this.cssH);
 
-    var sh = 0;
     if (this.shake > 0.01) {
-      sh = this.shake;
+      var sh = this.shake;
       ctx.translate((Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh);
       this.shake *= Math.pow(0.0025, dt / 1000);
       if (this.shake < 0.05) this.shake = 0;
@@ -416,14 +366,13 @@
         tc.canvas.width / this.dpr, tc.canvas.height / this.dpr);
     }
 
-    this.drawGoals(ctx, dt);
-    this.drawPieces(ctx, elapsed);
+    this.drawGoals(ctx);
+    this.drawBlocks(ctx, elapsed);
     if (this.drawEffects(ctx, dt)) busy = true;
 
     ctx.restore();
 
     if (this.clearGlow > 0) { this.clearGlow -= dt / 900; busy = true; }
-    if (this.lostGlow > 0) { this.lostGlow -= dt / 900; busy = true; }
 
     // `busy` means there is motion that must be drawn at full rate. When it is
     // false the only thing still changing is the slow breathing of the goal
@@ -477,17 +426,12 @@
     }
   };
 
-  Renderer.prototype.drawGoals = function (ctx, dt) {
+  Renderer.prototype.drawGoals = function (ctx) {
     var st = this.stage;
     var pulse = 0.5 + 0.5 * Math.sin(this.time / 620);
     for (var y = 0; y < st.h; y++) {
       for (var x = 0; x < st.w; x++) {
-        var i = y * st.w + x;
-        var g = st.goal[i];
-        if (g === E.GOAL_NONE) continue;
-        var col = g === E.GOAL_ANY
-          ? { hi: THEME.neutralHi, mid: THEME.neutralMid, lo: THEME.neutralLo, glow: THEME.neutralGlow, glyph: 'ring' }
-          : colorOf(g);
+        if (!st.goal[y * st.w + x]) continue;
         var r = this.cellRect(x, y);
         var cx = r.x + r.s / 2, cy = r.y + r.s / 2;
         var pad = r.s * 0.17;
@@ -495,9 +439,7 @@
         var flash = 0;
         for (var f = 0; f < this.flashes.length; f++) {
           var fl = this.flashes[f];
-          for (var c = 0; c < fl.cells.length; c++) {
-            if (fl.cells[c][0] === x && fl.cells[c][1] === y) flash = Math.max(flash, 1 - fl.life / fl.max);
-          }
+          if (fl.cell[0] === x && fl.cell[1] === y) flash = Math.max(flash, 1 - fl.life / fl.max);
         }
 
         ctx.save();
@@ -507,75 +449,65 @@
         ctx.fillStyle = 'rgba(0,0,10,0.30)';
         ctx.fill();
 
-        ctx.shadowColor = col.glow;
+        ctx.shadowColor = SOCKET.glow;
         ctx.shadowBlur = r.s * (0.12 + pulse * 0.10 + flash * 0.6);
-        ctx.strokeStyle = col.mid;
+        ctx.strokeStyle = SOCKET.mid;
         ctx.lineWidth = Math.max(1.8, r.s * (0.055 + flash * 0.04));
         ctx.globalAlpha = 0.55 + pulse * 0.25 + flash * 0.45;
         roundRect(ctx, r.x + pad, r.y + pad, r.s - pad * 2, r.s - pad * 2, r.s * 0.2);
         ctx.stroke();
 
+        // The ring the block's dot is shaped to drop into.
         ctx.shadowBlur = 0;
-        if (col.glyph !== 'ring') {
-          ctx.globalAlpha = 0.4 + pulse * 0.2 + flash * 0.5;
-          drawGlyph(ctx, col.glyph, cx, cy, r.s * 0.16, col.mid, true);
-        }
+        ctx.globalAlpha = 0.35 + pulse * 0.2 + flash * 0.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r.s * 0.15, 0, Math.PI * 2);
+        ctx.strokeStyle = SOCKET.mid;
+        ctx.lineWidth = Math.max(1.4, r.s * 0.045);
+        ctx.stroke();
         ctx.restore();
       }
     }
   };
 
-  Renderer.prototype.drawPieces = function (ctx, elapsed) {
+  Renderer.prototype.drawBlocks = function (ctx, elapsed) {
     var st = this.stage;
     var state = this.anim ? null : this.state;
     var frames = this.anim ? this.anim.frames : null;
 
-    for (var i = 0; i < st.pieces.length; i++) {
-      var off, alive, squash = 0;
+    for (var i = 0; i < st.blocks.length; i++) {
+      var pos, squash = 0;
       if (this.anim) {
-        // A piece stays on screen until the tick it is drained on.
-        var deadAt = -1;
+        // A block stays on screen until the tick it is collected on.
+        var goneAt = -1;
         for (var k = 0; k < frames.length; k++) {
-          if (!frames[k].alive[i]) { deadAt = k; break; }
+          if (!frames[k].alive[i]) { goneAt = k; break; }
         }
-        if (deadAt >= 0 && elapsed >= deadAt * TICK + TICK * 0.55) continue;
-        off = this.animOffset(i, elapsed);
+        if (goneAt >= 0 && elapsed >= goneAt * TICK + TICK * 0.55) continue;
+        pos = this.animPos(i, elapsed);
         squash = this.impactOf(i, elapsed);
-        alive = true;
       } else {
         if (!state.alive[i]) continue;
-        off = state.off[i];
-        alive = true;
+        pos = state.pos[i];
       }
-      if (!alive) continue;
-      this.drawPiece(ctx, st.pieces[i], off, squash);
+      this.drawBlock(ctx, pos, squash);
     }
   };
 
-  Renderer.prototype.drawPiece = function (ctx, piece, off, squash) {
-    var col = colorOf(piece.color);
+  Renderer.prototype.drawBlock = function (ctx, pos, squash) {
     var cell = this.cell;
     var inset = Math.max(2, cell * 0.075);
 
-    // Bounding box of the (rigid) shape, drawn as one body so multi-cell pieces
-    // read as a single object rather than two blocks that happen to touch.
-    var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
-    for (var i = 0; i < piece.cells.length; i++) {
-      var cx = piece.cells[i][0] + off[0], cy = piece.cells[i][1] + off[1];
-      if (cx < minx) minx = cx; if (cx > maxx) maxx = cx;
-      if (cy < miny) miny = cy; if (cy > maxy) maxy = cy;
-    }
-    var x = this.ox + minx * cell + inset;
-    var y = this.oy + miny * cell + inset;
-    var w = (maxx - minx + 1) * cell - inset * 2;
-    var h = (maxy - miny + 1) * cell - inset * 2;
+    var x = this.ox + pos[0] * cell + inset;
+    var y = this.oy + pos[1] * cell + inset;
+    var w = cell - inset * 2;
+    var h = cell - inset * 2;
 
     // Impact squash: compress along the axis of travel, bulge across it.
-    if (squash > 0.001) {
-      var horiz = Math.abs(maxx - minx) >= Math.abs(maxy - miny);
-      var s = squash * 0.12;
-      var dw = w * s * (horiz ? 1 : -0.6);
-      var dh = h * s * (horiz ? -0.6 : 1);
+    if (squash && squash.amount > 0.001) {
+      var s = squash.amount * 0.12;
+      var dw = w * s * (squash.horiz ? -1 : 0.6);
+      var dh = h * s * (squash.horiz ? 0.6 : -1);
       x -= dw / 2; w += dw;
       y -= dh / 2; h += dh;
     }
@@ -588,20 +520,20 @@
     ctx.shadowOffsetY = cell * 0.06;
     roundRect(ctx, x, y, w, h, rad);
     var grad = ctx.createLinearGradient(x, y, x, y + h);
-    grad.addColorStop(0, col.hi);
-    grad.addColorStop(0.42, col.mid);
-    grad.addColorStop(1, col.lo);
+    grad.addColorStop(0, BLOCK.hi);
+    grad.addColorStop(0.42, BLOCK.mid);
+    grad.addColorStop(1, BLOCK.lo);
     ctx.fillStyle = grad;
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
 
-    // Outer glow makes movable pieces pop away from the matte walls instantly.
-    ctx.shadowColor = col.glow;
+    // Outer glow makes the movable things pop away from the matte walls instantly.
+    ctx.shadowColor = BLOCK.glow;
     ctx.shadowBlur = cell * 0.3;
     ctx.globalAlpha = 0.55;
     roundRect(ctx, x, y, w, h, rad);
-    ctx.strokeStyle = col.hi;
+    ctx.strokeStyle = BLOCK.hi;
     ctx.lineWidth = 1.4;
     ctx.stroke();
     ctx.globalAlpha = 1;
@@ -618,7 +550,11 @@
     ctx.fillRect(x, y, w, h * 0.55);
     ctx.restore();
 
-    drawGlyph(ctx, col.glyph, x + w / 2, y + h / 2, cell * 0.15, 'rgba(6,10,26,0.5)', false);
+    // The dot that matches the ring on every goal.
+    ctx.beginPath();
+    ctx.arc(x + w / 2, y + h / 2, cell * 0.15, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(6,10,26,0.5)';
+    ctx.fill();
     ctx.restore();
   };
 
@@ -674,30 +610,18 @@
   /**
    * Celebration that stays out of the way of the board.
    *
-   * The pieces draining into their goals already carry the moment, and they
-   * fire at the same instant as this does. So the clear itself is one clean
-   * ring and a handful of sparks — and only in colours the stage actually
-   * used, because inventing a colour the player never saw is a lie about the
-   * puzzle they just solved.
+   * The blocks draining into their goals already carry the moment, and they fire
+   * at the same instant as this does. So the clear itself is one clean ring and
+   * a handful of sparks — no more.
    */
   Renderer.prototype.celebrate = function () {
     var st = this.stage;
     var cx = this.ox + this.cell * st.w / 2;
     var cy = this.oy + this.cell * st.h / 2;
     this.ripple(cx, cy, 'rgba(190,230,255,0.75)', this.cell * 0.3, this.cell * st.w * 0.8, 620);
-
-    var used = [];
-    st.pieces.forEach(function (p) { if (used.indexOf(p.color) < 0) used.push(p.color); });
-    for (var i = 0; i < used.length; i++) {
-      this.burst(cx, cy, colorOf(used[i]).mid, 8, this.cell * 0.018);
-    }
+    this.burst(cx, cy, BLOCK.mid, 14, this.cell * 0.018);
     this.clearGlow = 1;
     this.shake = 2.0;
-  };
-
-  Renderer.prototype.mourn = function () {
-    this.lostGlow = 1;
-    this.shake = 3;
   };
 
   /** A tilt that changes nothing still deserves an answer. */
@@ -722,35 +646,6 @@
     g.closePath();
   }
 
-  function drawGlyph(g, kind, cx, cy, r, color, stroke) {
-    g.save();
-    g.beginPath();
-    if (kind === 'circle') {
-      g.arc(cx, cy, r, 0, Math.PI * 2);
-    } else if (kind === 'diamond') {
-      g.moveTo(cx, cy - r * 1.15); g.lineTo(cx + r * 1.15, cy);
-      g.lineTo(cx, cy + r * 1.15); g.lineTo(cx - r * 1.15, cy);
-      g.closePath();
-    } else if (kind === 'triangle') {
-      g.moveTo(cx, cy - r * 1.15); g.lineTo(cx + r, cy + r * 0.75);
-      g.lineTo(cx - r, cy + r * 0.75);
-      g.closePath();
-    } else { // ring
-      g.arc(cx, cy, r * 1.05, 0, Math.PI * 2);
-      g.moveTo(cx + r * 0.5, cy);
-      g.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
-    }
-    if (stroke) {
-      g.strokeStyle = color;
-      g.lineWidth = Math.max(1.4, r * 0.34);
-      g.stroke();
-    } else {
-      g.fillStyle = color;
-      g.fill();
-    }
-    g.restore();
-  }
-
-  root.TiltRender = { Renderer: Renderer, COLORS: COLORS, THEME: THEME, TICK: TICK, TAIL: TAIL };
+  root.TiltRender = { Renderer: Renderer, BLOCK: BLOCK, SOCKET: SOCKET, THEME: THEME, TICK: TICK, TAIL: TAIL };
 
 })(typeof window !== 'undefined' ? window : globalThis);

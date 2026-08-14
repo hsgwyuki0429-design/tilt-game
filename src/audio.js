@@ -4,7 +4,7 @@
  *
  * Synthesised on the fly: no files to load, nothing to block the first frame,
  * and the pitch of every sound can carry information. Collecting the third
- * piece of a chain sounds higher than the first, so a cascade is audible as a
+ * block of a chain sounds higher than the first, so a cascade is audible as a
  * rising figure rather than three identical blips.
  *
  * The context is created lazily on the first real gesture, which is what mobile
@@ -114,11 +114,6 @@
     this.tone({ type: 'sine', freq: f * 2, dur: 0.22, vol: 0.10, delay: 0.01 });
   };
 
-  Audio.prototype.pit = function () {
-    this.tone({ type: 'sawtooth', freq: 160, to: 38, dur: 0.42, vol: 0.24, filter: 700 });
-    this.noise(0.3, 0.12, 220);
-  };
-
   Audio.prototype.blocked = function () {
     this.tone({ type: 'sine', freq: 120, to: 96, dur: 0.09, vol: 0.16 });
   };
@@ -128,10 +123,6 @@
     [0, 4, 7, 12, 16].forEach(function (semi, i) {
       self.tone({ type: 'sine', freq: 523.25 * Math.pow(2, semi / 12), dur: 0.5, vol: 0.24, delay: i * 0.075 });
     });
-  };
-
-  Audio.prototype.lost = function () {
-    this.tone({ type: 'triangle', freq: 300, to: 110, dur: 0.5, vol: 0.22, filter: 900 });
   };
 
   Audio.prototype.ui = function (up) {

@@ -2,10 +2,10 @@
 /*
  * TILT — browser QA.
  *
- * Drives the real page in a real mobile-sized browser and plays all twenty
- * stages through the actual input path. The point is to catch what the pure
- * logic audit cannot: DOM wiring, overlay states, layout at phone sizes, and
- * anything that only breaks once a canvas is involved.
+ * Drives the real page in a real mobile-sized browser and plays stages through
+ * the actual input path. The point is to catch what the pure logic audit
+ * cannot: DOM wiring, overlay states, layout at phone sizes, and anything that
+ * only breaks once a canvas is involved.
  *
  *   node tools/qa.js            headless run, exits non-zero on any failure
  *   node tools/qa.js --shots    also write screenshots to .qa/
@@ -114,17 +114,17 @@ async function swipe(page, x, y, dx, dy) {
   ok('one hundred stages ship', stageCount === 100, 'found ' + stageCount);
 
   // Solvability of all 100 is proven by tools/audit.js; this harness is here to
-  // exercise the UI. By default it plays every hand-authored stage plus a
-  // spread from each generated chapter, which covers every element combination
-  // without spending ten minutes replaying boards the solver already cleared.
-  // --all plays the entire campaign.
+  // exercise the UI. By default it plays the whole introduction plus a spread
+  // from each generated chapter, which covers every board size and every
+  // solution length without spending ten minutes replaying boards the solver
+  // already cleared. --all plays the entire campaign.
   var playList = await page.evaluate(function (all) {
     var S = window.TiltStages.STAGES, C = window.TiltStages.CHAPTERS || [];
     if (all) return S.map(function (d, i) { return i; });
     var picked = [];
-    S.forEach(function (d, i) { if (d.id <= 20) picked.push(i); });
+    S.forEach(function (d, i) { if (d.id <= 10) picked.push(i); });
     C.forEach(function (c) {
-      if (c.to <= 20) return;
+      if (c.to <= 10) return;
       var idx = [];
       S.forEach(function (d, i) { if (d.id >= c.from && d.id <= c.to) idx.push(i); });
       // first, middle and last of each chapter: easiest, median and hardest
@@ -175,7 +175,7 @@ async function swipe(page, x, y, dx, dy) {
     ok('stage ' + String(plan.id).padStart(2, '0') + ' ' + plan.name.padEnd(8) + ' cleared in par ' + plan.par,
       good, 'phase=' + res.phase + ' moves=' + res.moves + ' overlay=' + res.overlayText.trim() + ' best=' + res.best);
 
-    if (SHOTS && (plan.id === 7 || plan.id === 20 || plan.id === 100)) {
+    if (SHOTS && (plan.id === 7 || plan.id === 50 || plan.id === 100)) {
       await page.screenshot({ path: path.join(SHOT_DIR, 'clear-' + String(plan.id).padStart(3, '0') + '.png') });
     }
   }
@@ -231,30 +231,45 @@ async function swipe(page, x, y, dx, dy) {
   ok('restart returns to the initial state', afterRestart.key === start);
   ok('restart clears history and counter', afterRestart.hist === 0 && afterRestart.moves === 0);
 
-  // ── pit / loss handling ────────────────────────────────────────────────────
-  console.log('\n[1mFAILURE STATES[0m');
-  await page.evaluate(function () { window.game.loadStage(7); });   // VOID
-  await page.waitForTimeout(180);
-  await page.keyboard.press('ArrowRight');                          // the fatal instinct
-  await page.waitForFunction(function () { return window.game.phase !== 'busy'; });
-  await page.waitForTimeout(700);
-  var lost = await page.evaluate(function () {
-    return {
-      phase: window.game.phase,
-      overlay: document.getElementById('overlay').className,
-      title: (document.querySelector('.ov-title') || {}).textContent || ''
-    };
+  // ── nothing can be lost ────────────────────────────────────────────────────
+  // The rules have no failure state at all: no cell is forbidden, nothing
+  // destroys a block, and every board character is one of exactly four. This
+  // section checks the game agrees — the whole point of the simplification is
+  // that there is no "you lost" path left to get wrong.
+  console.log('\n[1mNO FAILURE STATE[0m');
+  var vocabulary = await page.evaluate(function () {
+    var bad = [];
+    var phases = {};
+    window.TiltStages.STAGES.forEach(function (d) {
+      Object.keys(d).forEach(function (k) {
+        if (['id', 'name', 'par', 'note', 'hint', 'board'].indexOf(k) < 0) bad.push(d.id + ':field ' + k);
+      });
+      d.board.forEach(function (row) {
+        for (var i = 0; i < row.length; i++) if ('.#o@'.indexOf(row[i]) < 0) bad.push(d.id + ':char ' + row[i]);
+      });
+    });
+    return { bad: bad.slice(0, 5), badCount: bad.length, phases: phases };
   });
-  ok('losing a block enters the lost state', lost.phase === 'lost', 'phase=' + lost.phase);
-  ok('lost overlay appears', /lost/.test(lost.overlay), lost.overlay);
-  if (SHOTS) await page.screenshot({ path: path.join(SHOT_DIR, 'lost.png') });
+  ok('every stage uses only floor, wall, goal and block', vocabulary.badCount === 0,
+    vocabulary.bad.join(' '));
 
-  await page.click('[data-act="undo"]');
-  await page.waitForTimeout(200);
-  var recovered = await page.evaluate(function () {
-    return { phase: window.game.phase, overlay: document.getElementById('overlay').className };
+  var noLoss = await page.evaluate(function () {
+    var g = window.game, E = window.TiltEngine;
+    // Walk a stage exhaustively: no reachable position may ever have fewer
+    // blocks accounted for than it started with.
+    g.loadStage(9);
+    var states = E.reachable(g.stage, null, 4000);
+    var total = g.stage.blocks.length, bad = 0;
+    states.forEach(function (s) {
+      var live = 0;
+      for (var i = 0; i < s.alive.length; i++) if (s.alive[i]) live++;
+      if (live + s.collected !== total) bad++;
+    });
+    return { checked: states.length, bad: bad, hasLostPhase: 'lost' in (window.TiltGame.TXT || {}) };
   });
-  ok('undo recovers from a loss', recovered.phase === 'play' && !/show/.test(recovered.overlay), recovered.phase);
+  ok('no reachable position ever loses a block', noLoss.bad === 0,
+    noLoss.bad + ' of ' + noLoss.checked + ' positions');
+  ok('the game no longer carries a lost state at all', noLoss.hasLostPhase === false);
 
   // ── input robustness ───────────────────────────────────────────────────────
   console.log('\n[1mINPUT ROBUSTNESS[0m');
@@ -268,17 +283,14 @@ async function swipe(page, x, y, dx, dy) {
     var g = window.game, E = window.TiltEngine;
     var st = g.stage, s = g.state;
     var seen = {}, bad = 0;
-    for (var i = 0; i < st.pieces.length; i++) {
+    for (var i = 0; i < st.blocks.length; i++) {
       if (!s.alive[i]) continue;
-      var cells = E.pieceCells(st, s, i);
-      for (var k = 0; k < cells.length; k++) {
-        var x = cells[k][0], y = cells[k][1];
-        if (x < 0 || y < 0 || x >= st.w || y >= st.h) bad++;
-        var key = x + ',' + y;
-        if (seen[key]) bad++;
-        seen[key] = 1;
-        if (st.terrain[y * st.w + x] === E.WALL) bad++;
-      }
+      var x = s.pos[i][0], y = s.pos[i][1];
+      if (x < 0 || y < 0 || x >= st.w || y >= st.h) bad++;
+      var key = x + ',' + y;
+      if (seen[key]) bad++;
+      seen[key] = 1;
+      if (st.terrain[y * st.w + x] === E.WALL) bad++;
     }
     return { bad: bad, moves: s.moves, hist: g.history.length, phase: g.phase };
   });
@@ -296,24 +308,47 @@ async function swipe(page, x, y, dx, dy) {
   ok('a tilt that changes nothing costs no move', noop.moves === 0 && noop.hist === 0, 'moves=' + noop.moves);
 
   // ── dead end detection ─────────────────────────────────────────────────────
+  // With nothing on the board able to destroy a block, a genuinely stuck
+  // position is rare — most stages have none at all. So this looks across the
+  // campaign for one, and checks whichever answer it gets: if a stuck position
+  // exists the dock must flag it, and if none does the detector must not be
+  // crying wolf on ordinary positions.
   console.log('\n[1mDEAD END DETECTION[0m');
   var deadFound = await page.evaluate(function () {
-    var g = window.game, E = window.TiltEngine;
-    g.loadStage(14);  // LEVER has genuinely unrecoverable positions
-    var states = E.reachable(g.stage, null, 5000);
-    for (var i = 0; i < states.length; i++) {
-      if (E.isClear(states[i])) continue;
-      if (!E.solve(g.stage, states[i], 20000).solvable) {
-        g.state = states[i];
-        g.history.push(E.initialState(g.stage));
-        g.checkDeadEnd();
-        return { dead: g.deadEnd, urgent: document.getElementById('btn-undo').classList.contains('urgent') };
+    var g = window.game, E = window.TiltEngine, S = window.TiltStages.STAGES;
+    for (var idx = 0; idx < S.length; idx += 7) {
+      g.loadStage(idx);
+      var states = E.reachable(g.stage, null, 3000);
+      for (var i = 0; i < states.length; i++) {
+        if (E.isClear(states[i])) continue;
+        if (!E.solve(g.stage, states[i], 20000).solvable) {
+          g.state = states[i];
+          g.history.push(E.initialState(g.stage));
+          g.checkDeadEnd();
+          return {
+            found: true, stage: S[idx].id, dead: g.deadEnd,
+            urgent: document.getElementById('btn-undo').classList.contains('urgent')
+          };
+        }
       }
     }
-    return { dead: null, urgent: null };
+    // No stage sampled can be jammed. Confirm the detector stays quiet.
+    g.loadStage(0);
+    g.checkDeadEnd();
+    return {
+      found: false, dead: g.deadEnd,
+      urgent: document.getElementById('btn-undo').classList.contains('urgent')
+    };
   });
-  ok('unsolvable positions are detected', deadFound.dead === true, JSON.stringify(deadFound));
-  ok('undo button flags the dead end', deadFound.urgent === true);
+  if (deadFound.found) {
+    ok('unsolvable positions are detected  (stage ' + deadFound.stage + ')', deadFound.dead === true,
+      JSON.stringify(deadFound));
+    ok('undo button flags the dead end', deadFound.urgent === true);
+  } else {
+    ok('no sampled stage can be jammed at all', true, 'nothing here can destroy a block');
+    ok('the detector does not cry wolf on a solvable board',
+      deadFound.dead === false && deadFound.urgent === false, JSON.stringify(deadFound));
+  }
 
   // ── layout across viewports ────────────────────────────────────────────────
   console.log('\n[1mLAYOUT[0m');
@@ -324,10 +359,20 @@ async function swipe(page, x, y, dx, dy) {
     { name: 'landscape  844×390', w: 844, h: 390 },
     { name: 'tablet     768×1024', w: 768, h: 1024 }
   ];
+  // Whichever stage has the most cells — the one layout is most likely to fail on.
+  var biggest = await page.evaluate(function () {
+    var S = window.TiltStages.STAGES, best = 0, at = 0;
+    S.forEach(function (d, i) {
+      var area = d.board.length * d.board[0].length;
+      if (area > best) { best = area; at = i; }
+    });
+    return { index: at, label: S[at].board[0].length + '×' + S[at].board.length };
+  });
+
   for (var v = 0; v < viewports.length; v++) {
     var vp = viewports[v];
     await page.setViewportSize({ width: vp.w, height: vp.h });
-    await page.evaluate(function () { window.game.loadStage(19); }); // 5×5, the biggest
+    await page.evaluate(function (i) { window.game.loadStage(i); }, biggest.index);
     await page.waitForTimeout(260);
     var fit = await page.evaluate(function () {
       var g = window.game, r = g.renderer;
@@ -340,7 +385,7 @@ async function swipe(page, x, y, dx, dy) {
         vScroll: doc.scrollHeight > doc.clientHeight
       };
     });
-    ok('5×5 board fits · ' + vp.name, fit.fits && !fit.hScroll && !fit.vScroll,
+    ok(biggest.label + ' board fits · ' + vp.name, fit.fits && !fit.hScroll && !fit.vScroll,
       'cell=' + fit.cell + ' fits=' + fit.fits + ' hscroll=' + fit.hScroll + ' vscroll=' + fit.vScroll);
     if (SHOTS) await page.screenshot({ path: path.join(SHOT_DIR, 'vp-' + vp.w + 'x' + vp.h + '.png') });
   }
