@@ -1,0 +1,509 @@
+/*
+ * TILT — interface.
+ *
+ * The board is the game; the chrome exists only to stay out of its way. Rules
+ * applied throughout:
+ *   - the grid gets every pixel that is not load-bearing UI
+ *   - nothing animates while the player is thinking
+ *   - tap targets are never smaller than 44px
+ *   - the layout survives a 320px-wide phone with a notch
+ */
+
+:root {
+  --bg-0: #07080f;
+  --bg-1: #10132a;
+  --bg-2: #191d3d;
+  --ink: #e9edff;
+  --ink-dim: #8f9ac9;
+  --ink-faint: #5a6392;
+  --line: rgba(150, 170, 255, 0.14);
+  --line-soft: rgba(150, 170, 255, 0.08);
+  --cyan: #2ed3f2;
+  --rose: #ff5c9e;
+  --amber: #ffb43d;
+  --danger: #ff6b8a;
+  --ok: #4ce0b3;
+  --dock-h: 74px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans',
+          'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-0);
+  color: var(--ink);
+  font-family: var(--font);
+  /* No pull-to-refresh, no rubber-banding, no double-tap zoom: every one of
+     those turns an intended swipe into a browser gesture. */
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(120% 80% at 50% -10%, #232a5c 0%, rgba(35, 42, 92, 0) 60%),
+    radial-gradient(90% 60% at 50% 110%, #1a1240 0%, rgba(26, 18, 64, 0) 55%),
+    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%);
+  z-index: -1;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding:
+    calc(env(safe-area-inset-top, 0px))
+    calc(env(safe-area-inset-right, 0px))
+    calc(env(safe-area-inset-bottom, 0px))
+    calc(env(safe-area-inset-left, 0px));
+}
+
+/* ── HUD ──────────────────────────────────────────────────────────────────── */
+
+#hud {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 6px;
+  min-height: 52px;
+}
+
+.title-block {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+#stage-label {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--ink-faint);
+  font-weight: 700;
+}
+
+#stage-name {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.counters { display: flex; gap: 12px; flex: 0 0 auto; }
+
+.counter { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
+.counter .k { font-size: 9px; letter-spacing: 0.14em; color: var(--ink-faint); font-weight: 700; }
+.counter .v { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.counter.dim .v { color: var(--ink-dim); font-size: 15px; }
+#moves.over { color: var(--amber); }
+
+.icon-btn {
+  flex: 0 0 auto;
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+}
+.icon-btn svg { width: 19px; height: 19px; fill: currentColor; }
+/* The close glyph is a stroked path, not a filled shape — without this it
+   inherits fill:none and renders as nothing at all. */
+#btn-close svg { fill: none; stroke: currentColor; }
+.icon-btn:active { transform: scale(0.94); background: rgba(255, 255, 255, 0.1); }
+
+/* ── board ────────────────────────────────────────────────────────────────── */
+
+#board-area {
+  position: relative;
+  min-height: 0;
+  /* The canvas owns every gesture inside this box. */
+  touch-action: none;
+}
+
+#board {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── hint ─────────────────────────────────────────────────────────────────── */
+
+#hint {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translate(-50%, 12px);
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(16, 20, 46, 0.88);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#hint.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* The very first board gets a moving cue, because there is no way to guess
+   "swipe" from a static picture. */
+#hint.swipe-demo::after {
+  content: '';
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 9px;
+  width: 22px; height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(46, 211, 242, 0) 0%, var(--cyan) 70%);
+  animation: swipe-cue 1.5s ease-in-out infinite;
+}
+@keyframes swipe-cue {
+  0%, 100% { transform: translateX(-6px); opacity: 0.25; }
+  50%      { transform: translateX(6px);  opacity: 1; }
+}
+
+/* ── toast ────────────────────────────────────────────────────────────────── */
+
+#toast {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translate(-50%, -8px) scale(0.94);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(46, 211, 242, 0.14);
+  border: 1px solid rgba(46, 211, 242, 0.4);
+  color: #b8f2ff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+
+/* ── overlays ─────────────────────────────────────────────────────────────── */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 5;
+}
+.overlay.show { display: flex; }
+
+.ov-card {
+  width: min(340px, 100%);
+  padding: 24px 22px 20px;
+  border-radius: 22px;
+  text-align: center;
+  background: rgba(13, 16, 38, 0.93);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: card-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.95); }
+  to   { opacity: 1; transform: none; }
+}
+
+.ov-kicker {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--ink-faint);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.ov-title {
+  margin: 0 0 14px;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: var(--cyan);
+  text-shadow: 0 0 26px rgba(46, 211, 242, 0.45);
+}
+.ov-title.perfect { color: var(--amber); text-shadow: 0 0 26px rgba(255, 180, 61, 0.45); }
+.ov-title.lost    { color: var(--danger); text-shadow: 0 0 26px rgba(255, 107, 138, 0.4); font-size: 24px; }
+
+.ov-stats { display: flex; justify-content: center; gap: 22px; margin-bottom: 12px; }
+.ov-stat { display: flex; flex-direction: column; gap: 2px; }
+.ov-stat .k { font-size: 9px; letter-spacing: 0.16em; color: var(--ink-faint); font-weight: 700; }
+.ov-stat .v { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+.ov-flag {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #0a2018;
+  background: var(--ok);
+}
+
+.ov-note { font-size: 12.5px; color: var(--ink-dim); margin-bottom: 16px; line-height: 1.5; }
+
+.ov-actions { display: flex; flex-direction: column; gap: 9px; }
+
+.btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  padding: 13px 18px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: transform 0.1s, filter 0.15s, background 0.15s;
+  min-height: 46px;
+}
+.btn:active { transform: scale(0.97); }
+.btn.primary {
+  background: linear-gradient(180deg, #43e2ff 0%, #1aa8cc 100%);
+  color: #04202a;
+  box-shadow: 0 8px 24px rgba(46, 211, 242, 0.3);
+}
+.btn.ghost {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--line);
+  color: var(--ink-dim);
+}
+.btn.small { padding: 9px 14px; font-size: 11px; min-height: 38px; }
+
+/* ── dock ─────────────────────────────────────────────────────────────────── */
+
+#dock {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 6px 14px 12px;
+  min-height: var(--dock-h);
+}
+
+.dock-btn {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s, color 0.15s, border-color 0.2s;
+}
+.dock-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; }
+.dock-btn .lbl { font-size: 9px; font-weight: 800; letter-spacing: 0.13em; }
+.dock-btn:active:not(:disabled) { transform: scale(0.96); background: rgba(255, 255, 255, 0.09); }
+.dock-btn:disabled { opacity: 0.3; cursor: default; }
+.dock-btn.small { flex: 0 0 62px; }
+
+.dock-btn.active { color: var(--cyan); border-color: rgba(46, 211, 242, 0.5); background: rgba(46, 211, 242, 0.1); }
+.dock-btn.unavailable { opacity: 0.35; }
+
+#btn-sound .cross { opacity: 0; }
+#btn-sound.off .wave { opacity: 0; }
+#btn-sound.off .cross { opacity: 1; }
+#btn-sound.off { color: var(--ink-faint); }
+
+/* A dead board is worth saying out loud — quietly, once, on the button that
+   fixes it. */
+#btn-undo.urgent {
+  color: var(--amber);
+  border-color: rgba(255, 180, 61, 0.55);
+  background: rgba(255, 180, 61, 0.1);
+  animation: nudge 2.4s ease-in-out infinite;
+}
+@keyframes nudge {
+  0%, 88%, 100% { transform: none; }
+  92%           { transform: translateX(-2px); }
+  96%           { transform: translateX(2px); }
+}
+.badge {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: var(--amber);
+  white-space: nowrap;
+  pointer-events: none;
+}
+#btn-undo:not(.urgent) .badge { display: none; }
+
+/* ── stage menu ───────────────────────────────────────────────────────────── */
+
+#menu {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding:
+    calc(env(safe-area-inset-top, 0px) + 16px)
+    calc(env(safe-area-inset-right, 0px) + 16px)
+    calc(env(safe-area-inset-bottom, 0px) + 16px)
+    calc(env(safe-area-inset-left, 0px) + 16px);
+  background: linear-gradient(180deg, #0d1029 0%, #07080f 100%);
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.3, 0.9, 0.3, 1);
+  visibility: hidden;
+}
+#menu.show { transform: none; visibility: visible; }
+
+.menu-head { display: flex; align-items: center; justify-content: space-between; }
+.menu-head h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 0.36em;
+  background: linear-gradient(90deg, #7df2ff, #ff8fc0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.menu-tag {
+  margin: 6px 0 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+.menu-tag span { display: block; color: var(--ink-faint); font-size: 10.5px; letter-spacing: 0.05em; }
+
+.grid {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 9px;
+  align-content: start;
+  padding-bottom: 8px;
+}
+
+.cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 11px 10px;
+  min-height: 68px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line-soft);
+  color: var(--ink-dim);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s, border-color 0.15s;
+}
+.cell:active:not(:disabled) { transform: scale(0.96); }
+.cell .n { font-size: 10px; font-weight: 800; letter-spacing: 0.16em; color: var(--ink-faint); }
+.cell .nm { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; color: var(--ink); }
+.cell .bs { font-size: 10px; font-weight: 700; color: var(--ink-faint); font-variant-numeric: tabular-nums; margin-top: auto; }
+
+.cell.done { background: rgba(46, 211, 242, 0.09); border-color: rgba(46, 211, 242, 0.28); }
+.cell.done .bs { color: var(--cyan); }
+.cell.perfect { background: rgba(255, 180, 61, 0.1); border-color: rgba(255, 180, 61, 0.34); }
+.cell.perfect .bs { color: var(--amber); }
+.cell.current { box-shadow: 0 0 0 2px rgba(233, 237, 255, 0.35); }
+.cell.locked { opacity: 0.34; cursor: default; }
+.cell.locked .nm { color: var(--ink-faint); }
+
+.menu-foot { padding-top: 10px; display: flex; justify-content: center; }
+
+/* Pointer clicks should not leave a ring behind; keyboard focus must. */
+button:focus { outline: none; }
+button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+/* ── failure of last resort ───────────────────────────────────────────────── */
+
+.fatal { padding: 40px 24px; text-align: center; color: var(--ink-dim); }
+.fatal h1 { letter-spacing: 0.3em; color: var(--ink); }
+.fatal pre { font-size: 11px; color: var(--danger); white-space: pre-wrap; }
+
+/* ── responsive ───────────────────────────────────────────────────────────── */
+
+/* Short viewports (landscape phones, small windows): shrink the chrome, never
+   the board. */
+@media (max-height: 560px) {
+  #hud { padding: 6px 12px 2px; min-height: 44px; }
+  #stage-name { font-size: 14px; }
+  .counter .v { font-size: 15px; }
+  #dock { min-height: 60px; padding: 4px 12px 8px; }
+  .dock-btn { min-height: 44px; }
+  .dock-btn .lbl { font-size: 8px; }
+  #hint { bottom: 4px; font-size: 11.5px; padding: 7px 13px; }
+}
+
+@media (max-width: 340px) {
+  .counters { gap: 8px; }
+  /* PAR is what the player is aiming at, so it stays; BEST is the one that can
+     wait for a wider screen. */
+  #best-counter { display: none; }
+  #dock { gap: 6px; padding-inline: 10px; }
+  .dock-btn.small { flex: 0 0 52px; }
+}
+
+/* Wide screens: the board is still a phone-shaped puzzle, so cap the column
+   rather than stretching a 3×3 grid across a desktop monitor. */
+@media (min-width: 620px) {
+  #app { max-width: 520px; margin: 0 auto; box-shadow: 0 0 90px rgba(0, 0, 0, 0.55); }
+  #menu { max-width: 520px; margin: 0 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #hint.swipe-demo::after,
+  #btn-undo.urgent { animation: none; }
+  .ov-card { animation: none; }
+}
