@@ -11,9 +11,14 @@
  * exactly what the solver proved — the animation is a view of the simulation,
  * never a second implementation of it.
  *
- * There is one kind of block and it has one look. Nothing on this board is
- * colour-coded, because nothing on this board behaves differently from anything
- * else: if two things look the same here, they ARE the same.
+ * Two things look different here only when they BEHAVE differently. Blocks of
+ * one colour are one look; a hazard cell is drawn as a pit and a wall as a
+ * raised block, because one is a place you may slide across and the other is
+ * not; and every colour carries its own SHAPE as well as its own hue, so the
+ * board is readable without relying on colour vision at all. The dot on a block
+ * and the ring on the goal that will take it are always the same shape — which
+ * is the whole of the game's iconography, and the whole of how a player learns
+ * what matches what without being told.
  */
 (function (root) {
 
@@ -30,14 +35,56 @@
     wallTop: '#4a5480',
     wallMid: '#2e3557',
     wallLow: '#1b2040',
-    wallEdge: 'rgba(180,200,255,0.30)'
+    wallEdge: 'rgba(180,200,255,0.30)',
+    hazEdge: 'rgba(255,120,120,0.55)',
+    hazDeep: '#2a0c14',
+    hazStripe: 'rgba(255,96,110,0.34)'
   };
 
-  // The block, and the socket it is looking for. One palette each: the ring on
-  // the goal is the same shape as the dot on the block, which is the whole of
-  // the game's iconography.
-  var BLOCK = { hi: '#a9f4ff', mid: '#2ed3f2', lo: '#0a7fa0', glow: 'rgba(46,211,242,0.55)' };
-  var SOCKET = { mid: '#b9c6ee', glow: 'rgba(200,215,255,0.45)' };
+  // One palette and one SHAPE per colour of block, and the socket that will
+  // take it wears the same shape as an outline. Nothing on the board is
+  // distinguished by hue alone.
+  //
+  //   0  any     cyan     circle
+  //   1  A       amber    triangle
+  //   2  B       violet   square
+  var PALETTE = [
+    { hi: '#a9f4ff', mid: '#2ed3f2', lo: '#0a7fa0', glow: 'rgba(46,211,242,0.55)',
+      socket: '#b9c6ee', socketGlow: 'rgba(200,215,255,0.45)', shape: 'circle' },
+    { hi: '#ffe6a8', mid: '#ffb43d', lo: '#a05a00', glow: 'rgba(255,180,61,0.55)',
+      socket: '#ffc766', socketGlow: 'rgba(255,190,90,0.50)', shape: 'triangle' },
+    { hi: '#e8ccff', mid: '#b479ff', lo: '#5a2ea0', glow: 'rgba(180,121,255,0.55)',
+      socket: '#c295ff', socketGlow: 'rgba(190,150,255,0.50)', shape: 'square' }
+  ];
+
+  var BLOCK = PALETTE[0];
+  var SOCKET = { mid: PALETTE[0].socket, glow: PALETTE[0].socketGlow };
+
+  function paletteOf(c) { return PALETTE[c] || PALETTE[0]; }
+
+  /**
+   * The one glyph the whole game is built on.
+   *
+   * A block carries it filled; the goal that accepts that block carries the
+   * same glyph as a ring. Matching is therefore something a player sees rather
+   * than something they are told, and it survives both colour blindness and a
+   * phone screen in sunlight.
+   */
+  function glyph(g, cx, cy, r, shape) {
+    g.beginPath();
+    if (shape === 'square') {
+      var s = r * 0.88;
+      g.rect(cx - s, cy - s, s * 2, s * 2);
+    } else if (shape === 'triangle') {
+      var h = r * 1.15;
+      g.moveTo(cx, cy - h);
+      g.lineTo(cx + h * 0.93, cy + h * 0.62);
+      g.lineTo(cx - h * 0.93, cy + h * 0.62);
+      g.closePath();
+    } else {
+      g.arc(cx, cy, r, 0, Math.PI * 2);
+    }
+  }
 
   // -- timing -----------------------------------------------------------------
 
@@ -155,6 +202,8 @@
 
         if (st.terrain[i] === E.WALL) {
           drawWall(g, px, py, cell);
+        } else if (st.terrain[i] === E.HAZARD) {
+          drawHazard(g, px, py, cell);
         } else {
           roundRect(g, px + inset, py + inset, cell - inset * 2, cell - inset * 2, cell * 0.13);
           g.fillStyle = THEME.floor;
@@ -194,6 +243,55 @@
     g.fillStyle = 'rgba(255,255,255,0.10)';
     g.fill();
     g.restore();
+  }
+
+  /**
+   * A hazard is drawn as a PIT, never as an object.
+   *
+   * This is the one piece of art in the game that has to carry a rule on its
+   * own. A wall is raised, lit from above and bolted down: it stops things. A
+   * hazard is sunk below the floor with the light falling into it: things pass
+   * over it, and what falls in does not come out. A player who has never read
+   * the rule should still expect to be able to slide across this, and should
+   * still not want to stop on it.
+   */
+  function drawHazard(g, px, py, cell) {
+    var inset = Math.max(1.5, cell * 0.035);
+    var x = px + inset, y = py + inset, s = cell - inset * 2;
+    var r = cell * 0.13;
+
+    roundRect(g, x, y, s, s, r);
+    var grad = g.createLinearGradient(x, y, x, y + s);
+    grad.addColorStop(0, THEME.hazDeep);
+    grad.addColorStop(0.55, '#160610');
+    grad.addColorStop(1, '#210a12');
+    g.fillStyle = grad;
+    g.fill();
+
+    // Diagonal warning stripes, clipped to the well.
+    g.save();
+    roundRect(g, x, y, s, s, r);
+    g.clip();
+    g.strokeStyle = THEME.hazStripe;
+    g.lineWidth = Math.max(1.5, cell * 0.055);
+    for (var k = -1; k < 4; k++) {
+      g.beginPath();
+      g.moveTo(x + k * s * 0.42, y + s);
+      g.lineTo(x + k * s * 0.42 + s, y);
+      g.stroke();
+    }
+    // An inner shadow along the top, so the cell reads as below the floor.
+    var sh = g.createLinearGradient(x, y, x, y + s * 0.45);
+    sh.addColorStop(0, 'rgba(0,0,0,0.55)');
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = sh;
+    g.fillRect(x, y, s, s * 0.45);
+    g.restore();
+
+    roundRect(g, x, y, s, s, r);
+    g.strokeStyle = THEME.hazEdge;
+    g.lineWidth = 1.2;
+    g.stroke();
   }
 
   // -- animation --------------------------------------------------------------
@@ -305,13 +403,22 @@
     var r = this.cellRect(ev.cell[0], ev.cell[1]);
     var cx = r.x + r.s / 2, cy = r.y + r.s / 2;
 
+    var pal = paletteOf(this.stage && this.stage.colour ? this.stage.colour[ev.block] : 0);
+
     if (ev.type === 'goal') {
-      this.burst(cx, cy, BLOCK.mid, 12, this.cell * 0.013);
-      this.ripple(cx, cy, BLOCK.mid, this.cell * 0.22, this.cell * 0.9, 360);
+      this.burst(cx, cy, pal.mid, 12, this.cell * 0.013);
+      this.ripple(cx, cy, pal.mid, this.cell * 0.22, this.cell * 0.9, 360);
       this.flashes.push({ cell: ev.cell, life: 0, max: 420 });
       this.shake = Math.min(this.shake + 1.1, 3);
     } else if (ev.type === 'stop') {
       this.shake = Math.min(this.shake + 0.5, 2.5);
+    } else if (ev.type === 'lost') {
+      // Losing a block has to be unmistakable and has to be legible: the player
+      // must know instantly WHICH cell did it, or the rule has not been taught.
+      // It costs one tap of undo, so this is information, not punishment.
+      this.burst(cx, cy, '#ff5f6d', 18, this.cell * 0.022);
+      this.ripple(cx, cy, 'rgba(255,95,109,0.85)', this.cell * 0.2, this.cell * 1.25, 460);
+      this.shake = Math.min(this.shake + 2.6, 4);
     }
     if (this.onEvent) this.onEvent(ev);
   };
@@ -432,6 +539,7 @@
     for (var y = 0; y < st.h; y++) {
       for (var x = 0; x < st.w; x++) {
         if (!st.goal[y * st.w + x]) continue;
+        var pal = paletteOf(st.goalColour ? st.goalColour[y * st.w + x] : 0);
         var r = this.cellRect(x, y);
         var cx = r.x + r.s / 2, cy = r.y + r.s / 2;
         var pad = r.s * 0.17;
@@ -449,20 +557,20 @@
         ctx.fillStyle = 'rgba(0,0,10,0.30)';
         ctx.fill();
 
-        ctx.shadowColor = SOCKET.glow;
+        ctx.shadowColor = pal.socketGlow;
         ctx.shadowBlur = r.s * (0.12 + pulse * 0.10 + flash * 0.6);
-        ctx.strokeStyle = SOCKET.mid;
+        ctx.strokeStyle = pal.socket;
         ctx.lineWidth = Math.max(1.8, r.s * (0.055 + flash * 0.04));
         ctx.globalAlpha = 0.55 + pulse * 0.25 + flash * 0.45;
         roundRect(ctx, r.x + pad, r.y + pad, r.s - pad * 2, r.s - pad * 2, r.s * 0.2);
         ctx.stroke();
 
-        // The ring the block's dot is shaped to drop into.
+        // The ring the block's dot is shaped to drop into — same shape, same
+        // colour, so which socket takes which block is never in doubt.
         ctx.shadowBlur = 0;
         ctx.globalAlpha = 0.35 + pulse * 0.2 + flash * 0.5;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r.s * 0.15, 0, Math.PI * 2);
-        ctx.strokeStyle = SOCKET.mid;
+        glyph(ctx, cx, cy, r.s * 0.15, pal.shape);
+        ctx.strokeStyle = pal.socket;
         ctx.lineWidth = Math.max(1.4, r.s * 0.045);
         ctx.stroke();
         ctx.restore();
@@ -490,11 +598,12 @@
         if (!state.alive[i]) continue;
         pos = state.pos[i];
       }
-      this.drawBlock(ctx, pos, squash);
+      this.drawBlock(ctx, pos, squash, st.colour ? st.colour[i] : 0);
     }
   };
 
-  Renderer.prototype.drawBlock = function (ctx, pos, squash) {
+  Renderer.prototype.drawBlock = function (ctx, pos, squash, colour) {
+    var pal = paletteOf(colour);
     var cell = this.cell;
     var inset = Math.max(2, cell * 0.075);
 
@@ -520,20 +629,20 @@
     ctx.shadowOffsetY = cell * 0.06;
     roundRect(ctx, x, y, w, h, rad);
     var grad = ctx.createLinearGradient(x, y, x, y + h);
-    grad.addColorStop(0, BLOCK.hi);
-    grad.addColorStop(0.42, BLOCK.mid);
-    grad.addColorStop(1, BLOCK.lo);
+    grad.addColorStop(0, pal.hi);
+    grad.addColorStop(0.42, pal.mid);
+    grad.addColorStop(1, pal.lo);
     ctx.fillStyle = grad;
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
 
     // Outer glow makes the movable things pop away from the matte walls instantly.
-    ctx.shadowColor = BLOCK.glow;
+    ctx.shadowColor = pal.glow;
     ctx.shadowBlur = cell * 0.3;
     ctx.globalAlpha = 0.55;
     roundRect(ctx, x, y, w, h, rad);
-    ctx.strokeStyle = BLOCK.hi;
+    ctx.strokeStyle = pal.hi;
     ctx.lineWidth = 1.4;
     ctx.stroke();
     ctx.globalAlpha = 1;
@@ -550,9 +659,8 @@
     ctx.fillRect(x, y, w, h * 0.55);
     ctx.restore();
 
-    // The dot that matches the ring on every goal.
-    ctx.beginPath();
-    ctx.arc(x + w / 2, y + h / 2, cell * 0.15, 0, Math.PI * 2);
+    // The dot that matches the ring on the goal which will take this block.
+    glyph(ctx, x + w / 2, y + h / 2, cell * 0.15, pal.shape);
     ctx.fillStyle = 'rgba(6,10,26,0.5)';
     ctx.fill();
     ctx.restore();
@@ -619,7 +727,7 @@
     var cx = this.ox + this.cell * st.w / 2;
     var cy = this.oy + this.cell * st.h / 2;
     this.ripple(cx, cy, 'rgba(190,230,255,0.75)', this.cell * 0.3, this.cell * st.w * 0.8, 620);
-    this.burst(cx, cy, BLOCK.mid, 14, this.cell * 0.018);
+    this.burst(cx, cy, paletteOf(st.colour ? st.colour[0] : 0).mid, 14, this.cell * 0.018);
     this.clearGlow = 1;
     this.shake = 2.0;
   };
@@ -646,6 +754,9 @@
     g.closePath();
   }
 
-  root.TiltRender = { Renderer: Renderer, BLOCK: BLOCK, SOCKET: SOCKET, THEME: THEME, TICK: TICK, TAIL: TAIL };
+  root.TiltRender = {
+    Renderer: Renderer, BLOCK: BLOCK, SOCKET: SOCKET, PALETTE: PALETTE,
+    THEME: THEME, TICK: TICK, TAIL: TAIL
+  };
 
 })(typeof window !== 'undefined' ? window : globalThis);

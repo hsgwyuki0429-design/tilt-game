@@ -47,7 +47,8 @@
     tiltDenied:{ ja: 'センサーの許可が必要です', en: 'Motion permission was declined' },
     resetAsk:  { ja: '進行状況をすべて消去しますか？', en: 'Erase all progress?' },
     locked:    { ja: 'まだ挑戦できません', en: 'Locked' },
-    chain:     { ja: 'CHAIN', en: 'CHAIN' }
+    chain:     { ja: 'CHAIN', en: 'CHAIN' },
+    lost:      { ja: '危険マスで止まった', en: 'STOPPED ON A HAZARD' }
   };
 
   function t(key) { var v = TXT[key]; return JA ? v.ja : v.en; }
@@ -227,15 +228,22 @@
     this.renderer.onEvent = function (ev) {
       if (ev.type === 'goal') self.audio.goal(goalIndex++);
       else if (ev.type === 'stop') self.audio.impact(1);
+      else if (ev.type === 'lost') self.audio.lost();
     };
 
     var chain = res.events.filter(function (e) { return e.type === 'goal'; }).length;
+    var lost = res.events.filter(function (e) { return e.type === 'lost'; }).length;
 
     this.renderer.playMove(res, function () {
       self.renderer.onEvent = null;
       self.state = res.state;
       self.syncHud();
-      if (chain >= 2) self.showToast(t('chain') + ' ×' + chain);
+      // Say what just happened, in the order it matters. A block destroyed
+      // outranks a chain: the player needs to know the board is now unwinnable
+      // and that undo is right there, before anything else competes for the
+      // toast.
+      if (lost) self.showToast(t('lost'));
+      else if (chain >= 2) self.showToast(t('chain') + ' ×' + chain);
       self.settle(res);
     });
     this.syncHud();
@@ -283,8 +291,43 @@
 
   // -- undo / restart ---------------------------------------------------------
 
+  /**
+   * Abandon a slide that is still playing.
+   *
+   * The logical state is not committed until the animation finishes, so
+   * throwing the animation away leaves the board exactly where the move
+   * started. That is what makes it safe to interrupt one.
+   */
+  Game.prototype.cancelSlide = function () {
+    if (this.phase !== 'busy') return false;
+    this.renderer.anim = null;
+    this.renderer.onEvent = null;
+    this.queued = null;
+    this.setPhase('play');
+    return true;
+  };
+
   Game.prototype.undo = function () {
-    if (this.phase === 'busy' || this.phase === 'clear') return;
+    if (this.phase === 'clear') return;
+
+    // Undo pressed DURING a slide means "take that move back" — and it can be
+    // honoured exactly, because the move has not been committed yet. Cancelling
+    // the animation and dropping the history entry the move pushed puts the
+    // board precisely where the player started. Refusing the press instead, as
+    // this used to, made the button feel broken during the very half-second a
+    // player is most likely to realise they were wrong.
+    if (this.phase === 'busy') {
+      this.cancelSlide();
+      if (this.history.length) this.history.pop();
+      this.renderer.showState(this.state);
+      this.renderer.gravity = null;
+      this.audio.undo();
+      this.syncHud();
+      this.checkDeadEnd();
+      this.wake();
+      return;
+    }
+
     if (!this.history.length) return;
     this.audio.resume();
     this.state = this.history.pop();
@@ -300,7 +343,9 @@
   };
 
   Game.prototype.restart = function () {
-    if (this.phase === 'busy') return;
+    // Restart is always answerable, mid-slide included: wherever the board is
+    // going, the beginning is where it is going instead.
+    this.cancelSlide();
     this.audio.resume();
     this.state = E.initialState(this.stage);
     this.history = [];
@@ -343,7 +388,9 @@
     this.dom.moves.textContent = String(this.state.moves);
     var best = this.save.best(STAGES[this.index].id);
     this.dom.moves.classList.toggle('over', this.state.moves > STAGES[this.index].par);
-    this.dom.btnUndo.disabled = !this.history.length || this.phase === 'busy' || this.phase === 'clear';
+    // Enabled during a slide too — an in-flight move is exactly the thing undo
+    // can still take back.
+    this.dom.btnUndo.disabled = !this.history.length || this.phase === 'clear';
     var bestEl = document.getElementById('best');
     if (bestEl) {
       bestEl.textContent = best == null ? '—' : String(best);

@@ -1,40 +1,38 @@
 'use strict';
 /*
- * TILT — board forge (interactive search).
+ * TILT — board forge.
  *
- * Hand-placing walls until a board "feels" right produces exactly the
- * decorative geometry the design rules forbid. So instead: fix an element
- * budget, hill-climb boards towards a longer solution, and keep only the ones
- * where deleting ANY single wall, block or goal provably damages the puzzle.
+ * The exploratory front-end to the same machinery tools/campaign.js uses. Use
+ * it to answer "what is even IN this corner of the design space?" before
+ * committing a slot to it.
  *
- * There are three things to place and there will never be a fourth, so every
- * knob below is about WHERE they go and how long the answer has to be.
+ *   node tools/forge.js --w 3 --h 3 --blocks 3 --walls 1:2 --top 8
+ *   node tools/forge.js --w 3 --h 3 --blocks 3 --hazards 1 --unlock 1:2
+ *   node tools/forge.js --w 4 --h 3 --colours AAB --walls 1:2 --blind 3
  *
- * This is the exploratory front-end to tools/lib/boards.js. The actual campaign
- * is built by tools/campaign.js, which uses the same machinery with a fixed
- * seed; use this to find a one-off board or to sanity-check a spec before
- * committing it to a chapter.
+ * At 3×3 and 4×3 this is not a sample. It enumerates every arrangement of the
+ * budget you give it, up to rotation, reflection and which colour is called A,
+ * and measures all of them. When it says a board is the best one available,
+ * that is a statement about the design space rather than about the search.
  *
- *   node tools/forge.js --w 4 --h 4 --walls 3:5 --blocks 3 --goals 1 \
- *                       --par 12:16 --tries 400 --top 6
+ * What it ranks by is deliberately NOT length. See tools/lib/design.js for the
+ * argument, and `--sort` below to override it:
  *
- * Options:
- *   --w --h                   board size
- *   --walls --blocks --goals  element budget ("2" or "1:3" range)
- *   --par a:b                 required shortest-solution length
- *   --ways a:b                required number of distinct shortest solutions
- *   --luck f                  max share of random par-length sequences that win
- *   --chain N                 require a tilt that collects N blocks at once
- *   --chain-last N            require the FINAL tilt to collect N at once
- *   --opening N               require N set-up tilts before anything is collected
- *   --loose                   skip the load-bearing test (for exploring only)
- *   --tries N --top N --seed N
+ *   shape    (default) how much like an idea the board is: one or two moves of
+ *            insight, a long tail that plays itself, the right move being the
+ *            last one instinct would suggest
+ *   par      longest shortest-solution. Kept only because it is occasionally
+ *            useful to see what optimising for length actually produces — it
+ *            produces corridors, which is the whole reason for the rest of this
+ *   states   most positions to think about
+ *   density  most thinking per cell
  */
 
-var B = require('./lib/boards.js');
+var D = require('./lib/design.js');
+var G = require('./lib/generate.js');
 
 var argv = process.argv.slice(2);
-function opt(name, dflt) {
+function arg(name, dflt) {
   var i = argv.indexOf('--' + name);
   if (i < 0) return dflt;
   var v = argv[i + 1];
@@ -42,67 +40,93 @@ function opt(name, dflt) {
 }
 function range(v, dflt) {
   if (v == null) return dflt;
-  var s = String(v).split(':');
-  return s.length > 1 ? [Number(s[0]), Number(s[1])] : [Number(s[0]), Number(s[0])];
+  var p = String(v).split(':').map(Number);
+  return p.length === 1 ? [p[0], p[0]] : [p[0], p[1]];
 }
+function num(v, dflt) { return v == null ? dflt : Number(v); }
 
-var spec = {
-  w: Number(opt('w', 4)),
-  h: Number(opt('h', 4)),
-  walls: range(opt('walls'), [2, 4]),
-  blocks: range(opt('blocks'), [2, 3]),
-  goals: range(opt('goals'), [1, 1])
-};
+var W = num(arg('w'), 3), H = num(arg('h'), 3);
+var WALLS = range(arg('walls'), [1, 2]);
+var HAZ = range(arg('hazards'), [0, 0]);
+var COLOURS = arg('colours', null);          // e.g. "AAB"
+var NBLOCKS = num(arg('blocks'), 3);
+var PAR = range(arg('par'), [3, 20]);
+var UNLOCK = range(arg('unlock'), [1, 3]);
+var MINFLOW = num(arg('flow'), 1);
+var MINBLIND = num(arg('blind'), 0);
+var MINTRAPS = num(arg('traps'), 0);
+var TOP = num(arg('top'), 8);
+var SORT = arg('sort', 'shape');
+var LOOSE = argv.indexOf('--loose') >= 0;    // skip the deletion test
 
-var filters = {
-  par: range(opt('par'), [1, 99]),
-  ways: range(opt('ways'), [1, 999]),
-  luck: Number(opt('luck', 1)),
-  chain: Number(opt('chain', 0)),
-  chainLast: Number(opt('chain-last', 0)),
-  opening: Number(opt('opening', 0)),
-  loose: !!opt('loose', false),
-  nodeCap: 250000
-};
+var blocks = COLOURS ? String(COLOURS).split('') : new Array(NBLOCKS).fill('@');
+var goals = COLOURS && /[AB]/.test(COLOURS) ? ['a', 'b'] : ['o'];
 
-var TRIES = Number(opt('tries', 400));
-var TOP = Number(opt('top', 5));
-var rng = new B.Rng(Number(opt('seed', 12345)));
+var spec = { w: W, h: H, blocks: blocks, walls: WALLS, hazards: HAZ, goals: goals };
 
-var D = function (s) { return '[2m' + s + '[0m'; };
+var ESC = '';
+var dim = function (s) { return ESC + '[2m' + s + ESC + '[0m'; };
+var bold = function (s) { return ESC + '[1m' + s + ESC + '[0m'; };
+var yel = function (s) { return ESC + '[33m' + s + ESC + '[0m'; };
 
-var results = [];
-var seen = {};
+console.log('\n  forging ' + W + '×' + H + '  blocks ' + blocks.join('') +
+  '  walls ' + WALLS.join('–') + '  hazards ' + HAZ.join('–') +
+  '  goals ' + goals.join('') + '\n');
+
 var t0 = Date.now();
-
-for (var t = 0; t < TRIES; t++) {
-  var rows = B.climb(spec, rng, filters.par, 500, filters.nodeCap);
-  if (!rows) continue;
-  // Two boards that differ only by rotation are the same puzzle.
-  var key = B.canonical(rows);
-  if (seen[key]) continue;
-  seen[key] = 1;
-  var r = B.evaluate(rows, filters, rng);
-  if (r) results.push(r);
-}
-
-results.sort(function (a, b) { return b.score - a.score; });
-
-console.log(D('forge: ' + results.length + ' boards passed every filter out of ' + TRIES +
-  ' climbs in ' + ((Date.now() - t0) / 1000).toFixed(1) + 's'));
-console.log('');
-
-results.slice(0, TOP).forEach(function (r, i) {
-  console.log('[1m#' + (i + 1) + '[0m  par ' + r.par + '  ways ' + r.ways +
-    '  luck ' + (r.luck * 100).toFixed(2) + '%  states ' + r.states +
-    '  pieces ' + r.elements +
-    (r.opening ? '  set-up ' + r.opening : '') +
-    (r.chain > 1 ? '  chain ×' + r.chain : '') +
-    (r.chainLast > 1 ? '  finale ×' + r.chainLast : '') +
-    D('  score ' + r.score.toFixed(1)));
-  console.log('      board: [' + r.board.map(q).join(',\n              ') + ']');
-  console.log(D('      solution: ' + r.path.join(' ')));
-  console.log('');
+var raw = [], seen = Object.create(null);
+var stats = G.exhaust(spec, {
+  par: PAR, unlock: UNLOCK, allowNaive: false, nodeCap: 80000, maxPlacements: 6000
+}, function (c) {
+  var k = D.canonical(c.board);
+  if (seen[k]) return;
+  seen[k] = 1;
+  raw.push(c);
 });
 
-function q(s) { return "'" + s + "'"; }
+console.log(dim('  ' + stats.terrains + ' terrains → ' + raw.length +
+  ' distinct boards with an idea in them'));
+
+var kept = [];
+raw.forEach(function (c) {
+  var p = D.profile(c.board, { quick: true, cap: 80000 });
+  if (!p) return;
+  if (p.flow < MINFLOW || p.blindness < MINBLIND || p.traps < MINTRAPS) return;
+  if (p.luck > 0.03) return;
+  kept.push(p);
+});
+
+var SORTS = {
+  shape: function (p) { return G.shapeScore(p); },
+  par: function (p) { return p.par; },
+  states: function (p) { return p.states; },
+  density: function (p) { return p.score.density; }
+};
+var rank = SORTS[SORT] || SORTS.shape;
+kept.sort(function (a, b) { return rank(b) - rank(a); });
+
+console.log(dim('  ' + kept.length + ' pass the filters, ranked by ' + SORT + '\n'));
+
+var shown = 0;
+for (var i = 0; i < kept.length && shown < TOP; i++) {
+  var p = kept[i];
+  if (!LOOSE) {
+    var full = D.profile(p.board, { cap: 80000 });
+    if (!full || full.inert) continue;         // carrying a piece it would not miss
+    p = full;
+  }
+  shown++;
+  console.log('  ' + bold('#' + shown) + '  ' + D.summarise(p));
+  console.log('       ' + dim('scores  ') + Object.keys(p.score).map(function (k) {
+    return k.slice(0, 3) + ' ' + p.score[k];
+  }).join(dim(' · ')));
+  p.board.forEach(function (row, y) {
+    console.log('       ' + (y === 0 ? dim('board: ') : '       ') + "'" + row + "'");
+  });
+  console.log('       ' + dim('solution: ') + p.path.join(' ') +
+    (p.chainLast > 1 ? '   ' + yel('finale ×' + p.chainLast) : ''));
+  console.log('');
+}
+
+if (!shown) console.log('  nothing in this budget survives the filters.\n');
+console.log(dim('  searched in ' + ((Date.now() - t0) / 1000).toFixed(1) + 's\n'));

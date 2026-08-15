@@ -114,6 +114,20 @@
     this.tone({ type: 'sine', freq: f * 2, dur: 0.22, vol: 0.10, delay: 0.01 });
   };
 
+  /**
+   * A block destroyed on a hazard.
+   *
+   * Deliberately the ugliest sound in the game, and deliberately short. The
+   * player has lost nothing they cannot get back with one tap of undo, so this
+   * is a piece of information — "that is what stopping there does" — and not a
+   * punishment to be sat through.
+   */
+  Audio.prototype.lost = function () {
+    this.noise(0.26, 0.30, 220);
+    this.tone({ type: 'sawtooth', freq: 180, to: 40, dur: 0.26, vol: 0.20, filter: 900 });
+    this.tone({ type: 'square', freq: 92, to: 38, dur: 0.20, vol: 0.10, delay: 0.03 });
+  };
+
   Audio.prototype.blocked = function () {
     this.tone({ type: 'sine', freq: 120, to: 96, dur: 0.09, vol: 0.16 });
   };
