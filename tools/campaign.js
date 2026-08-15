@@ -857,6 +857,25 @@ function search(slot, budget) {
 
   var raw = [], seenBoard = Object.create(null);
   var terrainCount = 0;
+
+  // Boards written down rather than swept.
+  //
+  // Every other board in the game is the best one that EXISTS inside a budget,
+  // because at 3×3 and 4×3 the search is exhaustive. Past twelve cells it
+  // cannot be: a 5×3 board with six blocks has more placements than the sweep
+  // can hold, so the only way to reach that part of the space is to sample it —
+  // random board, then move one piece at a time toward a longer solution. A
+  // slot that wants something from out there names it here, and the board is
+  // then held to exactly the same gates as everything else: it is measured,
+  // censused, and rejected like any other candidate. What it cannot claim is
+  // that nothing better exists, and the stage note says so.
+  (slot.seeds || []).forEach(function (seed) {
+    var k2 = key(seed.board, seed.win || 'allin');
+    if (seenBoard[k2]) return;
+    seenBoard[k2] = 1;
+    raw.push({ board: seed.board, win: seed.win || 'allin', par: 0, blindness: 0, flow: 0, traps: 0, bait: 0, seeded: true });
+  });
+
   slot.specs.forEach(function (sp) {
     var r = G.exhaust(sp, sweepFilters, function (c) {
       var key2 = key(c.board, c.win);
@@ -887,7 +906,11 @@ function search(slot, budget) {
     });
   }
 
-  var pool = raw.slice(0, budget || 12000);
+  // A seeded board is never sorted out of the pool: it has no sweep numbers to
+  // rank by, and the whole point of naming it was that the sweep could not
+  // reach it.
+  var seeded = raw.filter(function (c) { return c.seeded; });
+  var pool = seeded.concat(raw.filter(function (c) { return !c.seeded; }).slice(0, budget || 12000));
   var kept = [];
   for (var i = 0; i < pool.length; i++) {
     var p = quickProfile(pool[i].board, pool[i].win, need);

@@ -752,14 +752,20 @@
     ctx.restore();
   };
 
-  /** Drain a hex colour toward the board's slate, for a block with no home. */
+  /**
+   * Drain a hex colour toward the board's slate, for a block with no home.
+   *
+   * Toward a DARK slate rather than a pale one, which was the first attempt and
+   * was backwards: washing a colour out makes it lighter, and a lighter block on
+   * a dark board reads as more important, not less. Furniture has to recede.
+   */
   function mix(hex) {
     var n = parseInt(hex.slice(1), 16);
     var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    var k = 0.62;
-    r = Math.round(r * (1 - k) + 0x6c * k);
-    g = Math.round(g * (1 - k) + 0x76 * k);
-    b = Math.round(b * (1 - k) + 0x9a * k);
+    var k = 0.72;
+    r = Math.round(r * (1 - k) + 0x39 * k);
+    g = Math.round(g * (1 - k) + 0x40 * k);
+    b = Math.round(b * (1 - k) + 0x62 * k);
     return 'rgb(' + r + ',' + g + ',' + b + ')';
   }
 
