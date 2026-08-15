@@ -104,9 +104,9 @@ function elementReport(def, par, ways) {
   var rows = def.board;
   var check = function (label, variant) {
     var st;
-    try { st = E.compile({ board: variant }); }
+    try { st = E.compile({ board: variant, win: def.win }); }
     catch (e) { lines.push('    ' + G('load-bearing') + '  ' + label + D(' (removing it leaves no board at all)')); return; }
-    if (E.isClear(E.initialState(st))) {
+    if (E.isClear(st, E.initialState(st))) {
       lines.push('    ' + G('load-bearing') + '  ' + label + D(' (removing it solves the stage outright)')); return;
     }
     var m = D_.measure(st, 200000);
