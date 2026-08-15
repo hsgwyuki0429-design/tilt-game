@@ -88,7 +88,7 @@
   var DIRS = ['U', 'R', 'D', 'L'];
   var DV = { U: [0, -1], R: [1, 0], D: [0, 1], L: [-1, 0] };
 
-  var FLOOR = 0, WALL = 1, HAZARD = 2;
+  var FLOOR = 0, WALL = 1, HAZARD = 2, PIN = 3;
 
   // Colour 0 means "no colour". On a block it is the plain '@'; on a goal it is
   // the plain 'o', which takes anything.
@@ -142,6 +142,7 @@
         if (ch === '.') { /* floor */ }
         else if (ch === '#') { terrain[i] = WALL; }
         else if (ch === 'x') { terrain[i] = HAZARD; }
+        else if (ch === '+') { terrain[i] = PIN; }
         else if (GOAL_CHARS[ch] !== undefined) { goal[i] = 1; goalColour[i] = GOAL_CHARS[ch]; }
         else if (BLOCK_CHARS[ch] !== undefined) { blocks.push([x, y, BLOCK_CHARS[ch]]); }
         else fail(def, 'unknown board character "' + ch + '" at ' + x + ',' + y);
@@ -156,8 +157,11 @@
 
     // Which devices does this board actually use? The tools read this to keep
     // a stage honest about how many rules it is asking the player to hold.
-    var usesHazard = false;
-    for (i = 0; i < w * h; i++) if (terrain[i] === HAZARD) usesHazard = true;
+    var usesHazard = false, usesPin = false;
+    for (i = 0; i < w * h; i++) {
+      if (terrain[i] === HAZARD) usesHazard = true;
+      if (terrain[i] === PIN) usesPin = true;
+    }
     var colours = {};
     for (i = 0; i < blocks.length; i++) colours[blocks[i][2]] = true;
     for (i = 0; i < w * h; i++) if (goal[i]) colours[goalColour[i]] = true;
@@ -189,7 +193,7 @@
       goalColour: goalColour,
       blocks: blocks,
       colour: blocks.map(function (b) { return b[2]; }),
-      rules: { hazard: usesHazard, colour: usesColour },
+      rules: { hazard: usesHazard, colour: usesColour, pin: usesPin },
       par: def.par != null ? def.par : null,
       def: def
     };
@@ -337,6 +341,14 @@
     var guard = w * h * (n + 1) + 16;
     var anythingMoved = false;
 
+    // A pin catches anything that rolls onto it: entering one ends that block's
+    // slide for the REST OF THIS TILT. It is not a wall — next tilt the block
+    // rolls off again — and it is not a goal or a hazard, because nothing
+    // happens to the block beyond being stopped. `held` is per-tilt state and
+    // is deliberately not part of the position: a block sitting on a pin at the
+    // start of a tilt is completely free.
+    var held = new Array(n).fill(false);
+
     // At most one settle per block removed, plus the first one and a margin.
     for (var round = 0; round <= n + 1; round++) {
 
@@ -357,6 +369,7 @@
 
         for (var q = 0; q < live.length; q++) {
           i = live[q];
+          if (held[i]) continue;                    // caught on a pin this tilt
           var nx = pos[i][0] + dx, ny = pos[i][1] + dy;
           if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
           var ni = ny * w + nx;
@@ -370,6 +383,7 @@
           movedThisPass = true;
           anythingMoved = true;
           movingNow[i] = true;
+          if (stage.terrain[ni] === PIN) held[i] = true;
         }
 
         // A block that was sliding and has now stopped: that is an impact.
@@ -567,7 +581,7 @@
 
   return {
     DIRS: DIRS, DV: DV,
-    FLOOR: FLOOR, WALL: WALL, HAZARD: HAZARD, ANY: ANY,
+    FLOOR: FLOOR, WALL: WALL, HAZARD: HAZARD, PIN: PIN, ANY: ANY,
     BLOCK_CHARS: BLOCK_CHARS, GOAL_CHARS: GOAL_CHARS, COLOUR_NAME: COLOUR_NAME,
     accepts: accepts,
     compile: compile,

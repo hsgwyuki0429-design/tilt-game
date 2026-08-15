@@ -227,9 +227,9 @@ async function swipe(page, x, y, dx, dy) {
   // which refuses a block looks different from one that takes it.
   console.log('\n\u001b[1mDEVICES\u001b[0m');
   var vocabulary = await page.evaluate(function () {
-    var LEGAL = '.#xo@abAB';
+    var LEGAL = '.#x+o@abAB';
     var allowed = ['id', 'name', 'par', 'idea', 'purpose', 'note', 'hint', 'board'];
-    var bad = [], both = [], firstHaz = null, firstCol = null, untaught = [];
+    var bad = [], both = [], firstHaz = null, firstCol = null, firstPin = null, untaught = [];
     window.TiltStages.STAGES.forEach(function (d) {
       Object.keys(d).forEach(function (k) {
         if (allowed.indexOf(k) < 0) bad.push(d.id + ':field ' + k);
@@ -238,13 +238,15 @@ async function swipe(page, x, y, dx, dy) {
         for (var i = 0; i < row.length; i++) if (LEGAL.indexOf(row[i]) < 0) bad.push(d.id + ':char ' + row[i]);
       });
       var st = window.TiltEngine.compile(d);
-      if (st.rules.hazard && st.rules.colour) both.push(d.id);
+      var devices = (st.rules.hazard ? 1 : 0) + (st.rules.colour ? 1 : 0) + (st.rules.pin ? 1 : 0);
+      if (devices > 1) both.push(d.id);
       if (st.rules.hazard && firstHaz === null) { firstHaz = d.id; if (!d.hint) untaught.push('hazard@' + d.id); }
       if (st.rules.colour && firstCol === null) { firstCol = d.id; if (!d.hint) untaught.push('colour@' + d.id); }
+      if (st.rules.pin && firstPin === null) { firstPin = d.id; if (!d.hint) untaught.push('pin@' + d.id); }
     });
     return {
       bad: bad.slice(0, 5), badCount: bad.length, both: both,
-      firstHaz: firstHaz, firstCol: firstCol, untaught: untaught
+      firstHaz: firstHaz, firstCol: firstCol, firstPin: firstPin, untaught: untaught
     };
   });
   ok('every stage uses only the documented board characters', vocabulary.badCount === 0,

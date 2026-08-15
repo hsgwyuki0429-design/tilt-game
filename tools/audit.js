@@ -42,7 +42,7 @@ var STAGES = require('../src/stages.js').STAGES;
 var CHAPTERS = require('../src/stages.js').CHAPTERS || null;
 
 // The complete vocabulary. A stage carrying anything else fails.
-var LEGAL = '.#xo@ab AB'.replace(/ /g, '');
+var LEGAL = '.#x+o@ab AB'.replace(/ /g, '');
 
 var argv = process.argv.slice(2);
 var QUIET = argv.indexOf('--quiet') >= 0;
@@ -309,6 +309,85 @@ function runRules() {
     if (st.rules.hazard) return 'a board with no hazard says it has one';
     var r = ENGINE.simulate(st, ENGINE.initialState(st), 'D');
     if (r.state.lost !== 0) return 'a hazardless board lost a block';
+  });
+
+  // ── pins ─────────────────────────────────────────────────────────────────
+  //
+  // The cell that completes the set. Floor lets you through; a wall refuses
+  // entry; a hazard and a goal both let you through and then act on you if you
+  // are still there at rest. A pin is the one remaining case: you may enter it,
+  // you may not pass it, and nothing happens to you for stopping.
+
+  rule('pin: a block that rolls onto one stops there', function () {
+    var r = tilt(['@.+o'], 'R');
+    if (posOf(r, 0) !== '2,0') return 'block ended at ' + posOf(r, 0) + ', expected 2,0';
+    if (r.state.collected !== 0) return 'it should not have reached the goal';
+  });
+
+  rule('pin: a block already sitting on one is free to leave next tilt', function () {
+    var st = board(['@.+o']);
+    var s = ENGINE.simulate(st, ENGINE.initialState(st), 'R').state;
+    var r = ENGINE.simulate(st, s, 'R');
+    if (!r.moved) return 'the block was stuck on the pin';
+    if (r.state.collected !== 1) return 'it did not go on to the goal';
+  });
+
+  rule('pin: it is not a wall — a block may occupy it', function () {
+    var r = tilt(['@+.o'], 'R');
+    if (!r.moved) return 'the block could not enter the pin cell';
+    if (posOf(r, 0) !== '1,0') return 'block ended at ' + posOf(r, 0) + ', expected 1,0';
+  });
+
+  rule('pin: nothing happens to a block for stopping on one', function () {
+    var r = tilt(['@.+o'], 'R');
+    if (r.state.lost !== 0) return 'the pin destroyed a block';
+    if (r.state.collected !== 0) return 'the pin collected a block';
+    if (!r.state.alive[0]) return 'the block left the board';
+  });
+
+  rule('pin: a pin one cell PAST a goal steals the block rather than backing it up', function () {
+    // The distinction that makes a pin something other than a soft wall. A wall
+    // behind a goal is a backstop; a pin behind a goal is a better hole than
+    // the goal is. The block rolls over the socket and is caught on the peg.
+    var r = tilt(['@o+'], 'R');
+    if (r.state.collected !== 0) return 'the goal collected a block that did not stop on it';
+    if (posOf(r, 0) !== '2,0') return 'block ended at ' + posOf(r, 0) + ', expected the pin at 2,0';
+  });
+
+  rule('pin: a block parked on one is a backstop for everything else', function () {
+    // This is how a pin actually helps: not by catching the block you want
+    // collected, but by holding a DIFFERENT block still in a place the terrain
+    // could never hold one, so that block becomes the wall you needed.
+    var st = board(['@@+', '...', '..o']);
+    var s = ENGINE.simulate(st, ENGINE.initialState(st), 'R').state;
+    if (s.pos[1].join(',') !== '2,0') return 'the leading block did not park on the pin';
+    if (s.pos[0].join(',') !== '1,0') return 'the second block was not stopped by it';
+  });
+
+  rule('pin: it is the one thing that makes a repeated tilt do more work', function () {
+    // Worth pinning explicitly, because it is the only place in the game where
+    // tilting the same way twice is not the same as tilting it once. On a board
+    // with no pins, gravity is idempotent. A pin holds for exactly one tilt, so
+    // "right, right" is a legitimate two-move plan — and this is deliberate, not
+    // a leak: the block is visibly sitting on a visible peg with visible floor
+    // beyond it. Nothing about it is hidden state.
+    var st = board(['@.+.o']);
+    var a = ENGINE.simulate(st, ENGINE.initialState(st), 'R');
+    if (a.state.pos[0].join(',') !== '2,0') return 'the peg did not catch it';
+    var b = ENGINE.simulate(st, a.state, 'R');
+    if (!b.moved) return 'the second identical tilt did nothing — the hold did not release';
+    if (b.state.collected !== 1) return 'it did not go on to the goal';
+
+    // …and on a board with no pin, the same repetition really is idempotent.
+    var plain = board(['@..o']);
+    var p1 = ENGINE.simulate(plain, ENGINE.initialState(plain), 'R');
+    var p2 = ENGINE.simulate(plain, p1.state, 'R');
+    if (p2.moved) return 'a pinless board was not idempotent under a repeated tilt';
+  });
+
+  rule('pin: boards without one are completely unaffected by the rule', function () {
+    var st = board(['@..', '.#.', '..o']);
+    if (st.rules.pin) return 'a board with no pin says it has one';
   });
 
   // ── colour ───────────────────────────────────────────────────────────────
@@ -589,7 +668,7 @@ function classify(basePar, baseWays, variantBoard) {
 }
 
 function auditPieces(def, basePar, baseWays) {
-  var out = { walls: [], blocks: [], goals: [], hazards: [] };
+  var out = { walls: [], blocks: [], goals: [], hazards: [], pins: [] };
   var rows = def.board;
   for (var y = 0; y < rows.length; y++) {
     for (var x = 0; x < rows[y].length; x++) {
@@ -601,6 +680,7 @@ function auditPieces(def, basePar, baseWays) {
       res.at = x + ',' + y;
       if (ch === '#') out.walls.push(res);
       else if (ch === 'x') out.hazards.push(res);
+      else if (ch === '+') out.pins.push(res);
       else if (ENGINE.BLOCK_CHARS[ch] !== undefined) out.blocks.push(res);
       else out.goals.push(res);
     }
@@ -696,16 +776,35 @@ function checkAdversarial(stage) {
   var key = ENGINE.makeStateKey(stage);
   var startKey = key(ENGINE.initialState(stage));
 
-  // 1. The same direction, over and over. Only the first may do anything.
+  // 1. The same direction, over and over.
+  //
+  // On a board with no pins this settles after one tilt: gravity is idempotent,
+  // because a block already as far downhill as it can go has nowhere to be sent.
+  // A PIN breaks that on purpose — it holds a block for exactly one tilt, so
+  // tilting the same way again releases it — which means the honest invariant is
+  // not "the second tilt does nothing" but the stronger and more useful one:
+  // repeating a direction must CONVERGE. It may never oscillate, and it may
+  // never move forever.
   ENGINE.DIRS.forEach(function (d) {
     var s = ENGINE.initialState(stage);
-    var first = ENGINE.simulate(stage, s, d);
-    s = first.state;
-    for (var i = 0; i < 8; i++) {
+    var key = ENGINE.makeStateKey(stage);
+    var seen = Object.create(null);
+    var settled = false;
+    for (var i = 0; i < stage.w * stage.h + 4; i++) {
       var r = ENGINE.simulate(stage, s, d);
-      if (r.moved) { errs.push('tilting ' + d + ' repeatedly kept moving blocks'); break; }
-      if (r.state.moves !== s.moves) { errs.push('a repeated ' + d + ' tilt charged a move'); break; }
+      if (!r.moved) {
+        if (r.state.moves !== s.moves) errs.push('a repeated ' + d + ' tilt charged a move');
+        settled = true;
+        break;
+      }
+      var k = key(r.state);
+      if (seen[k]) { errs.push('tilting ' + d + ' repeatedly cycles between positions'); break; }
+      seen[k] = 1;
       s = r.state;
+      if (ENGINE.isTerminal(s)) { settled = true; break; }
+    }
+    if (!settled && !ENGINE.isTerminal(s)) {
+      errs.push('tilting ' + d + ' repeatedly never came to rest');
     }
   });
 
@@ -812,9 +911,11 @@ function auditStage(def) {
   r.w = stage.w; r.h = stage.h;
   r.hazard = stage.rules.hazard;
   r.colour = stage.rules.colour;
-  r.rulesUsed = 1 + (r.hazard ? 1 : 0) + (r.colour ? 1 : 0);
-  if (r.hazard && r.colour) {
-    r.problems.push('uses a hazard AND colour on the same board — two new rules at once');
+  r.rulesUsed = 1 + (r.hazard ? 1 : 0) + (r.colour ? 1 : 0) + (stage.rules.pin ? 1 : 0);
+  var devices = (r.hazard ? 1 : 0) + (r.colour ? 1 : 0) + (stage.rules.pin ? 1 : 0);
+  r.pin = stage.rules.pin;
+  if (devices > 1) {
+    r.problems.push('uses more than one device on the same board — two new rules at once');
   }
   if (ENGINE.isClear(ENGINE.initialState(stage))) r.problems.push('starts already cleared');
 
@@ -823,7 +924,7 @@ function auditStage(def) {
   if (!m.solvable) {
     r.problems.push('UNSOLVABLE');
     r.par = -1; r.ways = 0; r.luck = 0; r.states = m.states; r.jam = 0; r.loss = 0;
-    r.pieces = { walls: [], blocks: [], goals: [], hazards: [] };
+    r.pieces = { walls: [], blocks: [], goals: [], hazards: [], pins: [] };
     return r;
   }
 
@@ -840,7 +941,7 @@ function auditStage(def) {
   checkAdversarial(stage).forEach(function (e) { r.problems.push(e); });
 
   r.pieces = auditPieces(def, r.par, r.ways);
-  ['walls', 'blocks', 'goals', 'hazards'].forEach(function (kind) {
+  ['walls', 'blocks', 'goals', 'hazards', 'pins'].forEach(function (kind) {
     r.pieces[kind].forEach(function (el) {
       if (el.kind === 'inert') {
         r.warnings.push('INERT ' + kind.slice(0, -1) + ' at ' + el.at + ' — removing it changes nothing');
@@ -873,12 +974,13 @@ function auditCampaign(results) {
   var problems = [], notes = [];
 
   // A device must be introduced by a stage that says what it is.
-  var firstHazard = null, firstColour = null;
+  var firstHazard = null, firstColour = null, firstPin = null;
   results.forEach(function (r) {
     if (r.hazard && firstHazard === null) firstHazard = r;
     if (r.colour && firstColour === null) firstColour = r;
+    if (r.pin && firstPin === null) firstPin = r;
   });
-  [[firstHazard, 'hazard'], [firstColour, 'colour']].forEach(function (pair) {
+  [[firstHazard, 'hazard'], [firstColour, 'colour'], [firstPin, 'pin']].forEach(function (pair) {
     var r = pair[0], what = pair[1];
     if (!r) return;
     var def = STAGES.filter(function (d) { return d.id === r.id; })[0];
@@ -888,6 +990,22 @@ function auditCampaign(results) {
     } else {
       notes.push(what + ' introduced at stage ' + r.id + ' (' + r.name + ') with a hint');
     }
+  });
+
+  // A chapter that exists to introduce a device must actually use it on every
+  // board. Without this an unusually good board from a different rule set wins a
+  // slot on score and leaves the chapter carrying a note about a rule that is
+  // not on screen — which is exactly what happened to stage 15 before this check
+  // existed.
+  (CHAPTERS || []).forEach(function (chap) {
+    if (!chap.device) return;
+    results.forEach(function (r) {
+      if (r.id < chap.from || r.id > chap.to) return;
+      if (!r[chap.device]) {
+        problems.push('stage ' + r.id + ' is in chapter ' + chap.number + ' (' + chap.name +
+          '), which is about the ' + chap.device + ', and does not use one');
+      }
+    });
   });
 
   // No two stages may be the same puzzle.
@@ -1047,7 +1165,8 @@ function report(results, ms) {
         console.log(C.red('  #' + r.id + ' ' + r.name + '  ' + (r.problems[0] || 'failed')));
         return;
       }
-      var device = r.hazard ? C.yel('haz') : r.colour ? C.cyn('col') : C.dim('  —');
+      var device = r.hazard ? C.yel('haz') : r.colour ? C.cyn('col') :
+                   r.pin ? C.grn('pin') : C.dim('  —');
       var line = '  ' + C.bold(('#' + r.id).padEnd(5)) + C.cyn((r.name || '').padEnd(9)) +
         C.dim((r.w + '×' + r.h).padEnd(4)) + device + '  ' +
         'par ' + C.bold(String(r.par).padStart(2)) + '  ' +
@@ -1058,7 +1177,7 @@ function report(results, ms) {
         C.dim(' fill ') + pct(r.fill).padStart(6);
 
       var inert = 0;
-      ['walls', 'blocks', 'goals', 'hazards'].forEach(function (kind) {
+      ['walls', 'blocks', 'goals', 'hazards', 'pins'].forEach(function (kind) {
         (r.pieces[kind] || []).forEach(function (el) { if (el.kind === 'inert') inert++; });
       });
       console.log(line + (inert ? '  ' + C.red(inert + ' inert') : ''));
@@ -1091,6 +1210,7 @@ function report(results, ms) {
   var base = results.filter(function (r) { return r.rulesUsed === 1; }).length;
   var haz = results.filter(function (r) { return r.hazard; }).length;
   var col = results.filter(function (r) { return r.colour; }).length;
+  var pin = results.filter(function (r) { return r.pin; }).length;
 
   console.log(C.grn(C.bold('✓ ' + ruleChecks + ' rule checks + ' + results.length +
     ' stages: solvable, deterministic, internally consistent')));
@@ -1098,8 +1218,8 @@ function report(results, ms) {
   console.log(C.dim('  every piece on every board is load-bearing'));
   console.log(C.dim('  undo, restart and hostile operation sequences all leave the board exact'));
   camp.notes.forEach(function (n) { console.log(C.dim('  ' + n)); });
-  console.log(C.dim('  rules on screen: ' + base + ' stages base only · ' + haz +
-    ' with a hazard · ' + col + ' with colour · 0 with both'));
+  console.log(C.dim('  rules on screen: ' + base + ' base only · ' + pin + ' with a pin · ' +
+    haz + ' with a hazard · ' + col + ' with colour · 0 with more than one'));
   console.log(C.dim('  par range ' + Math.min.apply(null, pars) + '–' + Math.max.apply(null, pars) +
     ', total ' + pars.reduce(function (a, b) { return a + b; }, 0) + ' moves'));
   if (ms) console.log(C.dim('  audited in ' + (ms / 1000).toFixed(1) + 's'));

@@ -52,8 +52,8 @@
 
 var E = require('../../src/engine.js');
 
-var WALL = '#', GOAL = 'o', BLOCK = '@', FLOOR = '.', HAZARD = 'x';
-var PIECES = '#ox@ABab';    // everything that is not floor
+var WALL = '#', GOAL = 'o', BLOCK = '@', FLOOR = '.', HAZARD = 'x', PIN = '+';
+var PIECES = '#ox+@ABab';   // everything that is not floor
 
 function isBlockChar(ch) { return E.BLOCK_CHARS[ch] !== undefined; }
 function isGoalChar(ch) { return E.GOAL_CHARS[ch] !== undefined; }
@@ -75,7 +75,7 @@ function cellsOf(rows, ch) {
 }
 
 function countPieces(rows) {
-  var n = { wall: 0, goal: 0, block: 0, hazard: 0, total: 0 };
+  var n = { wall: 0, goal: 0, block: 0, hazard: 0, pin: 0, total: 0 };
   for (var y = 0; y < rows.length; y++) {
     for (var x = 0; x < rows[y].length; x++) {
       var ch = rows[y][x];
@@ -83,6 +83,7 @@ function countPieces(rows) {
       n.total++;
       if (ch === WALL) n.wall++;
       else if (ch === HAZARD) n.hazard++;
+      else if (ch === PIN) n.pin++;
       else if (isGoalChar(ch)) n.goal++;
       else if (isBlockChar(ch)) n.block++;
     }
@@ -889,7 +890,8 @@ function profile(rows, opts) {
   var cx = crux(stage, m);
   var naive = naiveRun(stage, null, Math.max(200, m.par * 8));
   var pieces = countPieces(rows);
-  var rulesUsed = 1 + (stage.rules.hazard ? 1 : 0) + (stage.rules.colour ? 1 : 0);
+  var rulesUsed = 1 + (stage.rules.hazard ? 1 : 0) + (stage.rules.colour ? 1 : 0) +
+                  (stage.rules.pin ? 1 : 0);
 
   var cen = { inert: null, breaks: 0, shifts: 0, narrows: 0, total: pieces.total };
   if (!opts.quick) cen = census(rows, m.par, m.ways, cap);
@@ -903,7 +905,7 @@ function profile(rows, opts) {
     par: m.par, ways: m.ways, luck: m.luck, states: m.states,
     jam: m.jam, loss: m.loss,
     pieces: pieces, rulesUsed: rulesUsed,
-    hazard: stage.rules.hazard, colour: stage.rules.colour,
+    hazard: stage.rules.hazard, colour: stage.rules.colour, pin: stage.rules.pin,
     traps: open.traps, bait: open.bait, blindness: open.blindness, live: open.live,
     overshoot: open.overshoot,
     unlock: cx.unlock, flow: cx.flow, cleanFlow: cx.clean,
@@ -942,7 +944,7 @@ function summarise(p) {
 }
 
 module.exports = {
-  WALL: WALL, GOAL: GOAL, BLOCK: BLOCK, FLOOR: FLOOR, HAZARD: HAZARD, PIECES: PIECES,
+  WALL: WALL, GOAL: GOAL, BLOCK: BLOCK, FLOOR: FLOOR, HAZARD: HAZARD, PIN: PIN, PIECES: PIECES,
   setCh: setCh, put: put, cloneBoard: cloneBoard, cellsOf: cellsOf, countPieces: countPieces,
   transform: transform, canonical: canonical, recolour: recolour, compile: compile,
   measure: measure, goalCells: goalCells, distSum: distSum,

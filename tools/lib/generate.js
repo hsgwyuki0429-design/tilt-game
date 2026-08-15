@@ -96,6 +96,8 @@ function eachTerrain(spec, emit) {
   var wallLo = spec.walls[0], wallHi = spec.walls[1];
   var hazLo = spec.hazards ? spec.hazards[0] : 0;
   var hazHi = spec.hazards ? spec.hazards[1] : 0;
+  var pinLo = spec.pins ? spec.pins[0] : 0;
+  var pinHi = spec.pins ? spec.pins[1] : 0;
 
   var cells = [];
   for (var i = 0; i < n; i++) cells.push(i);
@@ -115,15 +117,21 @@ function eachTerrain(spec, emit) {
           var rest2 = rest1.filter(function (c) { return wallAt.indexOf(c) < 0; });
           for (var nh = hazLo; nh <= hazHi; nh++) {
             chooseN(rest2, nh, function (hazAt) {
-              var rows = blankRows(w, h);
-              var k;
-              for (k = 0; k < goalAt.length; k++) rows[(goalAt[k] / w) | 0] = D.setCh(rows[(goalAt[k] / w) | 0], goalAt[k] % w, labels[k]);
-              for (k = 0; k < wallAt.length; k++) rows[(wallAt[k] / w) | 0] = D.setCh(rows[(wallAt[k] / w) | 0], wallAt[k] % w, '#');
-              for (k = 0; k < hazAt.length; k++) rows[(hazAt[k] / w) | 0] = D.setCh(rows[(hazAt[k] / w) | 0], hazAt[k] % w, 'x');
-              var key = D.canonical(rows);
-              if (seen[key]) return;
-              seen[key] = 1;
-              emit(rows);
+              var rest3 = rest2.filter(function (c) { return hazAt.indexOf(c) < 0; });
+              for (var np = pinLo; np <= pinHi; np++) {
+                chooseN(rest3, np, function (pinAt) {
+                  var rows = blankRows(w, h);
+                  var k;
+                  for (k = 0; k < goalAt.length; k++) rows[(goalAt[k] / w) | 0] = D.setCh(rows[(goalAt[k] / w) | 0], goalAt[k] % w, labels[k]);
+                  for (k = 0; k < wallAt.length; k++) rows[(wallAt[k] / w) | 0] = D.setCh(rows[(wallAt[k] / w) | 0], wallAt[k] % w, '#');
+                  for (k = 0; k < hazAt.length; k++) rows[(hazAt[k] / w) | 0] = D.setCh(rows[(hazAt[k] / w) | 0], hazAt[k] % w, 'x');
+                  for (k = 0; k < pinAt.length; k++) rows[(pinAt[k] / w) | 0] = D.setCh(rows[(pinAt[k] / w) | 0], pinAt[k] % w, '+');
+                  var key = D.canonical(rows);
+                  if (seen[key]) return;
+                  seen[key] = 1;
+                  emit(rows);
+                });
+              }
             });
           }
         });
