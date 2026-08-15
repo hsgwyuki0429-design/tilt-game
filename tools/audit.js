@@ -172,15 +172,49 @@ function runRules() {
   });
 
   // ── goals ────────────────────────────────────────────────────────────────
-  rule('goal: a block is collected the instant it arrives, mid-slide', function () {
-    var r = tilt(['@@o', '...', '...'], 'R');
-    if (r.state.collected !== 2) return 'collected ' + r.state.collected + ' of 2';
+  //
+  // The rule that defines the game: a block is collected only if it comes to a
+  // COMPLETE STOP on a goal. These cases are the whole difference between this
+  // game and the one where you steer blocks at holes.
+
+  rule('goal: a block that STOPS on a goal is collected', function () {
+    var r = tilt(['@.o', '...', '...'], 'R');       // the edge stops it on the goal
+    if (r.state.collected !== 1) return 'collected ' + r.state.collected + ' of 1';
     if (!r.clear) return 'the board is not clear';
   });
 
-  rule('goal: the collected block frees its cell, which is what makes a chain', function () {
+  rule('goal: a block that SLIDES OVER a goal is not collected at all', function () {
+    var r = tilt(['@o.', '...', '...'], 'R');       // floor past the goal: it sails over
+    if (r.state.collected !== 0) return 'the goal collected a block that did not stop on it';
+    if (posOf(r, 0) !== '2,0') return 'block ended at ' + posOf(r, 0) + ', expected 2,0';
+  });
+
+  rule('goal: what makes a goal collectable is a wall one cell past it', function () {
+    var r = tilt(['@o#', '...', '...'], 'R');
+    if (r.state.collected !== 1) return 'the wall did not stop the block on the goal';
+  });
+
+  rule('goal: another block works as the backstop just as well', function () {
+    var r = tilt(['@o@', '...', '...'], 'L');       // the left block catches the right one
+    if (r.state.collected !== 1) return 'collected ' + r.state.collected + ', expected 1';
+    if (!r.state.alive[0]) return 'the backstop block went home instead of holding';
+  });
+
+  rule('goal: a collection frees the cell and the board settles again — the chain', function () {
     var r = tilt(['@@o', '...', '...'], 'R');
+    if (r.state.collected !== 2) return 'collected ' + r.state.collected + ' of 2';
     if (eventsOf(r, 'goal').length !== 2) return 'expected two goal events in one tilt';
+    if (!r.clear) return 'the board is not clear';
+  });
+
+  rule('goal: the chain really is a re-settle, not a mid-slide drain', function () {
+    // If collection happened in passing, the rear block would be taken on the
+    // way through. It is not: it has to come to rest on the goal in its own
+    // right, which takes a second settle and shows up as extra frames.
+    var r = tilt(['@@o', '...', '...'], 'R');
+    var goals = eventsOf(r, 'goal');
+    if (goals.length !== 2) return 'expected two collections';
+    if (goals[0].t === goals[1].t) return 'both collections resolved on the same tick';
   });
 
   rule('goal: CLEAR requires every block, not merely every goal', function () {
@@ -218,10 +252,11 @@ function runRules() {
     if (r.state.lost !== 1) return 'lost ' + r.state.lost + ', expected 1';
   });
 
-  rule('hazard: a block that pauses over one mid-slide and moves on survives', function () {
-    // Blocks are collected as they arrive, so the leader drains out of the way
-    // and the follower crosses the hazard rather than being left on it.
-    var r = tilt(['@@xo', '....', '....'], 'R');
+  rule('hazard: a block parked on one is freed by the re-settle before it dies', function () {
+    // The leader stops on the goal at the edge and is collected; that frees the
+    // cell, so the follower — which had come to rest ON the hazard — moves on
+    // during the next settle and is never resolved as standing on it.
+    var r = tilt(['@@x.o'], 'R');
     if (r.state.lost !== 0) return 'lost ' + r.state.lost + ' blocks that should have got through';
     if (r.state.collected !== 2) return 'collected ' + r.state.collected + ' of 2';
   });
@@ -283,10 +318,11 @@ function runRules() {
     if (r.state.collected !== 1) return 'collected ' + r.state.collected + ', expected 1';
   });
 
-  rule('colour: a block rolls straight over a goal of the wrong colour', function () {
-    var st = board(['Ab.', '...', 'a..']);
+  rule('colour: a block can come to rest in a socket of the wrong colour and stay', function () {
+    var st = board(['A.b', '...', 'a..']);
     var r = ENGINE.simulate(st, ENGINE.initialState(st), 'R');
     if (r.state.collected !== 0) return 'the wrong-coloured goal took the block';
+    if (!r.state.alive[0]) return 'the block left the board somehow';
     if (posOf(r, 0) !== '2,0') return 'block ended at ' + posOf(r, 0) + ', expected 2,0';
   });
 

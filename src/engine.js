@@ -14,9 +14,24 @@
  *   1. The board is a grid of floor and wall cells. Some floor cells are goals.
  *   2. Tilting sends gravity one of four ways. Every block slides until
  *      something stops it — the edge, a wall, or another block.
- *   3. A block that arrives on a goal it fits is collected and leaves,
- *      mid-slide. That is where chain reactions come from.
- *   4. CLEAR when every block has been collected.
+ *   3. WHEN THE BOARD COMES TO REST, a block standing on a goal it fits is
+ *      collected. Sliding across a goal does nothing at all.
+ *   4. A collected block frees its cell, and gravity is still on — so whatever
+ *      was held up behind it now slides, and the board settles again. That is
+ *      where chain reactions come from.
+ *   5. CLEAR when every block has been collected.
+ *
+ * Rule 3 is the whole game, so it is worth being blunt about what it costs. A
+ * goal is not a target you steer a block towards; it is a cell a block has to
+ * be STOPPED on. Pointing gravity at the exit sends every block straight over
+ * the top of it and into the far wall. To collect anything you have to arrange,
+ * first, for something to be standing in the way one cell beyond — the edge, a
+ * wall, or another block you have not collected yet.
+ *
+ * That makes every goal a two-part problem (get a block to the line, and get
+ * something to catch it there) and it makes a goal in open floor nearly inert
+ * until the player builds the buffer themselves. It is also why blocks are worth
+ * keeping: an uncollected block is the only movable brake on the board.
  *
  * ---------------------------------------------------------------------------
  * THE TWO DEVICES — a stage may use one, or neither
@@ -30,25 +45,25 @@
  *   HAZARD  'x'   A block LEFT STANDING on a hazard when the board settles is
  *                 lost. Sliding across one is completely safe.
  *
- *       Why this version. The obvious hazard — "touch it and die" — is a wall
- *       that lies about being a wall, and it only ever asks the player to
- *       avoid a region. This version asks the one question the whole game is
- *       built on, and asks it much harder: WHERE DOES THIS BLOCK STOP? A
- *       hazard cell is not a place you must keep away from; it is a place you
- *       are free to travel through and forbidden to park on. That turns "the
- *       dangerous square" from an obstacle into a piece of machinery — you
- *       route blocks straight over it on purpose, and the puzzle is arranging
- *       for something to be there to catch them.
+ *       The exact mirror of a goal, and that is the point of it. Both resolve
+ *       at rest and only at rest; both ask the one question the whole game is
+ *       built on — WHERE DOES THIS BLOCK STOP? — and they answer it in opposite
+ *       directions. A goal is a cell you are trying to be stopped on. A hazard
+ *       is a cell you are free to cross and must not be caught on. Once the two
+ *       obey one rule, a hazard stops being an obstacle and becomes machinery:
+ *       you route blocks straight over it on purpose, and the puzzle is what is
+ *       waiting on the far side.
  *
  *   COLOUR  'A'/'a', 'B'/'b'   A goal collects a block only when they match.
  *                 'o' takes any block; a plain '@' fits only 'o'.
  *
  *       Why. Not "two puzzles side by side" — the point is that a goal is a
- *       hole for one block and an ordinary floor tile for the other. A block
- *       of the wrong colour rolls straight over it and carries on being a
- *       WALL somewhere else. So collecting in the wrong order does not merely
- *       waste moves, it removes a wall you needed, and the blocks stop being
- *       interchangeable in the player's head as well as in the solver's.
+ *       hole for one block and an ordinary floor tile for the other. A block of
+ *       the wrong colour can come to rest right in the socket and simply sit
+ *       there, still a WALL, still in the way — and being in the way is now the
+ *       most valuable thing an uncollected block can do. So collecting in the
+ *       wrong order does not merely waste moves, it removes the brake you were
+ *       going to need.
  *
  * Nothing else is coming. There is no cell that teleports, no block that
  * behaves differently from another block of its own colour, no hidden state,
@@ -258,16 +273,28 @@
   // Simulation
   // ---------------------------------------------------------------------------
   //
-  // One "tick" = one pass in which every block advances at most one cell,
-  // front-most first. Repeating passes until nothing moves reproduces
-  // simultaneous sliding exactly, keeps trains of blocks correctly spaced, and
-  // lets a collected block free the cell behind it inside the same slide —
-  // which is precisely the chain reaction.
+  // A tilt is two things alternating until neither has anything left to do:
   //
-  // Hazards resolve only once the whole board has come to rest, which is what
-  // makes "you may cross one, you may not park on one" true rather than
-  // approximately true. A block that pauses mid-slide because something is in
-  // its way has not stopped; it is waiting, and it is safe while it waits.
+  //   SETTLE   one "tick" = one pass in which every block advances at most one
+  //            cell, front-most first. Repeating passes until nothing moves
+  //            reproduces simultaneous sliding exactly and keeps trains of
+  //            blocks correctly spaced.
+  //
+  //   RESOLVE  the board is now at rest, so ask what that means for each block
+  //            standing still. On a goal it fits: collected. On a hazard: lost.
+  //            Both leave, and both free their cell.
+  //
+  // If RESOLVE removed anything, gravity has not gone away — whatever was being
+  // held up behind the departed block can now move, so SETTLE runs again. That
+  // loop is the chain reaction, and it is also the only way a chain can happen
+  // now: nothing is collected in passing, so a cascade is always a sequence of
+  // boards coming to rest, not a queue draining through a hole.
+  //
+  // Both rules resolving at rest, and only at rest, is what makes "you must be
+  // STOPPED on a goal" and "you may cross a hazard but not park on one" exactly
+  // true rather than approximately true. A block that pauses mid-slide because
+  // something is in its way has not stopped; it is waiting, and while it waits
+  // it is neither collected nor destroyed.
   //
   // Returns { state, moved, frames, events, clear, broken }.
   //   frames[t] = { pos, alive } snapshot after t ticks (frames[0] = start)
@@ -309,84 +336,85 @@
 
     var guard = w * h * (n + 1) + 16;
     var anythingMoved = false;
-    var tIndex = 0;
 
-    while (guard-- > 0) {
-      tIndex = frames.length;   // the frame index this pass will produce
-      var live = order.filter(function (idx) { return alive[idx]; });
-      // Front-most first; ties broken by index so a run is fully deterministic.
-      // Blocks that tie are in parallel lanes and cannot interact, so the
-      // tiebreak never changes the outcome — only the trace.
-      live.sort(function (a, b) {
-        var la = lead(a), lb = lead(b);
-        return lb !== la ? lb - la : a - b;
-      });
+    // At most one settle per block removed, plus the first one and a margin.
+    for (var round = 0; round <= n + 1; round++) {
 
-      var movedThisPass = false;
-      var movingNow = new Array(n).fill(false);
+      // ── SETTLE ────────────────────────────────────────────────────────────
+      while (guard-- > 0) {
+        var tIndex = frames.length;   // the frame index this pass will produce
+        var live = order.filter(function (idx) { return alive[idx]; });
+        // Front-most first; ties broken by index so a run is fully
+        // deterministic. Blocks that tie are in parallel lanes and cannot
+        // interact, so the tiebreak never changes the outcome — only the trace.
+        live.sort(function (a, b) {
+          var la = lead(a), lb = lead(b);
+          return lb !== la ? lb - la : a - b;
+        });
 
-      for (var q = 0; q < live.length; q++) {
-        i = live[q];
-        var nx = pos[i][0] + dx, ny = pos[i][1] + dy;
-        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-        var ni = ny * w + nx;
-        if (stage.terrain[ni] === WALL) continue;
-        if (occ[ni] !== -1) continue;
+        var movedThisPass = false;
+        var movingNow = new Array(n).fill(false);
 
-        occ[pos[i][1] * w + pos[i][0]] = -1;
-        pos[i][0] = nx; pos[i][1] = ny;
-        occ[ni] = i;
+        for (var q = 0; q < live.length; q++) {
+          i = live[q];
+          var nx = pos[i][0] + dx, ny = pos[i][1] + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          var ni = ny * w + nx;
+          if (stage.terrain[ni] === WALL) continue;
+          if (occ[ni] !== -1) continue;
 
-        movedThisPass = true;
-        anythingMoved = true;
-        movingNow[i] = true;
-
-        // The goal drains the instant the block arrives, so whatever is behind
-        // it can keep going inside this same slide. A goal that does not take
-        // this colour is not a goal to this block: it is floor, and the block
-        // rolls straight over it.
-        if (stage.goal[ni] && accepts(stage.goalColour[ni], colour[i])) {
-          alive[i] = 0;
-          collected++;
-          occ[ni] = -1;
-          events.push({ t: tIndex, type: 'goal', block: i, cell: [nx, ny] });
-        }
-      }
-
-      // A block that was sliding and has now stopped: that is an impact.
-      if (wantFrames) {
-        for (i = 0; i < n; i++) {
-          if (movingLast[i] && !movingNow[i] && alive[i]) {
-            events.push({ t: tIndex - 1, type: 'stop', block: i, cell: [pos[i][0], pos[i][1]] });
-          }
-        }
-        movingLast = movingNow;
-      }
-
-      if (!movedThisPass) break;
-      if (wantFrames) frames.push(snapshot());
-    }
-
-    // ── the board is now at rest ──────────────────────────────────────────────
-    // Anything still standing on a hazard has stopped there, and stopping there
-    // is the one thing a hazard does not allow.
-    if (stage.rules.hazard && anythingMoved) {
-      var died = [];
-      for (i = 0; i < n; i++) {
-        if (!alive[i]) continue;
-        if (stage.terrain[pos[i][1] * w + pos[i][0]] === HAZARD) died.push(i);
-      }
-      if (died.length) {
-        var lostTick = frames.length;   // one extra tick, so the loss is seen
-        for (k = 0; k < died.length; k++) {
-          i = died[k];
-          alive[i] = 0;
-          lost++;
           occ[pos[i][1] * w + pos[i][0]] = -1;
-          events.push({ t: lostTick, type: 'lost', block: i, cell: [pos[i][0], pos[i][1]] });
+          pos[i][0] = nx; pos[i][1] = ny;
+          occ[ni] = i;
+
+          movedThisPass = true;
+          anythingMoved = true;
+          movingNow[i] = true;
         }
+
+        // A block that was sliding and has now stopped: that is an impact.
+        if (wantFrames) {
+          for (i = 0; i < n; i++) {
+            if (movingLast[i] && !movingNow[i] && alive[i]) {
+              events.push({ t: tIndex - 1, type: 'stop', block: i, cell: [pos[i][0], pos[i][1]] });
+            }
+          }
+          movingLast = movingNow;
+        }
+
+        if (!movedThisPass) break;
         if (wantFrames) frames.push(snapshot());
       }
+
+      // ── RESOLVE ───────────────────────────────────────────────────────────
+      // The board is at rest. Now, and only now, does standing somewhere mean
+      // anything.
+      var restTick = frames.length;
+      var removed = 0;
+      for (i = 0; i < n; i++) {
+        if (!alive[i]) continue;
+        var at = pos[i][1] * w + pos[i][0];
+
+        if (stage.goal[at] && accepts(stage.goalColour[at], colour[i])) {
+          alive[i] = 0;
+          collected++;
+          occ[at] = -1;
+          removed++;
+          events.push({ t: restTick, type: 'goal', block: i, cell: [pos[i][0], pos[i][1]] });
+        } else if (stage.terrain[at] === HAZARD) {
+          alive[i] = 0;
+          lost++;
+          occ[at] = -1;
+          removed++;
+          events.push({ t: restTick, type: 'lost', block: i, cell: [pos[i][0], pos[i][1]] });
+        }
+      }
+
+      if (!removed) break;
+      if (wantFrames) frames.push(snapshot());
+      // Anything that was leaning on a departed block is now unsupported, and
+      // gravity never stopped. Around again.
+      movingLast = new Array(n).fill(false);
     }
 
     var state = {

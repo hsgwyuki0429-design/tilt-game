@@ -197,38 +197,51 @@ var SLOTS = [
     prefer: function (p) { return -p.pieces.total * 10 - p.states; }
   },
   {
-    id: 2, name: 'PAIR', chapter: 1, teach: true,
-    idea: 'Every block is the same block, and one goal will take them all.',
-    feeling: 'The last tilt sends both home together — the first chain in the game.',
-    note: 'Two blocks and one socket. The finish collects both at once, which is the ' +
-          'first time the board does more in one tilt than the player asked it to.',
-    hint: { ja: 'ブロックはすべて同じ。ゴールはどれでも受け取る', en: 'Every block is the same' },
-    specs: [nine(2, [0, 0]), nine(2, [1, 1])],
-    need: { par: [2, 4], chainLast: 2, allowNaive: true, maxLuck: 0.5 },
-    prefer: function (p) { return (p.unlock > 0 ? 15 : 0) + p.chainLast * 6 - p.par * 3 - p.pieces.total * 3; }
+    id: 2, name: 'OVER', chapter: 1, teach: true,
+    idea: 'A goal is not a target. Aim at it and the block sails straight over the top of it.',
+    feeling: 'You point at the hole, you watch the block go past the hole, and the rule lands.',
+    note: 'The most important board in the game, and it is the second one. Pointing gravity ' +
+          'at the exit does not work here and cannot be made to work: a block is only ' +
+          'collected if it comes to a complete STOP on the goal, so the question is never ' +
+          '"which way is the goal" but "what is going to stop me once I get there". A player ' +
+          'has to do this wrong exactly once.',
+    hint: { ja: 'ゴールの上でぴったり止まらないと落ちない', en: 'You must STOP on a goal — sliding over it does nothing' },
+    specs: [nine(1, [0, 2]), nine(2, [0, 2])],
+    need: { par: [2, 4], unlock: [1, 2], overshoot: 1, allowNaive: true, maxLuck: 0.35, minLive: 2 },
+    prefer: function (p) {
+      return p.overshoot * 14 + (p.unlock > 0 ? 12 : 0) + p.traps * 5
+             - p.pieces.total * 6 - p.par * 2;
+    }
   },
   {
-    id: 3, name: 'SHUT', chapter: 1, teach: true,
-    idea: 'A wall stops a block dead — so the straight line is not always open.',
-    feeling: 'The goal is right there and the direct route is closed. The way around is the player\'s own idea.',
-    note: 'The goal sits two cells away in a straight line, and that line has a wall in ' +
-          'it. Nothing here is hidden; the player simply has to accept that pointing at ' +
-          'the exit is not the same as reaching it.',
-    hint: { ja: '壁はブロックを止める', en: 'Walls stop blocks' },
-    specs: [nine(1, [1, 2]), nine(2, [1, 2])],
-    need: { par: [3, 5], unlock: [1, 3], retreat: 1, allowNaive: true, maxLuck: 0.2, minLive: 2 },
-    prefer: function (p) { return p.traps * 8 + p.retreat * 5 - p.pieces.total * 6 - p.par; }
+    id: 3, name: 'BRAKE', chapter: 1, teach: true,
+    idea: 'What stops you on the goal is a wall behind it — so approach from the side that has one.',
+    feeling: 'Having learned that goals are not targets, learn what they ARE: a cell with a backstop.',
+    note: 'The answer to the board before it. Only one of the four directions has anything ' +
+          'standing one cell past the socket, and that is the only direction that collects. ' +
+          'From here on the player reads a goal by looking at what is BEHIND it.',
+    hint: { ja: 'ゴールの向こうに壁があれば止まれる', en: 'A wall past the goal is what stops you on it' },
+    specs: [nine(1, [1, 3]), nine(2, [1, 3])],
+    need: { par: [2, 4], unlock: [1, 2], traps: 2, allowNaive: true, maxLuck: 0.2, minLive: 2 },
+    prefer: function (p) { return p.traps * 9 + p.overshoot * 6 + p.retreat * 4 - p.pieces.total * 6 - p.par; }
   },
   {
     id: 4, name: 'STACK', chapter: 1, teach: true,
-    idea: 'A block is a wall for another block — so which one moves first is a question.',
-    feeling: 'Move the wrong one and the other has nowhere to go. Undo costs nothing; find out.',
-    note: 'The first board where the obstacles are the pieces themselves. Getting the ' +
-          'order wrong is not punished — it is the intended way to learn what the order is.',
-    hint: { ja: 'ブロックは他のブロックも止める', en: 'Blocks stop each other too' },
-    specs: [nine(3, [1, 2]), nine(3, [0, 1])],
-    need: { par: [4, 8], unlock: [1, 2], flow: 2, traps: 2, indirect: true },
-    prefer: function (p) { return p.blindness * 12 + p.flow * 4 + p.setup * 3 - p.pieces.total * 4; }
+    idea: 'A block is a brake too — and the one you have not collected yet is the only brake you can move.',
+    feeling: 'Move the wrong one first and the backstop you needed is the thing that went home.',
+    note: 'The last piece of the vocabulary, and the one the rest of the game is built on. ' +
+          'Walls make some goals collectable and the terrain never changes; blocks make the ' +
+          'others collectable and the player spends them. Getting the order wrong is not ' +
+          'punished — it is the intended way to find out what the order is.',
+    hint: { ja: 'ブロックも他のブロックを止める', en: 'Blocks stop each other too' },
+    specs: [nine(3, [0, 2]), nine(2, [0, 2]), twelve(3, [0, 2]), twelve(2, [0, 2])],
+    // `caught` is the whole point of this slot: at least one collection on the
+    // optimal line has to be a block stopped by ANOTHER BLOCK rather than by
+    // the terrain. Without it the board can claim the idea and not show it.
+    need: { par: [4, 9], unlock: [1, 3], flow: 2, traps: 2, caught: 1 },
+    prefer: function (p) {
+      return p.caught * 14 + p.blindness * 10 + p.flow * 4 + p.setup * 3 - p.pieces.total * 4;
+    }
   },
   {
     id: 5, name: 'AWAY', chapter: 1,
@@ -762,6 +775,11 @@ function emit(chosen) {
   out.push(' *');
   out.push(' * Ten of the twenty stages use nothing but floor, wall, goal and block. No stage');
   out.push(' * uses a hazard and a colour at the same time.');
+  out.push(' *');
+  out.push(' * A block is collected ONLY if it comes to a complete stop on a goal it fits —');
+  out.push(' * sliding across one does nothing. So every goal below needs something standing');
+  out.push(' * one cell beyond it, and half the design of these boards is where that backstop');
+  out.push(' * comes from: the edge, a wall, or a block the player has not spent yet.');
   out.push(' *');
   out.push(' * Every `par` is a breadth-first-proven shortest solution. Every piece on every');
   out.push(' * board survived deletion testing: remove any one of them and the puzzle measurably');

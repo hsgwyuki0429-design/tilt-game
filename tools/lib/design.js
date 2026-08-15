@@ -299,6 +299,35 @@ function distSum(stage, goals, s) {
 }
 
 /**
+ * Times a block slides over a goal that would have taken it, and does not stop.
+ *
+ * This is the new rule made visible. Under "collected only at rest" a goal is
+ * not a target you steer towards — aim at it and the block sails over the top
+ * and into the far wall. A board where that can happen is a board that can
+ * TEACH the rule, because the player does it once, watches the block go past
+ * the hole, and never mistakes a goal for a target again.
+ */
+function overshootsIn(stage, res) {
+  var n = 0;
+  var frames = res.frames;
+  if (!frames || frames.length < 2) return 0;
+  var last = frames[frames.length - 1];
+  for (var b = 0; b < stage.colour.length; b++) {
+    if (!last.alive[b]) continue;                 // collected or destroyed: not an overshoot
+    for (var t = 1; t < frames.length; t++) {
+      if (!frames[t].alive[b]) break;
+      var q = frames[t].pos[b], p = frames[t - 1].pos[b];
+      if (q[0] === p[0] && q[1] === p[1]) continue;
+      var i = q[1] * stage.w + q[0];
+      if (!stage.goal[i] || !E.accepts(stage.goalColour[i], stage.colour[b])) continue;
+      // It was ON a goal it fits at tick t. Did it stay there?
+      if (last.pos[b][0] !== q[0] || last.pos[b][1] !== q[1]) n++;
+    }
+  }
+  return n;
+}
+
+/**
  * How attractive a tilt LOOKS, before any thinking.
  *
  * Collecting beats everything; otherwise, closer to the exit is better. This is
@@ -384,15 +413,20 @@ function openings(stage, par, cap) {
       solvable = sol.solvable;
       optimal = sol.solvable && sol.moves === par - 1;
     }
-    scored.push({ dir: a.dir, appeal: a.appeal, got: a.got, optimal: optimal, solvable: solvable });
+    var over = overshootsIn(stage, E.simulate(stage, s0, a.dir));
+    scored.push({
+      dir: a.dir, appeal: a.appeal, got: a.got,
+      optimal: optimal, solvable: solvable, overshoot: over
+    });
   }
   if (!scored.length) return null;
 
   scored.sort(function (p, q) { return q.appeal - p.appeal; });
 
-  var blindness = -1, traps = 0, bait = 0;
+  var blindness = -1, traps = 0, bait = 0, overshoot = 0;
   for (var i = 0; i < scored.length; i++) {
     if (scored[i].optimal && blindness < 0) blindness = i;
+    if (scored[i].overshoot) overshoot++;
     if (!scored[i].optimal) {
       traps++;
       if (scored[i].got > 0) bait++;
@@ -402,6 +436,7 @@ function openings(stage, par, cap) {
     live: scored.length,
     traps: traps,
     bait: bait,
+    overshoot: overshoot,
     blindness: blindness < 0 ? 0 : blindness,
     order: scored
   };
@@ -496,14 +531,22 @@ function crux(stage, m) {
  *   crossings  times a block slides straight over a hazard and lives. This is
  *              the entire justification for hazards existing: not a region
  *              avoided, a region used.
- *   refused    times a block slides over a goal that will not take its colour.
- *              The entire justification for colours: a hole that is a floor.
+ *   caught     collections where the thing that stopped the block on the goal
+ *              was ANOTHER BLOCK rather than a wall or the board edge. Since a
+ *              block is only collected if it comes to a complete stop, every
+ *              goal needs a buffer one cell beyond it; when the terrain does
+ *              not supply one the player has to build it out of a block they
+ *              have not collected yet. That is the signature move of this rule
+ *              set and the thing worth selecting for.
+ *   refused    times a block comes to REST on a goal that will not take its
+ *              colour. The entire justification for colours: it is sitting in
+ *              the socket, it is not going anywhere, and it is still a wall.
  */
 function lineShape(stage, path) {
   var goals = goalCells(stage);
   var s = E.initialState(stage);
   var max = 0, last = 0, setup = path.length, retreat = 0, cascade = 0;
-  var travel = 0, crossings = 0, refused = 0, lastMovers = 0, lastTravel = 0;
+  var travel = 0, crossings = 0, refused = 0, caught = 0, lastMovers = 0, lastTravel = 0;
   var before = distSum(stage, goals, s);
   var firstCollected = -1;
 
@@ -527,8 +570,9 @@ function lineShape(stage, path) {
       var d = walkOf(r.frames, b);
       if (d > 0) { movers++; cells += d; }
       crossings += hazardCrossings(stage, r.frames, b);
-      refused += goalRefusals(stage, r.frames, b);
     }
+    caught += caughtByBlock(stage, r, path[i]);
+    refused += goalRefusals(stage, r.state);
     if (movers > cascade) cascade = movers;
     travel += cells;
     if (i === path.length - 1) { lastMovers = movers; lastTravel = cells; }
@@ -562,7 +606,7 @@ function lineShape(stage, path) {
     lastMovers: lastMovers, lastTravel: lastTravel,
     ratchet: ratchetOf(path),
     indirect: firstCollected >= 0 && nearest >= 0 && firstCollected !== nearest ? 1 : 0,
-    crossings: crossings, refused: refused
+    crossings: crossings, refused: refused, caught: caught
   };
 }
 
@@ -602,6 +646,33 @@ function walkOf(frames, b) {
   return d;
 }
 
+/**
+ * Collections where another block, rather than the terrain, was the buffer.
+ *
+ * A block is only collected if it STOPS on the goal, so something has to be
+ * standing one cell beyond it. When that something is a wall or the board edge
+ * the goal is self-serving and the player only has to aim. When it is another
+ * block, the player had to put it there first — and had to not collect it —
+ * which is where the thinking lives under this rule.
+ */
+function caughtByBlock(stage, res, dir) {
+  var dv = E.DV[dir], n = 0;
+  for (var e = 0; e < res.events.length; e++) {
+    var ev = res.events[e];
+    if (ev.type !== 'goal') continue;
+    // The settled frame in which the block was still standing on the goal.
+    var f = res.frames[ev.t - 1];
+    if (!f) continue;
+    var bx = ev.cell[0] + dv[0], by = ev.cell[1] + dv[1];
+    if (bx < 0 || by < 0 || bx >= stage.w || by >= stage.h) continue;   // the edge
+    if (stage.terrain[by * stage.w + bx] === E.WALL) continue;          // a wall
+    for (var b = 0; b < f.pos.length; b++) {
+      if (f.alive[b] && f.pos[b][0] === bx && f.pos[b][1] === by) { n++; break; }
+    }
+  }
+  return n;
+}
+
 /** Times block b passed over a hazard cell without being left on it. */
 function hazardCrossings(stage, frames, b) {
   if (!stage.rules.hazard) return 0;
@@ -620,16 +691,21 @@ function hazardCrossings(stage, frames, b) {
   return n;
 }
 
-/** Times block b rolled straight over a goal that would not take its colour. */
-function goalRefusals(stage, frames, b) {
+/**
+ * Blocks left sitting in a socket that will not take them.
+ *
+ * Under this rule set a block is only collected if it comes to rest on a goal,
+ * so the interesting colour moment is no longer a block rolling past a socket —
+ * everything rolls past every socket. It is a block that STOPPED in one and
+ * stayed: parked in the hole, not collected, and still in the way.
+ */
+function goalRefusals(stage, state) {
   if (!stage.rules.colour) return 0;
-  var n = 0, c = stage.colour[b];
-  for (var t = 1; t < frames.length; t++) {
-    if (!frames[t].alive[b]) break;
-    var q = frames[t].pos[b], p = frames[t - 1].pos[b];
-    if (q[0] === p[0] && q[1] === p[1]) continue;
-    var i = q[1] * stage.w + q[0];
-    if (stage.goal[i] && !E.accepts(stage.goalColour[i], c)) n++;
+  var n = 0;
+  for (var b = 0; b < state.pos.length; b++) {
+    if (!state.alive[b]) continue;
+    var i = state.pos[b][1] * stage.w + state.pos[b][0];
+    if (stage.goal[i] && !E.accepts(stage.goalColour[i], stage.colour[b])) n++;
   }
   return n;
 }
@@ -829,11 +905,13 @@ function profile(rows, opts) {
     pieces: pieces, rulesUsed: rulesUsed,
     hazard: stage.rules.hazard, colour: stage.rules.colour,
     traps: open.traps, bait: open.bait, blindness: open.blindness, live: open.live,
+    overshoot: open.overshoot,
     unlock: cx.unlock, flow: cx.flow, cleanFlow: cx.clean,
     naiveSolved: naive.solved, naiveMoves: naive.solved ? naive.moves : -1,
     chain: shape.chain, chainLast: shape.chainLast, setup: shape.setup,
     retreat: shape.retreat, cascade: shape.cascade, travel: shape.travel,
     indirect: shape.indirect, crossings: shape.crossings, refused: shape.refused,
+    caught: shape.caught,
     lastMovers: shape.lastMovers, lastTravel: shape.lastTravel,
     ratchet: shape.ratchet,
     // How much of the LONG part of the solution is a two-direction run. A run

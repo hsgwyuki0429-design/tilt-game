@@ -509,6 +509,7 @@ function shapeScore(p, want) {
   s += p.retreat * 6;
   s += (p.bait ? 8 : 0);
   s += (p.indirect ? 5 : 0);
+  s += Math.min(p.caught, 3) * 7;      // goals the player had to build a buffer for
   s += Math.min(p.chainLast, 3) * 4;
   s -= p.pieces.total * 2.5;
   s -= p.jam * 30;
@@ -556,6 +557,8 @@ function fits(p, f) {
   if (f.cascade != null && p.cascade < f.cascade) return false;
   if (f.crossings != null && p.crossings < f.crossings) return false;
   if (f.refused != null && p.refused < f.refused) return false;
+  if (f.caught != null && p.caught < f.caught) return false;
+  if (f.overshoot != null && p.overshoot < f.overshoot) return false;
   if (f.setup != null && p.setup < f.setup) return false;
   if (f.maxWays != null && p.ways > f.maxWays) return false;
   if (f.maxLuck != null && p.luck > f.maxLuck) return false;
