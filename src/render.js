@@ -38,7 +38,10 @@
     wallEdge: 'rgba(180,200,255,0.30)',
     hazEdge: 'rgba(255,120,120,0.55)',
     hazDeep: '#2a0c14',
-    hazStripe: 'rgba(255,96,110,0.34)'
+    hazStripe: 'rgba(255,96,110,0.34)',
+    pinTop: '#9fb0d8',
+    pinLow: '#4a5680',
+    pinEdge: 'rgba(190,210,255,0.45)'
   };
 
   // One palette and one SHAPE per colour of block, and the socket that will
@@ -204,6 +207,8 @@
           drawWall(g, px, py, cell);
         } else if (st.terrain[i] === E.HAZARD) {
           drawHazard(g, px, py, cell);
+        } else if (st.terrain[i] === E.PIN) {
+          drawPin(g, px, py, cell);
         } else {
           roundRect(g, px + inset, py + inset, cell - inset * 2, cell - inset * 2, cell * 0.13);
           g.fillStyle = THEME.floor;
@@ -292,6 +297,51 @@
     g.strokeStyle = THEME.hazEdge;
     g.lineWidth = 1.2;
     g.stroke();
+  }
+
+  /**
+   * A pin is drawn as a stud standing PROUD of an otherwise ordinary floor.
+   *
+   * The cell has to read as floor first — you may enter it, unlike a wall — and
+   * as something that will catch you second. So the tile underneath is the
+   * normal floor tile, and the only addition is a small raised peg in the
+   * middle, lit from the same direction as the walls. Nothing about it is
+   * coloured like a hazard or ringed like a goal, because nothing happens to a
+   * block that stops here: it simply stops.
+   */
+  function drawPin(g, px, py, cell) {
+    var inset = Math.max(1.5, cell * 0.035);
+    roundRect(g, px + inset, py + inset, cell - inset * 2, cell - inset * 2, cell * 0.13);
+    g.fillStyle = THEME.floor;
+    g.fill();
+    g.strokeStyle = THEME.floorEdge;
+    g.lineWidth = 1;
+    g.stroke();
+
+    var cx = px + cell / 2, cy = py + cell / 2, r = cell * 0.22;
+
+    // A soft shadow on the floor, so the peg reads as standing up off it.
+    g.beginPath();
+    g.ellipse(cx, cy + r * 0.5, r * 1.05, r * 0.5, 0, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(0,0,12,0.38)';
+    g.fill();
+
+    var grad = g.createLinearGradient(cx, cy - r, cx, cy + r);
+    grad.addColorStop(0, THEME.pinTop);
+    grad.addColorStop(1, THEME.pinLow);
+    g.beginPath();
+    g.arc(cx, cy, r, 0, Math.PI * 2);
+    g.fillStyle = grad;
+    g.fill();
+    g.strokeStyle = THEME.pinEdge;
+    g.lineWidth = 1.2;
+    g.stroke();
+
+    // Highlight on the upper left, matching the chamfer on the walls.
+    g.beginPath();
+    g.arc(cx - r * 0.28, cy - r * 0.3, r * 0.34, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(255,255,255,0.28)';
+    g.fill();
   }
 
   // -- animation --------------------------------------------------------------
