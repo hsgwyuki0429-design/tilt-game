@@ -461,8 +461,10 @@ three of the new win conditions can be shown:
 **What it cost to find out.** One HUD chip, three words long, on 15 boards out of 40.
 
 **What it bought.** The three deepest spaces in the game. ALL IN's ceiling under the
-two-per-colour cap is par 16. SELECT reaches 58 and FORM reaches 60 — on the same twelve
-cells, with the same physics, and with blindness 3 available at the top of both ranges. The
+two-per-colour cap is par 16 in the sweep, 15 after the deletion test. SELECT reaches 58 and
+FORM reaches 60 — on the same twelve cells, with the same physics, and with blindness 3
+available at the top of both ranges. What actually shipped is par 26 for the SELECT chapter,
+24 for FORM, 22 for MATCH, and 35 to 57 for the five extreme boards built out of them. The
 rejected category was, measurably, where the game was.
 
 **The general lesson.** "It moves difficulty into the briefing" is a claim about *how a rule
@@ -548,32 +550,49 @@ surface (what happens when half of it is over a goal? over a hazard? blocked?) a
 the same kind of thought. **More rule, same thinking.**
 
 It was explicitly permitted for the extreme chapter, on the grounds that par 30+ might not be
-reachable without it. It was not needed: SELECT with three colours reaches par 58 and FORM
-reaches 60, both on twelve cells, both with single-cell blocks. A new movement rule was not
-going to buy more than that.
+reachable without it. It was not needed: SELECT with three colours reaches par 58 in the
+sweep and 57 after the deletion test, on twelve cells, with single-cell blocks.
 
 *Would be reconsidered if:* a size gave a block a genuinely different relationship to
 gravity, rather than a bigger footprint.
 
-### 7.3 Move limits / time limits  ★☆☆☆☆ — rejected, and actively harmful
+### 7.3 More blocks  ★☆☆☆☆ — measured and rejected
+
+Not a rule so much as the obvious next knob, and it is worth recording because it does the
+opposite of what everyone expects. The two-per-colour cap plus three colours plus the plain
+`@` allows eight blocks. Sampled search over 4×4 and 5×3 boards with eight blocks:
+
+| blocks | board | longest solution seen at all |
+|---|---|---|
+| 6 | 4×3 | **58** |
+| 6 | 5×3 (sampled) | 50 |
+| 6 | 4×4 (sampled) | 51 |
+| **8** | 4×4 / 5×3 (sampled) | **23** |
+
+Eight blocks on sixteen cells is not a deeper puzzle, it is a jammed one. Half the board
+cannot move, most tilts do nothing, the reachable state space collapses, and the longest
+thing in it is shorter than a good 3×3 colour board. **More material makes boards shorter**,
+which is the two-per-colour cap arriving at the same answer from the other direction.
+
+### 7.4 Move limits / time limits  ★☆☆☆☆ — rejected, and actively harmful
 Undo is free and exploration is the intended way to play. A move limit converts "try it and
 see" into "be careful", which is exactly the wrong instinct for a game whose whole pleasure
 is discovering what a tilt does. Par already exists as a target with no penalty attached.
 
-### 7.4 Direction locks ("you may not tilt left")  ★★☆☆☆ — not adopted
+### 7.5 Direction locks ("you may not tilt left")  ★★☆☆☆ — not adopted
 Genuinely changes the search and is cheap to implement, but the rule lives *outside* the
 board — nothing you can see explains it, so it fails the "read the board, not the manual"
 standard the rest of the design holds to.
 
-### 7.5 A fourth colour  ★★☆☆☆ — not adopted
+### 7.6 A fourth colour  ★★☆☆☆ — not adopted
 Three earns its place (§3.5). A fourth would have to show the same thing again: a space it
 opens that three cannot reach. Nothing in the sweeps suggests one, and clarity is already the
 weakest axis on the deepest boards.
 
-### 7.6 One-way cells, teleports, breakable walls, moving walls  ★★☆☆☆ — not adopted
+### 7.7 One-way cells, teleports, breakable walls, moving walls  ★★☆☆☆ — not adopted
 All are implementable and all are legible. They are excluded on a budget argument rather than
-a quality one: the terrain matrix in §7.1 is *complete*, and each of these adds a row to a
-table that currently explains itself in one glance. If one of them replaced an existing rule
+a quality one: the terrain matrix in §7.1 is *complete* once the pin is struck from it, and
+each of these adds a row to a table that currently explains itself in one glance. If one of them replaced an existing rule
 rather than joining it, it would deserve a fresh measurement.
 
 ---
@@ -688,6 +707,16 @@ else in the game, because they are what separates a long puzzle from a long chor
 |---|---|---|
 | `insights` | ≥ 6 | moves on the line where instinct is wrong. A forty-tilt board with two decisions in it is thirty-eight tilts of admin. |
 | `guided` | ≥ 42% | and at least that much of it plays itself. A board where every move is its own fight is a corridor, however long. |
+
+What shipped, measured: par **35 · 42 · 49 · 48 · 57**, with 16 to 29 moves of genuine
+decision on each and the rest momentum. Four of the five have blindness 3 — the correct
+opening is the very last one instinct would try — which is the same signature the three-tilt
+boards in chapter 1 are selected for. Length was added; nothing was given up for it.
+
+The one thing that is genuinely worse at this end of the game is jams: stage 39 is unwinnable
+from 32% of its positions and stage 40 from 28%, against 0% almost everywhere else. That is
+what a board this dense costs, and it is exactly the cost the automatic rewind was built to
+absorb — a jam is now an interruption of one tilt rather than a run quietly ending.
 
 ---
 

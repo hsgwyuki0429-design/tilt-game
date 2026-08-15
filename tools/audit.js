@@ -780,7 +780,10 @@ function checkInvariants(stage) {
         var idx = cy * stage.w + cx;
         if (stage.terrain[idx] === ENGINE.WALL) errs.push('block ' + i + ' is inside a wall at ' + cx + ',' + cy);
         if (stage.terrain[idx] === ENGINE.HAZARD) errs.push('block ' + i + ' is alive at rest on a hazard at ' + cx + ',' + cy);
-        if (stage.goal[idx] && ENGINE.accepts(stage.goalColour[idx], stage.colour[i])) {
+        // A marked cell is a HOLE only on a board that collects. On a FORM
+        // board the same cell is a standing spot, and a block resting on one is
+        // the win condition rather than a leak.
+        if (stage.collects && stage.goal[idx] && ENGINE.accepts(stage.goalColour[idx], stage.colour[i])) {
           errs.push('block ' + i + ' is resting on a goal that should have collected it');
         }
         if (occupied[idx] != null) errs.push('blocks ' + occupied[idx] + ' and ' + i + ' overlap at ' + cx + ',' + cy);
@@ -1026,10 +1029,12 @@ function auditStage(def) {
   if (r.par >= 3 && r.luck > 0.25) {
     r.warnings.push('easy to blunder into — ' + pct(r.luck) + ' of random ' + r.par + '-move sequences clear it');
   }
-  // Silent dead ends are the only kind that is a design problem: the player
-  // cannot tell they have ruined the board and has no reason to reach for undo.
+  // Silent dead ends used to be the design problem the player could do nothing
+  // about; the shell now undoes the move that caused one and says so. They are
+  // still worth counting, because each one is a tilt the player spent and got
+  // taken back — an interruption rather than a trap.
   if (r.jam > 0.3) {
-    r.warnings.push('quietly unwinnable from ' + pct(r.jam) + ' of positions — nothing tells the player');
+    r.warnings.push('unwinnable from ' + pct(r.jam) + ' of positions — each one costs the player a rewound tilt');
   }
   return r;
 }

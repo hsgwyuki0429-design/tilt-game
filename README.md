@@ -162,9 +162,11 @@ Worth recording, because each one changed the design rather than merely confirmi
   would suggest and which carry no dead weight — and they share a terrain. The game already
   ships most of the genuinely excellent 3×3 base boards by stage 5. Rather than pad chapter
   two with near-misses, the two slots 3×3 cannot supply are allowed twelve cells.
-- **About six boards in seven are carrying a piece the board would not miss.** Across the
-  campaign's finalists the deletion test rejects **88%**. It is the most expensive gate and
-  by a distance the most useful.
+- **More than half of every board's finalists are carrying a piece the board would not
+  miss.** Across the campaign's finalists the deletion test rejects **57%** — it was 88% when
+  the game was twenty-five stages of mostly 3×3, and it falls as boards get larger only
+  because a piece has more chances to matter. It is the most expensive gate and by a distance
+  the most useful.
 - **A perfect crux is not enough.** Two stages passed every measurement above and were
   still wrong, and it took looking at the filmstrips to see it: `unlock 1`, `flow 8`, and a
   tail that was `L U L U L U L U`. Nothing being measured could tell a reward from a pump
@@ -195,8 +197,8 @@ Worth recording, because each one changed the design rather than merely confirmi
   board and into the briefing."* That is a claim about presentation being used as a claim
   about substance, and the sweep settled it. ALL IN's ceiling under the two-per-colour cap
   is par 16. **SELECT reaches 58 and FORM reaches 60**, on the same twelve cells, with the
-  same physics, with blindness 3 available at the top of both ranges. The briefing cost was
-  one three-word chip in the HUD.
+  same physics, with blindness 3 available at the top of both ranges. What shipped runs to
+  par 57. The briefing cost was one three-word chip in the HUD, on 20 boards out of 40.
 - **Depth comes from the piece that is NOT constrained.** Three separate sweeps, one result:
   MATCH with one colour produces **zero** boards (two blocks under one gravity are adjacent
   immediately); SELECT with every colour given a goal produces **zero** past par 50; FORM
@@ -214,16 +216,16 @@ what "these two blocks are the same block" means, and it is why the par on scree
 filler. Every slot is a stated idea with a required signature; the search runs against it
 and one board out of tens of thousands survives.
 
-| Ch | Name | Stages | Rules | What it is |
-|---|---|---|---|---|
-| 1 | GRAVITY · 重力 | 1–5 | base | the whole vocabulary: gravity, then *you slid over it*, then what a backstop is, then that blocks are backstops too, then the first board that turns on you |
-| 2 | NINE · 九マス | 6–10 | base | nothing new added — just the same few things made to work much harder |
-| 3 | EDGE · 境界 | 11–15 | + hazard | a square you may cross and may not stop on: it removes places to rest, and that is what makes a small board deep |
-| 4 | PAIR · 対 | 16–20 | + colour | a goal that is a hole for one block and a floor for the other, so finishing early is how you lose |
-| 5 | TOGETHER · 結 | 21–25 | + MATCH | no holes at all: same colours must end up touching, and one gravity moves both of them |
-| 6 | CHOSEN · 選 | 26–30 | + SELECT | only the lit blocks have to get home; the rest can never leave, and are the best walls you have |
-| 7 | SHAPE · 形 | 31–35 | + FORM | the marks are standing spots, not holes — every one has to be covered at the same moment |
-| 8 | ABYSS · 深淵 | 36–40 | combined | the only chapter where length is the target: par 30 at the shallow end, and the rules that were kept apart all game put together on purpose |
+| Ch | Name | Stages | Rules | Par | What it is |
+|---|---|---|---|---|---|
+| 1 | GRAVITY · 重力 | 1–5 | base | 2–7 | the whole vocabulary: gravity, then *you slid over it*, then what a backstop is, then that blocks are backstops too, then the first board that turns on you |
+| 2 | NINE · 九マス | 6–10 | base | 4–8 | nothing new added — just the same few things made to work much harder |
+| 3 | EDGE · 境界 | 11–15 | + hazard | 4–11 | a square you may cross and may not stop on: it removes places to rest, and that is what makes a small board deep |
+| 4 | PAIR · 対 | 16–20 | + colour | 7–15 | a goal that is a hole for one block and a floor for the other, so finishing early is how you lose |
+| 5 | TOGETHER · 結 | 21–25 | + MATCH | 4–22 | no holes at all: same colours must end up touching, and one gravity moves both of them |
+| 6 | CHOSEN · 選 | 26–30 | + SELECT | 4–26 | only the lit blocks have to get home; the rest can never leave, and are the best walls you have |
+| 7 | SHAPE · 形 | 31–35 | + FORM | 3–24 | the marks are standing spots, not holes — every one has to be covered at the same moment |
+| 8 | ABYSS · 深淵 | 36–40 | combined | **35–57** | the only chapter where length is the target, and the rules that were kept apart all game put together on purpose |
 
 Boards stay small on purpose — nothing in the game is larger than 4×4, including the
 forty-tilt boards — and **no board carries more than two blocks of one colour**. Small board,
@@ -253,7 +255,24 @@ because they are what separates a long puzzle from a long chore:
 | `guided` | ≥ 42% | and at least that much of it plays itself. A board where every move is its own fight is a corridor, however long it is. |
 
 Big blocks were explicitly permitted for this chapter and turned out not to be needed. A new
-movement rule was not going to beat par 58 on twelve cells.
+movement rule was not going to beat par 57 on twelve cells — and the searches that tried to
+go past it all came back shorter:
+
+| search | best par that passes every gate |
+|---|---|
+| **4×3 SELECT, three colours (exhaustive)** | **57** ← shipped as stage 40 |
+| 4×3 FORM, three colours (exhaustive) | 49 |
+| 4×4 SELECT, six blocks (sampled, ~700 climbs) | 51 |
+| 5×3 SELECT, six blocks (sampled) | 50 |
+| 5×3 FORM, five blocks (sampled) | 44 |
+| 4×3 SELECT + hazard (exhaustive) | 48 |
+| 4×4 / 5×3 SELECT, **eight** blocks (sampled) | longest seen at all: 23 |
+
+That last row is the interesting one. Eight blocks on sixteen cells is not a deeper puzzle,
+it is a jammed one: half the board cannot move, so the state space collapses and the longest
+thing in it is shorter than a good 3×3 colour board. **More material makes boards shorter,
+not longer** — which is the two-per-colour cap arriving at the same answer from the other
+direction.
 
 ## Playing
 
@@ -340,8 +359,14 @@ while a slide was animating.
 
 Counting in the audit is deliberately its own implementation rather than a call into the
 generator's measurement code. An auditor that shares arithmetic with the thing it audits
-cannot catch that arithmetic being wrong — and on 235 boards the two implementations agree
-exactly.
+cannot catch that arithmetic being wrong — and across the campaign and every deletion variant
+of it the two implementations agree exactly.
+
+One invariant is worth naming because it was WEAKENED once and is now back: *tilting the same
+direction twice must do nothing the second time.* Gravity is idempotent, and the engine's
+settle → resolve → settle loop runs until that is true of every block, chain reactions
+included. The peg rule broke it on purpose, and the check had to be relaxed to "repeating a
+direction converges" to accommodate it. Removing the peg restored the strong form.
 
 `qa` drives a real mobile-sized Chromium through the real input path: it plays every stage to
 par, destroys a block on purpose and checks the run ends with a card that names the rule,
