@@ -3,86 +3,196 @@
 <head>
 <meta charset="utf-8">
 <title>TILT</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
-<meta name="description" content="TILT — a gravity puzzle. You do not move the blocks. You move the world.">
-<meta name="theme-color" content="#0a0b18">
+<!-- No maximum-scale / user-scalable=no: disabling pinch zoom is an accessibility
+     failure Apple explicitly calls out. Double-tap zoom — the gesture that actually
+     interferes with play — is killed by `touch-action` in CSS instead, and the board
+     itself claims every gesture inside it with `touch-action: none`. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="TILT — a gravity puzzle. You never move the blocks. You move the world.">
+<meta name="theme-color" content="#06070F">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TILT">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230a0b18'/><rect x='7' y='7' width='10' height='10' rx='3' fill='%232ed3f2'/><rect x='18' y='18' width='7' height='7' rx='2' fill='none' stroke='%23b9c6ee' stroke-width='2'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%2306070F'/><rect x='34' y='34' width='56' height='56' rx='18' fill='%2338D6F5'/><rect x='98' y='98' width='48' height='48' rx='15' fill='none' stroke='%23B9C6EE' stroke-width='8'/></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2306070F'/><rect x='6' y='6' width='11' height='11' rx='3.5' fill='%2338D6F5'/><rect x='17.5' y='17.5' width='9' height='9' rx='2.8' fill='none' stroke='%23B9C6EE' stroke-width='2'/></svg>">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
+<!-- The launch curtain: the app's own background with its name on it, lifted the
+     instant the board is ready. It is the first frame of the game, not a splash
+     screen in front of it — nothing loads behind it and nothing waits for it. -->
+<div id="launch" aria-hidden="true"><span class="lw">TILT</span></div>
+
+<!-- ── icon set ───────────────────────────────────────────────────────────────
+     One sprite, one stroke weight, one corner treatment, drawn on the same 24pt
+     grid as SF Symbols so nothing in the interface looks borrowed from somewhere
+     else. Every icon that names an action is paired with a text label in the UI;
+     none of them is asked to carry a meaning on its own. -->
+<svg id="icons" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-grid" viewBox="0 0 24 24">
+    <rect x="3.5" y="3.5" width="7" height="7" rx="2.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2.2"/>
+    <rect x="3.5" y="13.5" width="7" height="7" rx="2.2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2.2"/>
+  </symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24">
+    <path d="M9.5 6.5H14a5.5 5.5 0 0 1 0 11H8"/><path d="M12.2 3.4 9 6.5l3.2 3.1"/>
+  </symbol>
+  <symbol id="i-restart" viewBox="0 0 24 24">
+    <path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20.2 4.2v4.6h-4.6"/>
+  </symbol>
+  <!-- A cog, not a sunburst. The teeth are a generated even polygon rather than
+       eight radial strokes, which is the difference between reading as "settings"
+       and reading as "brightness". -->
+  <symbol id="i-gear" viewBox="0 0 24 24">
+    <path d="M9.79 2.04L14.21 2.04L13.64 4.58L16.08 5.59L17.48 3.40L20.60 6.52L18.41 7.92L19.42 10.36L21.96 9.79L21.96 14.21L19.42 13.64L18.41 16.08L20.60 17.48L17.48 20.60L16.08 18.41L13.64 19.42L14.21 21.96L9.79 21.96L10.36 19.42L7.92 18.41L6.52 20.60L3.40 17.48L5.59 16.08L4.58 13.64L2.04 14.21L2.04 9.79L4.58 10.36L5.59 7.92L3.40 6.52L6.52 3.40L7.92 5.59L10.36 4.58Z"
+          stroke-linejoin="round"/>
+    <circle cx="12" cy="12" r="3.2"/>
+  </symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9.5 5.5 7 6.5-7 6.5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m14.5 5.5-7 6.5 7 6.5"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.8"/>
+    <path d="M9.6 9.4a2.5 2.5 0 1 1 3.1 2.5c-.5.2-.7.6-.7 1.1v.6"/>
+    <circle cx="12" cy="16.6" r="1.05" fill="currentColor" stroke="none"/>
+  </symbol>
+  <symbol id="i-hazard" viewBox="0 0 24 24">
+    <path d="M12 3.8 21.2 19.6H2.8Z" stroke-linejoin="round"/>
+    <path d="M12 9.6v4.2"/><circle cx="12" cy="16.7" r="1.05" fill="currentColor" stroke="none"/>
+  </symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.6 4.6 4.6L19 6.8"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24">
+    <path d="m12 3.4 2.65 5.62 5.95.87-4.3 4.31 1.01 6.14L12 17.45l-5.31 2.89 1.01-6.14-4.3-4.31 5.95-.87Z"
+          stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24">
+    <rect x="5.2" y="10.4" width="13.6" height="10.2" rx="3"/>
+    <path d="M8.4 10.2V7.8a3.6 3.6 0 0 1 7.2 0v2.4"/>
+  </symbol>
+  <symbol id="i-target" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="3.1"/>
+  </symbol>
+  <symbol id="i-swipe" viewBox="0 0 24 24">
+    <path d="M4.2 12h15.6"/><path d="m8 7.6-4.4 4.4L8 16.4"/><path d="m16 7.6 4.4 4.4L16 16.4"/>
+  </symbol>
+</defs></svg>
+
+
+<!-- ══ GAME ═══════════════════════════════════════════════════════════════════
+     Three rows and nothing else: a status line, the board, two actions. Every
+     pixel not spent on those belongs to the board. -->
 <div id="app">
 
   <header id="hud">
-    <button id="btn-menu" class="icon-btn" aria-label="Stages">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+    <button id="btn-menu" class="hud-btn" type="button" data-t-aria="stages" aria-label="Stages">
+      <svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg>
     </button>
 
-    <div class="title-block">
-      <span id="stage-label">STAGE 01</span>
-      <span class="name-line">
-        <span id="stage-name">DROP</span>
-        <span id="objective" class="obj"></span>
-      </span>
+    <div class="hud-title">
+      <span id="stage-label" class="hud-kicker">STAGE 1</span>
+      <span id="stage-name" class="hud-name">DROP</span>
     </div>
 
-    <div class="counters">
-      <div class="counter"><span class="k">MOVES</span><span class="v" id="moves">0</span></div>
-      <div class="counter dim"><span class="k">PAR</span><span class="v" id="par">2</span></div>
-      <div class="counter dim" id="best-counter"><span class="k">BEST</span><span class="v" id="best">—</span></div>
+    <div class="hud-count">
+      <span id="moves" class="hud-moves">0</span>
+      <span class="hud-par"><span data-t="parShort">PAR</span> <b id="par">2</b></span>
     </div>
   </header>
 
   <main id="board-area">
     <canvas id="board"></canvas>
-    <div id="hint"></div>
-    <div id="toast"></div>
-    <div id="overlay" class="overlay"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="overlay" class="overlay" role="dialog" aria-modal="true"></div>
   </main>
 
+  <!-- The objective, permanently. It sits below the board in space the board was
+       never going to use, so it costs nothing and never has to be dismissed —
+       which is the whole reason the old six-second hint was the wrong shape. -->
+  <button id="coach" class="coach" type="button" data-t-aria="showRules" aria-label="How to play">
+    <svg class="coach-ic ic" aria-hidden="true"><use href="#i-target"/></svg>
+    <span class="coach-text">
+      <span id="objective" class="coach-obj"></span>
+      <span id="coach-hint" class="coach-hint"></span>
+    </span>
+    <svg class="coach-more ic" aria-hidden="true"><use href="#i-help"/></svg>
+  </button>
+
   <footer id="dock">
-    <button id="btn-undo" class="dock-btn" disabled>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H15a5 5 0 0 1 0 10H8" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.5 4 8 7l3.5 3" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="lbl">UNDO</span>
+    <button id="btn-undo" class="dock-btn wide" type="button" disabled>
+      <svg class="ic" aria-hidden="true"><use href="#i-undo"/></svg>
+      <span class="lbl" data-t="undo">Undo</span>
     </button>
-    <button id="btn-restart" class="dock-btn">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke-width="2.2" stroke-linecap="round"/><path d="M20 4v5h-5" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="lbl">RESTART</span>
-    </button>
-    <button id="btn-tilt" class="dock-btn small" aria-pressed="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5" fill="none" stroke-width="2" transform="rotate(18 12 12)"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
-      <span class="lbl">TILT</span>
-    </button>
-    <button id="btn-sound" class="dock-btn small" aria-pressed="true">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4Z" stroke-width="2" stroke-linejoin="round"/><path class="wave" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11" fill="none" stroke-width="2" stroke-linecap="round"/><path class="cross" d="m16 9.5 5 5m0-5-5 5" fill="none" stroke-width="2" stroke-linecap="round"/></svg>
-      <span class="lbl">SOUND</span>
+    <button id="btn-restart" class="dock-btn quiet" type="button">
+      <svg class="ic" aria-hidden="true"><use href="#i-restart"/></svg>
+      <span class="lbl" data-t="restart">Restart</span>
     </button>
   </footer>
 
 </div>
 
-<section id="menu" aria-hidden="true">
-  <div class="menu-head">
-    <h1>TILT</h1>
-    <button id="btn-close" class="icon-btn" aria-label="Close">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke-width="2.4" stroke-linecap="round"/></svg>
-    </button>
-  </div>
-  <p class="menu-tag">重力を操り、盤面の未来を読む。<span>You never move the blocks. You move the world.</span></p>
+
+<!-- ══ SHEETS ═════════════════════════════════════════════════════════════════
+     One scrim, three sheets, one presentation model. A sheet slides from the
+     bottom edge, carries a grabber, and is dismissed by the grabber, the close
+     button, a downward drag or the scrim — four ways out, because a player who
+     cannot find the way back out of a menu has been trapped by the interface. -->
+<div id="scrim" class="scrim"></div>
+
+<section id="menu" class="sheet" role="dialog" aria-modal="true" aria-labelledby="menu-title" aria-hidden="true">
+  <div class="grabber" aria-hidden="true"></div>
+  <header class="sheet-bar">
+    <h2 id="menu-title" class="sheet-title" data-t="stages">Stages</h2>
+    <div class="sheet-tools">
+      <button id="btn-settings" class="round-btn" type="button" data-t-aria="settings" aria-label="Settings">
+        <svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg>
+      </button>
+      <button id="btn-close" class="round-btn" type="button" data-t-aria="close" aria-label="Close">
+        <svg class="ic" aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+    </div>
+  </header>
   <div id="menu-progress" class="progress"></div>
   <div id="stage-grid" class="grid"></div>
-  <div class="menu-foot">
-    <button id="btn-reset" class="btn ghost small">RESET PROGRESS</button>
+</section>
+
+<section id="settings" class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-hidden="true">
+  <div class="grabber" aria-hidden="true"></div>
+  <header class="sheet-bar">
+    <button id="btn-settings-back" class="round-btn" type="button" data-t-aria="back" aria-label="Back">
+      <svg class="ic" aria-hidden="true"><use href="#i-back"/></svg>
+    </button>
+    <h2 id="settings-title" class="sheet-title" data-t="settings">Settings</h2>
+    <div class="sheet-tools">
+      <button id="btn-settings-close" class="round-btn" type="button" data-t-aria="close" aria-label="Close">
+        <svg class="ic" aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+    </div>
+  </header>
+  <div class="sheet-body">
+    <div class="list" id="settings-list"></div>
+    <p class="fine" id="app-fine">TILT</p>
   </div>
+</section>
+
+<section id="howto" class="sheet" role="dialog" aria-modal="true" aria-labelledby="howto-title" aria-hidden="true">
+  <div class="grabber" aria-hidden="true"></div>
+  <header class="sheet-bar">
+    <h2 id="howto-title" class="sheet-title" data-t="howto">How to play</h2>
+    <div class="sheet-tools">
+      <button id="btn-howto-close" class="round-btn" type="button" data-t-aria="close" aria-label="Close">
+        <svg class="ic" aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+    </div>
+  </header>
+  <div class="sheet-body" id="howto-body"></div>
 </section>
 
 <script src="src/engine.js"></script>
 <script src="src/stages.js"></script>
 <script src="src/save.js"></script>
+<script src="src/haptics.js"></script>
 <script src="src/audio.js"></script>
 <script src="src/render.js"></script>
 <script src="src/input.js"></script>

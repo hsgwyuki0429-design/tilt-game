@@ -6,6 +6,31 @@
  * in play. Everything else (history, HUD, overlays) is derived from it. Undo is
  * therefore a stack of whole states rather than a list of reversed operations,
  * which is the only version of undo that cannot drift out of sync.
+ *
+ * ---------------------------------------------------------------------------
+ * THE SHAPE OF THE INTERFACE, AND WHY IT IS THIS SHAPE
+ * ---------------------------------------------------------------------------
+ *
+ * There are three surfaces in this game and no more:
+ *
+ *   THE BOARD      permanent. A status line above it, an objective line below
+ *                  it, two actions under that. Nothing else is ever on screen
+ *                  while a player is thinking.
+ *
+ *   THE STAGES     a sheet. It is also the pause screen, because a puzzle with
+ *   SHEET          no clock has nothing to pause — "stop and look at where I
+ *                  am" and "open the menu" are one intention, so they are one
+ *                  screen.
+ *
+ *   A CARD         a clear or a run ending. Anchored to the bottom so the board
+ *                  you just played stays visible above it, and so the buttons
+ *                  land where a thumb already is.
+ *
+ * Settings and the rules live one level down from the stages sheet. They are
+ * things a player touches once, and a control you touch once a month has no
+ * business on the screen you look at for an hour — which is why sound and tilt
+ * came out of the dock and left it with the only two actions the board itself
+ * cannot express.
  */
 (function (root) {
 
@@ -24,49 +49,129 @@
 
   var JA = /^ja\b/i.test((navigator.language || navigator.userLanguage || 'en'));
 
+  // Sentence case everywhere except a stage nameplate and a stat label. In this
+  // interface uppercase is a signal, not a default.
   var TXT = {
-    moves:     { ja: 'MOVES', en: 'MOVES' },
-    par:       { ja: 'PAR', en: 'PAR' },
-    best:      { ja: 'BEST', en: 'BEST' },
-    clear:     { ja: 'CLEAR', en: 'CLEAR' },
-    perfect:   { ja: 'PERFECT', en: 'PERFECT' },
-    next:      { ja: 'NEXT', en: 'NEXT' },
-    retry:     { ja: 'もう一度', en: 'RETRY' },
-    undo:      { ja: 'UNDO', en: 'UNDO' },
-    restart:   { ja: 'RESTART', en: 'RESTART' },
-    stages:    { ja: 'ステージ', en: 'STAGES' },
-    rewound:   { ja: '詰み — 1手戻しました', en: 'Dead end — that move was taken back' },
-    gameOver:  { ja: 'ゲームオーバー', en: 'GAME OVER' },
-    overBody:  { ja: 'ブロックが危険マスの上で止まりました。', en: 'A block was left standing on a hazard.' },
-    allClear:  { ja: 'ALL STAGES CLEAR', en: 'ALL STAGES CLEAR' },
-    allBody:   { ja: '全ステージ突破。', en: 'Every stage solved.' },
-    progress:  { ja: 'クリア', en: 'CLEARED' },
-    chapEnd:   { ja: 'CHAPTER CLEAR', en: 'CHAPTER CLEAR' },
-    newBest:   { ja: 'NEW BEST', en: 'NEW BEST' },
-    tiltOn:    { ja: '傾き操作 ON', en: 'TILT ON' },
-    tiltOff:   { ja: '傾き操作 OFF', en: 'TILT OFF' },
-    tiltNo:    { ja: 'この端末では傾きを使えません', en: 'Tilt is unavailable on this device' },
-    tiltDenied:{ ja: 'センサーの許可が必要です', en: 'Motion permission was declined' },
-    resetAsk:  { ja: '進行状況をすべて消去しますか？', en: 'Erase all progress?' },
-    locked:    { ja: 'まだ挑戦できません', en: 'Locked' },
-    chain:     { ja: 'CHAIN', en: 'CHAIN' },
-    lost:      { ja: '危険マスで止まった', en: 'STOPPED ON A HAZARD' },
-    // What "done" means, when it is not the default. ALL IN gets no chip: every
-    // block gone is what the picture already says, and labelling it would make
-    // the other three look like exceptions to a rule rather than what they are.
-    winSelect: { ja: '指定だけ', en: 'ONLY MARKED' },
-    winMatch:  { ja: 'くっつける', en: 'JOIN PAIRS' },
-    winForm:   { ja: 'かたちを作る', en: 'BUILD THE SHAPE' }
+    moves:      { ja: '手数', en: 'Moves' },
+    par:        { ja: '最短', en: 'Par' },
+    parShort:   { ja: '最短', en: 'PAR' },
+    best:       { ja: '自己ベスト', en: 'Best' },
+    bestShort:  { ja: 'ベスト', en: 'Best' },
+    clear:      { ja: 'クリア', en: 'Solved' },
+    perfect:    { ja: '最短クリア', en: 'Perfect' },
+    next:       { ja: '次のステージ', en: 'Next stage' },
+    retry:      { ja: 'もう一度', en: 'Try again' },
+    undo:       { ja: '一手もどす', en: 'Undo' },
+    undoShort:  { ja: 'もどす', en: 'Undo' },
+    restart:    { ja: '最初から', en: 'Restart' },
+    stages:     { ja: 'ステージ', en: 'Stages' },
+    settings:   { ja: '設定', en: 'Settings' },
+    close:      { ja: '閉じる', en: 'Close' },
+    back:       { ja: 'もどる', en: 'Back' },
+    howto:      { ja: 'あそびかた', en: 'How to play' },
+    showRules:  { ja: 'ルールを見る', en: 'Show the rules' },
+    rewound:    { ja: '手づまり。1手もどしました', en: 'Dead end — that move was taken back' },
+    restarted:  { ja: '最初にもどしました', en: 'Stage restarted' },
+    gameOver:   { ja: 'ここで終わり', en: 'Run ended' },
+    overBody:   { ja: '危険マスの上で止まったブロックは壊れます。1手もどせば続けられます。',
+                  en: 'A block was left standing on a hazard. One undo puts it back.' },
+    allClear:   { ja: '全ステージ制覇', en: 'Every stage solved' },
+    allBody:    { ja: '40ステージすべてクリアしました。', en: 'All 40 stages, done.' },
+    progress:   { ja: 'クリア済み', en: 'solved' },
+    chapEnd:    { ja: 'チャプタークリア', en: 'Chapter complete' },
+    newBest:    { ja: '自己ベスト更新', en: 'New best' },
+    tiltOn:     { ja: '傾き操作をオンにしました', en: 'Tilt controls on' },
+    tiltOff:    { ja: '傾き操作をオフにしました', en: 'Tilt controls off' },
+    tiltNo:     { ja: 'この端末では傾きを使えません', en: 'Tilt is unavailable on this device' },
+    tiltDenied: { ja: 'センサーの使用が許可されませんでした', en: 'Motion permission was declined' },
+    locked:     { ja: 'まだ挑戦できません', en: 'Locked' },
+    chain:      { ja: '連鎖', en: 'Chain' },
+    swipeCue:   { ja: '指をはらって重力を向けます', en: 'Swipe to aim gravity' },
+    parNote:    { ja: '最短は %n 手です。', en: 'It can be done in %n.' },
+
+    // What "done" means. Every board gets a line, including the plain one: a
+    // caption that appears on some stages and not others is a caption the player
+    // has to keep checking for, and it sits in space the board never wanted.
+    winAllin:   { ja: 'ブロックを全部あつめる', en: 'Collect every block' },
+    winSelect:  { ja: '光っているブロックだけあつめる', en: 'Collect only the lit blocks' },
+    winMatch:   { ja: '同じ色どうしをくっつける', en: 'Join each colour to its twin' },
+    winForm:    { ja: '印のマスを同時に埋める', en: 'Fill every marked cell at once' },
+
+    // Settings
+    sound:      { ja: 'サウンド', en: 'Sound' },
+    haptics:    { ja: '触覚フィードバック', en: 'Haptics' },
+    tiltCtl:    { ja: '傾き操作', en: 'Tilt controls' },
+    tiltNote:   { ja: '端末をかたむけて重力を向けます。スワイプはいつでも使えます。',
+                  en: 'Aim gravity by tilting the device. Swiping always works too.' },
+    reduceMo:   { ja: 'アニメーションを減らす', en: 'Reduce motion' },
+    reduceNote: { ja: '画面のゆれ、粒子、スライドの演出を止めます。',
+                  en: 'Turns off shake, particles and sliding transitions.' },
+    resetTitle: { ja: '進行状況を消去しますか？', en: 'Erase all progress?' },
+    resetBody:  { ja: 'クリア記録と自己ベストがすべて消え、元に戻せません。',
+                  en: 'Every solved stage and best score will be lost. This cannot be undone.' },
+    resetDo:    { ja: '消去する', en: 'Erase progress' },
+    resetRow:   { ja: '進行状況を消去', en: 'Erase progress' },
+    cancel:     { ja: 'キャンセル', en: 'Cancel' },
+    stagesFine: { ja: 'TILT · 全%nステージ', en: 'TILT · %n stages' },
+
+    // How to play — four rules, one line each, each next to its own picture.
+    r1h: { ja: '重力を向ける', en: 'You aim gravity' },
+    r1p: { ja: 'ブロックは直接動かせません。指をはらった向きへ盤面ごと重力が向き、すべてのブロックが同時に動きます。',
+          en: 'You never move a block. Swipe, and the whole world falls that way — every block at once.' },
+    r2h: { ja: 'ゴールは的ではない', en: 'A goal is not a target' },
+    r2p: { ja: 'ゴールの上で完全に止まったときだけ回収されます。通り過ぎても何も起きません。',
+          en: 'A block is collected only if it comes to a complete stop on the goal. Sliding across does nothing.' },
+    r3h: { ja: '止めてくれるもの', en: 'What stops you' },
+    r3p: { ja: '盤の端、壁、そしてまだ回収していないブロック。動かせるブレーキはブロックだけです。',
+          en: 'The edge, a wall, or a block you have not collected yet — the only brake you can move.' },
+    r4h: { ja: '斜線のマス', en: 'The hazard' },
+    r4p: { ja: '通り抜けるのは安全です。その上で止まるとブロックが壊れ、そこで終わります。',
+          en: 'Sliding across is safe. Being left standing on one destroys the block and ends the run.' },
+    r5:  { ja: '手数に制限はありません。いつでも何手でも戻せます。まず試してみるのが正しい遊び方です。',
+          en: 'There is no move limit and undo is free. Trying something to see what it does is how this game is meant to be played.' }
   };
 
-  var OBJECTIVE = { select: 'winSelect', match: 'winMatch', form: 'winForm' };
+  var OBJECTIVE = { allin: 'winAllin', select: 'winSelect', match: 'winMatch', form: 'winForm' };
 
-  function t(key) { var v = TXT[key]; return JA ? v.ja : v.en; }
+  function t(key) { var v = TXT[key]; return v ? (JA ? v.ja : v.en) : key; }
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function icon(name, cls) {
+    return '<svg class="ic ' + (cls || '') + '" aria-hidden="true"><use href="#i-' + name + '"/></svg>';
+  }
+
+  /**
+   * How much bigger the player has asked their text to be.
+   *
+   * Safari resolves `-apple-system-body` to the device's current Dynamic Type
+   * size, so measuring it is the one way a web page can honour Larger Text at
+   * all. Clamped at 1.3 because past that the board — which is the thing the
+   * player actually came for — starts losing rows to the chrome, and a game
+   * whose board does not fit is not an accessible game.
+   */
+  function measureTypeScale() {
+    try {
+      var el = document.createElement('span');
+      el.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;font:-apple-system-body';
+      el.textContent = 'M';
+      document.body.appendChild(el);
+      var px = parseFloat(window.getComputedStyle(el).fontSize);
+      document.body.removeChild(el);
+      if (!isFinite(px) || px <= 0) return 1;
+      return Math.max(1, Math.min(1.3, px / 17));
+    } catch (e) { return 1; }
+  }
 
   function Game() {
     this.save = new root.TiltSave.Save();
     this.audio = new root.TiltAudio.Audio();
     this.audio.setMuted(!this.save.data.sound);
+    this.haptics = new root.TiltHaptics.Haptics();
+    this.haptics.mount();
+    this.haptics.setEnabled(this.save.data.haptics !== false);
 
     this.canvas = document.getElementById('board');
     this.renderer = new root.TiltRender.Renderer(this.canvas);
@@ -78,48 +183,73 @@
     this.queued = null;
     this.animStart = 0;
     this.animLen = 1;
+    this.restorePoint = null;   // what an undoable restart would put back
+    this.sheets = [];           // presentation stack, topmost last
 
     this.dom = {
       app: document.getElementById('app'),
       stageLabel: document.getElementById('stage-label'),
       stageName: document.getElementById('stage-name'),
       objective: document.getElementById('objective'),
+      coach: document.getElementById('coach'),
+      coachHint: document.getElementById('coach-hint'),
       moves: document.getElementById('moves'),
       par: document.getElementById('par'),
-      hint: document.getElementById('hint'),
       overlay: document.getElementById('overlay'),
+      scrim: document.getElementById('scrim'),
       menu: document.getElementById('menu'),
+      settings: document.getElementById('settings'),
+      settingsList: document.getElementById('settings-list'),
+      howto: document.getElementById('howto'),
+      howtoBody: document.getElementById('howto-body'),
       grid: document.getElementById('stage-grid'),
       toast: document.getElementById('toast'),
       btnUndo: document.getElementById('btn-undo'),
       btnRestart: document.getElementById('btn-restart'),
-      btnTilt: document.getElementById('btn-tilt'),
-      btnSound: document.getElementById('btn-sound'),
       btnMenu: document.getElementById('btn-menu'),
       btnClose: document.getElementById('btn-close'),
-      btnReset: document.getElementById('btn-reset')
+      btnSettings: document.getElementById('btn-settings'),
+      btnSettingsBack: document.getElementById('btn-settings-back'),
+      btnSettingsClose: document.getElementById('btn-settings-close'),
+      btnHowtoClose: document.getElementById('btn-howto-close'),
+      fine: document.getElementById('app-fine')
     };
 
-    this.bindUI();
-    this.input = new root.TiltInput.Input(document.getElementById('board-area'), {
-      commit: this.commit.bind(this),
-      aim: this.aim.bind(this)
-    });
-    this.input.tilt.invert = !!this.save.data.invertTilt;
-
-    this.applySoundButton();
-    this.applyTiltButton(false);
-
-    window.addEventListener('resize', this.onResize.bind(this));
-    window.addEventListener('orientationchange', this.onResize.bind(this));
-    document.addEventListener('visibilitychange', this.onVisibility.bind(this));
-
-    // The frame loop must be fully armed before anything can call wake() —
-    // loadStage() does, and an unbound this.loop would throw on the first frame.
+    // The frame loop is armed FIRST, before anything below can reach wake().
+    // applyMotion() does, on the very next line, and an unbound this.loop handed
+    // to requestAnimationFrame is called with no receiver at all under strict
+    // mode — a boot-time crash that leaves a perfectly playable-looking board
+    // with a dead render loop behind it.
     this.loop = this.loop.bind(this);
     this.last = performance.now();
     this.running = false;
     this.busyFrames = false;
+
+    this.motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    document.documentElement.style.setProperty('--tsx', String(measureTypeScale()));
+    this.applyStaticText();
+    this.applyMotion();
+
+    this.bindUI();
+    this.input = new root.TiltInput.Input(document.getElementById('board-area'), {
+      commit: this.commit.bind(this),
+      aim: this.aim.bind(this),
+      tap: this.onTap.bind(this)
+    });
+    this.input.tilt.invert = !!this.save.data.invertTilt;
+    if (this.save.data.tilt) {
+      // A grant given last session still has to be asked for again on iOS, and
+      // asking outside a gesture fails silently — so the switch is remembered
+      // and re-armed on the first touch rather than at boot.
+      this.tiltWanted = true;
+    }
+
+    window.addEventListener('resize', this.onResize.bind(this));
+    window.addEventListener('orientationchange', this.onResize.bind(this));
+    document.addEventListener('visibilitychange', this.onVisibility.bind(this));
+    if (this.motionQuery && this.motionQuery.addEventListener) {
+      this.motionQuery.addEventListener('change', this.applyMotion.bind(this));
+    }
 
     this.loadStage(this.firstUnsolved());
   }
@@ -131,6 +261,40 @@
     return 0;
   };
 
+  // -- localisation -----------------------------------------------------------
+
+  Game.prototype.applyStaticText = function () {
+    var nodes = document.querySelectorAll('[data-t]');
+    for (var i = 0; i < nodes.length; i++) nodes[i].textContent = t(nodes[i].getAttribute('data-t'));
+    var aria = document.querySelectorAll('[data-t-aria]');
+    for (var j = 0; j < aria.length; j++) aria[j].setAttribute('aria-label', t(aria[j].getAttribute('data-t-aria')));
+    if (this.dom.fine) this.dom.fine.textContent = t('stagesFine').replace('%n', STAGES.length);
+    document.documentElement.lang = JA ? 'ja' : 'en';
+  };
+
+  // -- motion -----------------------------------------------------------------
+
+  /**
+   * Reduced motion is a system preference the player may override here.
+   *
+   * `motion-full` on the root is how an explicit "no, I want the animation" beats
+   * the media query in CSS; the canvas is told separately, because a media query
+   * cannot reach into a 2D context.
+   */
+  Game.prototype.motionReduced = function () {
+    if (typeof this.save.data.reduceMotion === 'boolean') return this.save.data.reduceMotion;
+    return !!(this.motionQuery && this.motionQuery.matches);
+  };
+
+  Game.prototype.applyMotion = function () {
+    var reduced = this.motionReduced();
+    var root_ = document.documentElement;
+    root_.classList.toggle('rm', reduced);
+    root_.classList.toggle('motion-full', !reduced);
+    this.renderer.reduceMotion = reduced;
+    this.wake();
+  };
+
   // -- stage lifecycle --------------------------------------------------------
 
   Game.prototype.loadStage = function (index) {
@@ -140,58 +304,114 @@
     this.state = E.initialState(this.stage);
     this.history = [];
     this.queued = null;
+    this.restorePoint = null;
     this.phase = 'play';
 
     this.renderer.setStage(this.stage, this.state);
     this.input.recentre();
 
     var chap = chapterOf(def.id);
-    this.dom.stageLabel.textContent = 'STAGE ' + pad2(def.id) +
-      (chap.name ? ' · ' + chap.name : '');
+    var chapName = JA ? (chap.ja || chap.name) : chap.name;
+    this.dom.stageLabel.textContent = 'STAGE ' + def.id + (chapName ? ' · ' + chapName : '');
     this.dom.stageName.textContent = def.name;
-    if (this.dom.objective) {
-      var obj = OBJECTIVE[this.stage.win];
-      this.dom.objective.textContent = obj ? t(obj) : '';
-    }
     this.dom.par.textContent = String(def.par);
+
+    this.showCoach(def);
     this.hideOverlay();
-    this.showHint(def);
     this.syncHud();
+
+    // The only cue the game shows unprompted, and only until it has been
+    // answered once in the player's life: there is no way to guess "swipe" from
+    // a still picture, and nothing else on this screen is going to say it.
+    this.renderer.gesture = (this.index === 0 && !this.save.data.everMoved);
+    this.renderer.gestureDir = this.demoDirection();
+    this.renderer.gestureT = 0;
+
     this.wake();
   };
 
-  Game.prototype.showHint = function (def) {
-    var el = this.dom.hint;
-    el.classList.remove('show', 'swipe-demo');
-    if (!def.hint) { el.textContent = ''; return; }
-    el.textContent = JA ? def.hint.ja : def.hint.en;
-    // Let the layout settle before animating in, so the hint reads as arriving
-    // rather than as already-there furniture.
-    var self = this;
-    requestAnimationFrame(function () {
-      el.classList.add('show');
-      if (def.id === 1) el.classList.add('swipe-demo');
-    });
-    clearTimeout(this._hintTimer);
-    this._hintTimer = setTimeout(function () { el.classList.remove('show'); }, 6000);
+  /**
+   * A direction the swipe cue can honestly demonstrate.
+   *
+   * The cue used to sweep right unconditionally, and on stage 1 a rightward tilt
+   * moves nothing at all — so the one instruction the game ever gives was an
+   * instruction to do something that does not work. Following a demonstration
+   * and being answered with "nothing happened" is a worse first thirty seconds
+   * than no demonstration at all.
+   *
+   * Horizontal is preferred because a sideways sweep is what a swipe looks like,
+   * but correctness comes first: whatever is shown has to actually move.
+   */
+  Game.prototype.demoDirection = function () {
+    var order = ['L', 'R', 'D', 'U'];
+    for (var i = 0; i < order.length; i++) {
+      if (E.simulate(this.stage, this.state, order[i], { frames: false }).moved) return order[i];
+    }
+    return 'L';
   };
 
-  Game.prototype.dismissHint = function () {
-    this.dom.hint.classList.remove('show');
-    clearTimeout(this._hintTimer);
+  /**
+   * The objective line.
+   *
+   * It is permanent, it sits in space the board was never going to use, and it
+   * is a button — so a rule can be looked up rather than remembered. The teaching
+   * line for a stage the player has not yet solved takes precedence over the
+   * plain objective, and gives way to it once the stage is behind them.
+   */
+  Game.prototype.showCoach = function (def) {
+    var obj = OBJECTIVE[this.stage.win];
+    this.dom.objective.textContent = obj ? t(obj) : '';
+
+    var teach = def.hint && !this.save.isCleared(def.id);
+    if (def.id === 1 && !this.save.data.everMoved) {
+      this.dom.coachHint.textContent = t('swipeCue');
+      this.dom.coach.setAttribute('data-show', 'hint');
+    } else if (teach) {
+      this.dom.coachHint.textContent = JA ? def.hint.ja : def.hint.en;
+      this.dom.coach.setAttribute('data-show', 'hint');
+    } else {
+      this.dom.coachHint.textContent = '';
+      this.dom.coach.setAttribute('data-show', 'obj');
+    }
   };
 
   // -- input ------------------------------------------------------------------
 
   Game.prototype.aim = function (dir) {
-    if (this.phase === 'clear' || this.menuOpen) { this.renderer.aimDir = null; return; }
+    if (this.phase === 'clear' || this.sheets.length) { this.renderer.aimDir = null; return; }
+    if (dir && dir !== this.renderer.aimDir) this.haptics.select();
     this.renderer.aimDir = dir;
     this.wake();
   };
 
+  /** A tap is not a move, but it is a question, and it deserves an answer. */
+  Game.prototype.onTap = function () {
+    if (this.phase !== 'play' || this.sheets.length) return;
+    this.audio.resume();
+    this.armTilt();
+    if (!this.save.data.everMoved) {
+      // Someone tapping the board has not worked out the gesture yet. Put the
+      // cue back rather than leaving them tapping at a board that never answers.
+      this.renderer.gesture = true;
+      this.renderer.gestureT = 0;
+      this.dom.coachHint.textContent = t('swipeCue');
+      this.dom.coach.setAttribute('data-show', 'hint');
+      this.wake();
+    }
+  };
+
+  /** iOS only grants motion access inside a gesture, so it is asked for in one. */
+  Game.prototype.armTilt = function () {
+    if (!this.tiltWanted || this.input.tilt.enabled) return;
+    this.tiltWanted = false;
+    var self = this;
+    this.input.enableTilt(function (ok) { if (!ok) self.save.set('tilt', false); });
+  };
+
   Game.prototype.commit = function (dir) {
     this.audio.resume();
-    if (this.menuOpen) return;
+    this.armTilt();
+    if (this.sheets.length) return;
 
     if (this.phase === 'clear') {
       // A swipe on the clear screen is almost always "go on then".
@@ -199,7 +419,7 @@
       return;
     }
 
-    // A game over is a decision — take the move back, or start again — and a
+    // A run ending is a decision — take the move back, or start again — and a
     // stray swipe is not an answer to it.
     if (this.phase === 'over') return;
 
@@ -215,19 +435,27 @@
 
   Game.prototype.applyMove = function (dir) {
     var res = E.simulate(this.stage, this.state, dir);
-    this.dismissHint();
     this.renderer.gravity = dir;
+    this.restorePoint = null;
 
     if (!res.moved) {
-      // Nothing shifted. Say so, and do not charge a move for it.
+      // Nothing shifted. Say so — in the board's own language, by leaning it
+      // that way and letting it spring back — and do not charge a move for it.
       this.audio.blocked();
+      this.haptics.blocked();
       this.renderer.rebuff(dir);
       this.wake();
       return;
     }
 
+    if (!this.save.data.everMoved) {
+      this.save.set('everMoved', true);
+      this.renderer.gesture = false;
+    }
+
     this.history.push(E.cloneState(this.state));
     this.audio.tilt();
+    this.haptics.tilt();
 
     this.setPhase('busy');
     this.animStart = performance.now();
@@ -235,14 +463,14 @@
 
     var self = this;
     var goalIndex = 0;
-    // Sounds ride the renderer's event clock, so audio and picture cannot drift
-    // apart. A callback rather than a patched method: a stage change mid-slide
-    // clears it along with everything else, instead of leaving a stale
-    // override behind on the renderer.
+    // Sounds and taps ride the renderer's event clock, so audio, haptics and
+    // picture cannot drift apart. A callback rather than a patched method: a
+    // stage change mid-slide clears it along with everything else, instead of
+    // leaving a stale override behind on the renderer.
     this.renderer.onEvent = function (ev) {
-      if (ev.type === 'goal') self.audio.goal(goalIndex++);
-      else if (ev.type === 'stop') self.audio.impact(1);
-      else if (ev.type === 'lost') self.audio.lost();
+      if (ev.type === 'goal') { self.audio.goal(goalIndex++); self.haptics.collect(); }
+      else if (ev.type === 'stop') { self.audio.impact(1); self.haptics.land(); }
+      else if (ev.type === 'lost') { self.audio.lost(); self.haptics.over(); }
     };
 
     var chain = res.events.filter(function (e) { return e.type === 'goal'; }).length;
@@ -252,9 +480,9 @@
       self.renderer.onEvent = null;
       self.state = res.state;
       self.syncHud();
-      // A destroyed block ends the run, and the overlay that says so is the
+      // A destroyed block ends the run, and the card that says so is the
       // announcement — a toast underneath it would only be competing with it.
-      if (!lost && chain >= 2) self.showToast(t('chain') + ' ×' + chain);
+      if (!lost && chain >= 2 && !res.clear) self.showToast(t('chain') + ' ×' + chain);
       self.settle(res);
     });
     this.syncHud();
@@ -269,7 +497,15 @@
       this.setPhase('clear');
       this.renderer.celebrate();
       this.audio.clear();
-      setTimeout(function () { self.showClear(); }, 420);
+      this.haptics.clear();
+      // Long enough for the last block to land and the ring to open; short
+      // enough that nobody is waiting for the card.
+      //
+      // The phase is re-checked when the timer fires, because half a second is
+      // plenty of time for the player to have pressed undo or picked another
+      // stage — and a card that arrives after the thing it was announcing has
+      // been taken back is a card the player cannot explain.
+      setTimeout(function () { if (self.phase === 'clear') self.showClear(); }, 460);
       return;
     }
 
@@ -279,7 +515,9 @@
     if (res.broken) {
       this.queued = null;
       this.setPhase('over');
-      this.showGameOver();
+      // A beat before the card, so the shatter is seen in the cell that caused
+      // it rather than behind a panel. Guarded for the same reason as above.
+      setTimeout(function () { if (self.phase === 'over') self.showGameOver(); }, 340);
       return;
     }
 
@@ -298,19 +536,19 @@
    *
    * The old behaviour was a DEAD END badge on the undo button: correct
    * information, and the wrong shape for it. It asks the player to notice a
-   * label, understand what it means, and then perform the only move the game
-   * was ever going to accept — three steps to arrive somewhere there was no
-   * choice about. Worse, a player who does not read it keeps tilting a board
-   * that cannot be won, and the game says nothing while they do.
+   * label, understand what it means, and then perform the only move the game was
+   * ever going to accept — three steps to arrive somewhere there was no choice
+   * about. Worse, a player who does not read it keeps tilting a board that
+   * cannot be won, and the game says nothing while they do.
    *
    * So the game does it: the move that jammed the board is undone, and a toast
-   * says that is what happened. The position it lands on is guaranteed
-   * winnable, because every position is checked the moment it is reached — so
-   * one step back is always enough, and there is no risk of unwinding a run.
+   * says that is what happened. The position it lands on is guaranteed winnable,
+   * because every position is checked the moment it is reached — so one step
+   * back is always enough, and there is no risk of unwinding a run.
    *
-   * A truncated search means "we could not tell in time", and the board is
-   * given the benefit of the doubt. Refusing a legal position because the
-   * solver ran out of nodes would be far worse than missing a jam.
+   * A truncated search means "we could not tell in time", and the board is given
+   * the benefit of the doubt. Refusing a legal position because the solver ran
+   * out of nodes would be far worse than missing a jam.
    */
   Game.prototype.rewindIfStuck = function () {
     if (!this.history.length) return false;
@@ -322,22 +560,11 @@
     this.renderer.showState(this.state);
     this.renderer.gravity = null;
     this.audio.undo();
+    this.haptics.blocked();
     this.setPhase('play');
-    this.showToast(t('rewound'));
+    this.showToast(t('rewound'), { icon: 'undo' });
     this.wake();
     return true;
-  };
-
-  Game.prototype.showGameOver = function () {
-    var lines = [];
-    lines.push('<div class="ov-kicker">STAGE ' + pad2(STAGES[this.index].id) + '</div>');
-    lines.push('<h2 class="ov-title over">' + t('gameOver') + '</h2>');
-    lines.push('<div class="ov-note">' + t('overBody') + '</div>');
-    lines.push('<div class="ov-actions">' +
-      '<button class="btn primary" data-act="restart">' + t('retry') + '</button>' +
-      (this.history.length ? '<button class="btn ghost" data-act="undo">' + t('undo') + '</button>' : '') +
-      '</div>');
-    this.openOverlay(lines.join(''), 'over');
   };
 
   // -- undo / restart ---------------------------------------------------------
@@ -345,9 +572,9 @@
   /**
    * Abandon a slide that is still playing.
    *
-   * The logical state is not committed until the animation finishes, so
-   * throwing the animation away leaves the board exactly where the move
-   * started. That is what makes it safe to interrupt one.
+   * The logical state is not committed until the animation finishes, so throwing
+   * the animation away leaves the board exactly where the move started. That is
+   * what makes it safe to interrupt one.
    */
   Game.prototype.cancelSlide = function () {
     if (this.phase !== 'busy') return false;
@@ -373,6 +600,7 @@
       this.renderer.showState(this.state);
       this.renderer.gravity = null;
       this.audio.undo();
+      this.haptics.tilt();
       this.syncHud();
       this.wake();
       return;
@@ -382,18 +610,39 @@
     this.audio.resume();
     this.state = this.history.pop();
     this.queued = null;
+    this.restorePoint = null;
     this.setPhase('play');
     this.renderer.showState(this.state);
     this.renderer.gravity = null;
     this.hideOverlay();
     this.audio.undo();
+    this.haptics.tilt();
     this.syncHud();
     this.wake();
   };
 
-  Game.prototype.restart = function () {
-    // Restart is always answerable, mid-slide included: wherever the board is
-    // going, the beginning is where it is going instead.
+  /**
+   * Restart, without a dialog in front of it.
+   *
+   * Restart used to sit beside Undo as its identical twin, which is how a player
+   * throws away forty moves on stage 40 by hitting the wrong half of the dock.
+   * The usual fix is a confirmation sheet, and the usual fix is wrong: it taxes
+   * the ninety-nine restarts that were meant in order to catch the one that was
+   * not.
+   *
+   * The Apple answer is to let the action happen and offer it back. So restart is
+   * instant, and the notice that says it happened carries the way out. Nothing to
+   * confirm, nothing lost, one tap either way.
+   */
+  Game.prototype.restart = function (opts) {
+    var silent = !!(opts && opts.silent);
+    var worth = !silent && this.state && this.state.moves > 0;
+    var snap = worth ? {
+      state: E.cloneState(this.state),
+      history: this.history.map(E.cloneState),
+      phase: this.phase === 'busy' ? 'play' : this.phase
+    } : null;
+
     this.cancelSlide();
     this.audio.resume();
     this.state = E.initialState(this.stage);
@@ -404,6 +653,33 @@
     this.hideOverlay();
     this.audio.ui(false);
     this.syncHud();
+    this.wake();
+
+    this.restorePoint = snap;
+    if (snap) {
+      var self = this;
+      this.showToast(t('restarted'), {
+        icon: 'restart',
+        action: t('undoShort'),
+        onAction: function () { self.undoRestart(); },
+        ms: 4200
+      });
+    }
+  };
+
+  Game.prototype.undoRestart = function () {
+    var rp = this.restorePoint;
+    if (!rp) return;
+    this.restorePoint = null;
+    this.state = rp.state;
+    this.history = rp.history;
+    this.renderer.showState(this.state);
+    this.renderer.gravity = null;
+    this.audio.undo();
+    this.haptics.tilt();
+    this.setPhase(rp.phase === 'over' ? 'over' : 'play');
+    if (rp.phase === 'over') this.showGameOver();
+    this.hideToast();
     this.wake();
   };
 
@@ -416,7 +692,7 @@
     }
   };
 
-  // -- HUD & overlays ---------------------------------------------------------
+  // -- HUD & toast ------------------------------------------------------------
 
   /**
    * The only way the phase is allowed to change.
@@ -432,30 +708,55 @@
   };
 
   Game.prototype.syncHud = function () {
+    var def = STAGES[this.index];
     this.dom.moves.textContent = String(this.state.moves);
-    var best = this.save.best(STAGES[this.index].id);
-    this.dom.moves.classList.toggle('over', this.state.moves > STAGES[this.index].par);
+    this.dom.moves.classList.toggle('over', this.state.moves > def.par);
     // Enabled during a slide too — an in-flight move is exactly the thing undo
     // can still take back.
     this.dom.btnUndo.disabled = !this.history.length || this.phase === 'clear';
-    var bestEl = document.getElementById('best');
-    if (bestEl) {
-      bestEl.textContent = best == null ? '—' : String(best);
-    }
   };
 
-  Game.prototype.showToast = function (text) {
+  Game.prototype.showToast = function (text, opts) {
+    opts = opts || {};
     var el = this.dom.toast;
-    el.textContent = text;
+    var html = '';
+    if (opts.icon) html += icon(opts.icon);
+    html += '<span class="t-txt">' + esc(text) + '</span>';
+    if (opts.action) html += '<button class="t-act" type="button">' + esc(opts.action) + '</button>';
+    el.innerHTML = html;
+
+    if (opts.onAction) {
+      var btn = el.querySelector('.t-act');
+      var self = this;
+      if (btn) btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        self.audio.ui(false);
+        opts.onAction();
+      });
+    }
+
     el.classList.remove('show');
     void el.offsetWidth;
     el.classList.add('show');
     clearTimeout(this._toastTimer);
-    var self = this;
-    this._toastTimer = setTimeout(function () { el.classList.remove('show'); }, 1100);
+    var self2 = this;
+    this._toastTimer = setTimeout(function () {
+      el.classList.remove('show');
+      self2.restorePoint = null;
+    }, opts.ms || 1600);
   };
 
-  function self_isCleared(save, id) { return save.isCleared(id); }
+  Game.prototype.hideToast = function () {
+    clearTimeout(this._toastTimer);
+    this.dom.toast.classList.remove('show');
+  };
+
+  // -- cards ------------------------------------------------------------------
+
+  function stat(label, value, cls) {
+    return '<div class="ov-stat ' + (cls || '') + '"><span class="k">' + esc(label) +
+      '</span><span class="v">' + esc(value == null ? '—' : value) + '</span></div>';
+  }
 
   Game.prototype.showClear = function () {
     var self_save = this.save;
@@ -468,48 +769,81 @@
     this.syncHud();
 
     var chap = chapterOf(def.id);
+    var chapName = JA ? (chap.ja || chap.name) : chap.name;
     var chapDone = def.id === chap.to && STAGES.filter(function (d) {
-      return d.id >= chap.from && d.id <= chap.to && self_isCleared(self_save, d.id);
+      return d.id >= chap.from && d.id <= chap.to && self_save.isCleared(d.id);
     }).length === (chap.to - chap.from + 1);
 
     var lines = [];
-    lines.push('<div class="ov-kicker">' +
-      (chapDone ? t('chapEnd') + ' · ' + chap.name : 'STAGE ' + pad2(def.id) + ' · ' + def.name) +
-      '</div>');
-    lines.push('<h2 class="ov-title' + (perfect ? ' perfect' : '') + '">' + (perfect ? t('perfect') : t('clear')) + '</h2>');
+    // Star for a perfect line, check for a solve — the same two glyphs the stage
+    // list uses, so the result means the same thing in both places without
+    // anyone having to tell amber from cyan.
+    lines.push('<div class="ov-mark' + (perfect ? ' perfect' : '') + '">' +
+      icon(perfect ? 'star' : 'check') + '</div>');
+    lines.push('<div class="ov-kicker">' + esc(chapDone
+      ? t('chapEnd') + ' · ' + chapName
+      : 'STAGE ' + def.id + ' · ' + def.name) + '</div>');
+    lines.push('<h2 class="ov-title' + (perfect ? ' perfect' : '') + '">' +
+      esc(perfect ? t('perfect') : t('clear')) + '</h2>');
+    if (improved && prevBest != null) {
+      lines.push('<div class="ov-flag">' + icon('check') + esc(t('newBest')) + '</div>');
+    }
     lines.push('<div class="ov-stats">' +
       stat(t('moves'), moves) +
       stat(t('par'), def.par) +
-      stat(t('best'), this.save.best(def.id)) +
+      stat(t('bestShort'), this.save.best(def.id), 'is-best') +
       '</div>');
-    if (improved && prevBest != null) lines.push('<div class="ov-flag">' + t('newBest') + '</div>');
     if (!perfect) {
-      lines.push('<div class="ov-note">' + (JA
-        ? '最短は ' + def.par + ' 手。'
-        : 'It can be done in ' + def.par + '.') + '</div>');
+      lines.push('<div class="ov-note">' + esc(t('parNote').replace('%n', def.par)) + '</div>');
     }
     lines.push('<div class="ov-actions">' +
-      '<button class="btn primary" data-act="next">' + (last ? t('allClear') : t('next')) + '</button>' +
-      '<button class="btn ghost" data-act="retry">' + t('retry') + '</button>' +
+      '<button class="btn primary" type="button" data-act="next">' +
+        esc(last ? t('allClear') : t('next')) + '</button>' +
+      '<button class="btn plain" type="button" data-act="retry">' + esc(t('retry')) + '</button>' +
       '</div>');
 
     this.openOverlay(lines.join(''), 'clear');
   };
 
+  /**
+   * The run ended, and UNDO is the primary action.
+   *
+   * It used to be RESTART, which on a fifty-move board offers to throw the whole
+   * afternoon away as the obvious choice, when one tap puts the block back and
+   * the position is live again. The cheap, reversible answer goes first; the
+   * expensive one stays available and quiet.
+   */
+  Game.prototype.showGameOver = function () {
+    var lines = [];
+    lines.push('<div class="ov-mark over">' + icon('hazard') + '</div>');
+    lines.push('<div class="ov-kicker">STAGE ' + STAGES[this.index].id + '</div>');
+    lines.push('<h2 class="ov-title over">' + esc(t('gameOver')) + '</h2>');
+    lines.push('<div class="ov-note">' + esc(t('overBody')) + '</div>');
+    lines.push('<div class="ov-actions">' +
+      (this.history.length
+        ? '<button class="btn primary" type="button" data-act="undo">' + esc(t('undo')) + '</button>'
+        : '') +
+      '<button class="btn ' + (this.history.length ? 'plain' : 'primary') + '" type="button" data-act="restart">' +
+        esc(t('restart')) + '</button>' +
+      '</div>');
+    this.openOverlay(lines.join(''), 'over');
+  };
+
   Game.prototype.showAllClear = function () {
-    var total = 0, par = 0, done = 0;
+    var total = 0, par = 0;
     var self = this;
     STAGES.forEach(function (s) {
       var b = self.save.best(s.id);
-      if (b != null) { total += b; done++; }
+      if (b != null) total += b;
       par += s.par;
     });
     var lines = [];
-    lines.push('<h2 class="ov-title perfect">' + t('allClear') + '</h2>');
-    lines.push('<div class="ov-note">' + t('allBody') + '</div>');
+    lines.push('<div class="ov-mark perfect">' + icon('check') + '</div>');
+    lines.push('<h2 class="ov-title perfect">' + esc(t('allClear')) + '</h2>');
+    lines.push('<div class="ov-note">' + esc(t('allBody')) + '</div>');
     lines.push('<div class="ov-stats">' + stat(t('moves'), total) + stat(t('par'), par) + '</div>');
     lines.push('<div class="ov-actions">' +
-      '<button class="btn primary" data-act="menu">' + t('stages') + '</button></div>');
+      '<button class="btn primary" type="button" data-act="menu">' + esc(t('stages')) + '</button></div>');
     this.openOverlay(lines.join(''), 'clear');
   };
 
@@ -517,13 +851,14 @@
     var ov = this.dom.overlay;
     ov.innerHTML = '<div class="ov-card">' + html + '</div>';
     ov.className = 'overlay show ' + kind;
+    document.body.classList.add('carded');
     var self = this;
     ov.querySelectorAll('[data-act]').forEach(function (b) {
       b.addEventListener('click', function () {
         var act = b.getAttribute('data-act');
         self.audio.ui(act === 'next');
         if (act === 'next') self.next();
-        else if (act === 'retry' || act === 'restart') self.restart();
+        else if (act === 'retry' || act === 'restart') self.restart({ silent: true });
         else if (act === 'undo') self.undo();
         else if (act === 'menu') self.openMenu();
       });
@@ -533,13 +868,72 @@
   Game.prototype.hideOverlay = function () {
     this.dom.overlay.className = 'overlay';
     this.dom.overlay.innerHTML = '';
+    document.body.classList.remove('carded');
   };
 
-  function stat(label, value) {
-    return '<div class="ov-stat"><span class="k">' + label + '</span><span class="v">' + value + '</span></div>';
-  }
+  // -- sheets -----------------------------------------------------------------
 
-  // -- menu -------------------------------------------------------------------
+  Game.prototype.openSheet = function (el) {
+    if (this.sheets.indexOf(el) >= 0) return;
+    var top = this.sheets[this.sheets.length - 1];
+    if (top) top.classList.add('behind');
+    this.sheets.push(el);
+    el.classList.add('show');
+    el.setAttribute('aria-hidden', 'false');
+    this.dom.scrim.classList.add('show');
+    this.dom.app.setAttribute('aria-hidden', 'true');
+    this.renderer.aimDir = null;
+    this.audio.ui(true);
+    this.wake();
+  };
+
+  Game.prototype.closeSheet = function () {
+    var el = this.sheets.pop();
+    if (!el) return;
+    el.classList.remove('show');
+    el.style.transform = '';
+    el.setAttribute('aria-hidden', 'true');
+    var top = this.sheets[this.sheets.length - 1];
+    if (top) top.classList.remove('behind');
+    else {
+      this.dom.scrim.classList.remove('show');
+      this.dom.app.removeAttribute('aria-hidden');
+    }
+    this.audio.ui(false);
+    this.wake();
+  };
+
+  Game.prototype.closeAllSheets = function () {
+    while (this.sheets.length) this.closeSheet();
+  };
+
+  // `menuOpen` stays as the flag the frame loop and input paths read: whether
+  // anything is covering the board is one question, not three.
+  Object.defineProperty(Game.prototype, 'menuOpen', {
+    get: function () { return this.sheets.length > 0; }
+  });
+
+  Game.prototype.openMenu = function () {
+    // Show first, then fill: the grid scrolls the current stage into view, and
+    // that only works once the panel is actually on screen.
+    this.openSheet(this.dom.menu);
+    this.renderStageGrid();
+  };
+
+  Game.prototype.closeMenu = function () { this.closeAllSheets(); };
+
+  Game.prototype.openSettings = function () {
+    this.renderSettings();
+    this.openSheet(this.dom.settings);
+  };
+
+  Game.prototype.openHowTo = function () {
+    this.renderHowTo();
+    this.openSheet(this.dom.howto);
+    this.save.set('seenHowTo', true);
+  };
+
+  // -- stage list -------------------------------------------------------------
 
   Game.prototype.renderStageGrid = function () {
     var grid = this.dom.grid;
@@ -550,8 +944,12 @@
     var cleared = this.save.clearedCount();
     var summary = document.getElementById('menu-progress');
     if (summary) {
-      summary.innerHTML = '<span class="pv">' + cleared + '</span><span class="pt">/ ' + total + '</span>' +
-        '<span class="pl">' + t('progress') + '</span>';
+      var pct = Math.round(cleared / total * 100);
+      summary.innerHTML =
+        '<span class="pv">' + cleared + '</span>' +
+        '<span class="pt">/ ' + total + '</span>' +
+        '<span class="pbar"><i style="width:' + pct + '%"></i></span>' +
+        '<span class="pl">' + esc(t('progress')) + '</span>';
     }
 
     CHAPTERS.forEach(function (chap) {
@@ -560,12 +958,13 @@
 
       var done = stages.filter(function (d) { return self.save.isCleared(d.id); }).length;
       var open = stages.some(function (d) { return self.save.isUnlocked(d.id); });
+      var name = JA ? (chap.ja || chap.name) : chap.name;
 
       var head = document.createElement('div');
       head.className = 'chap-head' + (done === stages.length ? ' done' : '') + (open ? '' : ' locked');
       head.innerHTML =
         '<span class="cn">' + (chap.number < 10 ? '0' + chap.number : chap.number) + '</span>' +
-        '<span class="cname">' + chap.name + '</span>' +
+        '<span class="cname">' + esc(name) + '</span>' +
         '<span class="cprog">' + done + '/' + stages.length + '</span>';
       grid.appendChild(head);
 
@@ -574,18 +973,27 @@
       stages.forEach(function (def) {
         var unlocked = self.save.isUnlocked(def.id);
         var best = self.save.best(def.id);
+        var perfect = best != null && best === def.par;
         var b = document.createElement('button');
+        b.type = 'button';
         b.className = 'cell' + (unlocked ? '' : ' locked') + (best != null ? ' done' : '') +
-          (best != null && best === def.par ? ' perfect' : '') +
+          (perfect ? ' perfect' : '') +
           (STAGES[self.index] && STAGES[self.index].id === def.id ? ' current' : '');
-        b.innerHTML = '<span class="n">' + pad2(def.id) + '</span>' +
-          '<span class="nm">' + def.name + '</span>' +
-          '<span class="bs">' + (best == null ? (unlocked ? '—' : '🔒') : best + '/' + def.par) + '</span>';
+        // Three states, three glyphs, three positions — the colour is the last
+        // thing carrying the meaning here rather than the first.
+        var foot = !unlocked ? icon('lock')
+          : best == null ? '<span>' + esc(t('par')) + ' ' + def.par + '</span>'
+          : icon(perfect ? 'star' : 'check') + '<span>' + best + '</span>';
+        b.innerHTML = '<span class="n">' + def.id + '</span>' +
+          '<span class="nm">' + esc(def.name) + '</span>' +
+          '<span class="bs">' + foot + '</span>';
         b.disabled = !unlocked;
+        b.setAttribute('aria-label', (JA ? 'ステージ ' : 'Stage ') + def.id + ' ' + def.name +
+          (unlocked ? (best == null ? '' : ' · ' + t('bestShort') + ' ' + best) : ' · ' + t('locked')));
         b.addEventListener('click', function () {
           if (!unlocked) return;
           self.audio.ui(true);
-          self.closeMenu();
+          self.closeAllSheets();
           self.loadStage(STAGES.indexOf(def));
         });
         row.appendChild(b);
@@ -601,65 +1009,213 @@
     }
   };
 
-  Game.prototype.openMenu = function () {
-    // Show first, then fill: the grid scrolls the current stage into view, and
-    // that only works once the panel is actually on screen.
-    this.menuOpen = true;
-    this.dom.menu.classList.add('show');
-    this.renderStageGrid();
-    this.renderer.aimDir = null;
-    this.audio.ui(true);
-  };
-
-  Game.prototype.closeMenu = function () {
-    this.menuOpen = false;
-    this.dom.menu.classList.remove('show');
-    this.wake();
-  };
-
   // -- settings ---------------------------------------------------------------
 
-  Game.prototype.applySoundButton = function () {
-    var on = this.save.data.sound;
-    this.dom.btnSound.classList.toggle('off', !on);
-    this.dom.btnSound.setAttribute('aria-pressed', String(on));
-    this.dom.btnSound.title = on ? 'Sound on' : 'Sound off';
-  };
-
-  Game.prototype.toggleSound = function () {
-    var on = !this.save.data.sound;
-    this.save.set('sound', on);
-    this.audio.setMuted(!on);
-    this.applySoundButton();
-    if (on) { this.audio.resume(); this.audio.ui(true); }
-  };
-
-  Game.prototype.applyTiltButton = function (on) {
-    this.dom.btnTilt.classList.toggle('active', !!on);
-    this.dom.btnTilt.setAttribute('aria-pressed', String(!!on));
-    if (!this.input.tilt.supported) this.dom.btnTilt.classList.add('unavailable');
-  };
-
-  Game.prototype.toggleTilt = function () {
+  Game.prototype.renderSettings = function () {
     var self = this;
-    if (this.input.tilt.enabled) {
-      this.input.disableTilt();
-      this.save.set('tilt', false);
-      this.applyTiltButton(false);
-      this.showToast(t('tiltOff'));
-      return;
+    var list = this.dom.settingsList;
+    var rows = [];
+
+    function sw(id, label, on, note) {
+      return '<button class="row tap" type="button" role="switch" data-set="' + id + '" ' +
+        'aria-checked="' + (on ? 'true' : 'false') + '">' +
+        '<span class="rl"><span class="rt">' + esc(label) + '</span>' +
+        (note ? '<span class="rs">' + esc(note) + '</span>' : '') + '</span>' +
+        '<span class="sw"></span></button>';
     }
-    this.input.enableTilt(function (ok, why) {
-      if (ok) {
-        self.save.set('tilt', true);
-        self.applyTiltButton(true);
-        self.showToast(t('tiltOn'));
-      } else {
-        self.applyTiltButton(false);
-        self.showToast(why === 'denied' ? t('tiltDenied') : t('tiltNo'));
-      }
+
+    rows.push(sw('sound', t('sound'), this.save.data.sound !== false));
+    if (this.haptics.supported) {
+      rows.push(sw('haptics', t('haptics'), this.save.data.haptics !== false));
+    }
+    if (this.input.tilt.supported) {
+      rows.push(sw('tilt', t('tiltCtl'), this.input.tilt.enabled, t('tiltNote')));
+    }
+    rows.push(sw('motion', t('reduceMo'), this.motionReduced(), t('reduceNote')));
+
+    var html = '<div class="list">' + rows.join('') + '</div>';
+
+    html += '<div class="list">' +
+      '<button class="row tap" type="button" data-act="howto">' +
+        icon('help') +
+        '<span class="rl"><span class="rt">' + esc(t('howto')) + '</span></span>' +
+        icon('chevron', 'chev') +
+      '</button></div>';
+
+    html += '<div class="list">' +
+      '<button class="row tap destructive" type="button" data-act="reset">' +
+        '<span class="rl"><span class="rt">' + esc(t('resetRow')) + '</span></span>' +
+      '</button></div>';
+
+    list.innerHTML = html;
+
+    list.querySelectorAll('[data-set]').forEach(function (el) {
+      el.addEventListener('click', function () { self.toggleSetting(el.getAttribute('data-set')); });
+    });
+    list.querySelectorAll('[data-act]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var act = el.getAttribute('data-act');
+        if (act === 'howto') self.openHowTo();
+        else if (act === 'reset') self.askReset();
+      });
     });
   };
+
+  Game.prototype.toggleSetting = function (key) {
+    var self = this;
+    if (key === 'sound') {
+      var on = this.save.data.sound === false;
+      this.save.set('sound', on);
+      this.audio.setMuted(!on);
+      if (on) { this.audio.resume(); this.audio.ui(true); }
+    } else if (key === 'haptics') {
+      var h = this.save.data.haptics === false;
+      this.save.set('haptics', h);
+      this.haptics.setEnabled(h);
+      if (h) this.haptics.select();
+    } else if (key === 'motion') {
+      this.save.set('reduceMotion', !this.motionReduced());
+      this.applyMotion();
+      this.audio.ui(false);
+    } else if (key === 'tilt') {
+      if (this.input.tilt.enabled) {
+        this.input.disableTilt();
+        this.save.set('tilt', false);
+        this.renderSettings();
+        this.showToast(t('tiltOff'));
+        return;
+      }
+      this.input.enableTilt(function (ok, why) {
+        if (ok) {
+          self.save.set('tilt', true);
+          self.showToast(t('tiltOn'));
+        } else {
+          self.save.set('tilt', false);
+          self.showToast(why === 'denied' ? t('tiltDenied') : t('tiltNo'));
+        }
+        self.renderSettings();
+      });
+      return;
+    }
+    this.renderSettings();
+  };
+
+  /**
+   * The one confirmation left in the game.
+   *
+   * Everything else that could go wrong is undoable, so nothing else asks. This
+   * one is not undoable — it erases a campaign — so it asks properly: an action
+   * sheet naming the consequence, with the destructive choice in red and Cancel
+   * as the safe default. `window.confirm` would have been one line, and it would
+   * have looked like a browser had crashed into the game.
+   */
+  Game.prototype.askReset = function () {
+    var self = this;
+    var el = document.createElement('div');
+    el.className = 'overlay show confirm';
+    el.style.position = 'fixed';
+    el.style.zIndex = '40';
+    el.innerHTML = '<div class="ov-card">' +
+      '<h2 class="ov-title" style="font-size:var(--t-title3)">' + esc(t('resetTitle')) + '</h2>' +
+      '<div class="ov-note">' + esc(t('resetBody')) + '</div>' +
+      '<div class="ov-actions">' +
+        '<button class="btn danger" type="button" data-c="yes">' + esc(t('resetDo')) + '</button>' +
+        '<button class="btn ghost" type="button" data-c="no">' + esc(t('cancel')) + '</button>' +
+      '</div></div>';
+    document.body.appendChild(el);
+
+    var done = function (yes) {
+      el.remove();
+      if (!yes) { self.audio.ui(false); return; }
+      self.save.reset();
+      self.applyMotion();
+      self.haptics.setEnabled(true);
+      self.audio.setMuted(false);
+      self.closeAllSheets();
+      self.loadStage(0);
+    };
+    el.querySelector('[data-c="yes"]').addEventListener('click', function () { done(true); });
+    el.querySelector('[data-c="no"]').addEventListener('click', function () { done(false); });
+    el.addEventListener('click', function (e) { if (e.target === el) done(false); });
+  };
+
+  // -- how to play ------------------------------------------------------------
+
+  /**
+   * Four rules, four pictures, one line each.
+   *
+   * A player who never opens this should still be able to finish the game — the
+   * boards teach every one of these, in the order they are listed, and the
+   * objective line carries whichever one is in play. This exists for the player
+   * who put the phone down on stage 12 and picked it up a week later.
+   */
+  Game.prototype.renderHowTo = function () {
+    var F = FIGURES;
+    var rules = [
+      ['r1h', 'r1p', F.gravity],
+      ['r2h', 'r2p', F.stop],
+      ['r3h', 'r3p', F.brake],
+      ['r4h', 'r4p', F.hazard]
+    ];
+    var html = rules.map(function (r) {
+      return '<div class="rule">' +
+        '<div class="fig" aria-hidden="true">' + r[2] + '</div>' +
+        '<div class="rd"><div class="rh">' + esc(t(r[0])) + '</div>' +
+        '<div class="rp">' + esc(t(r[1])) + '</div></div></div>';
+    }).join('');
+    html += '<p class="group-note" style="margin-top:var(--s4)">' + esc(t('r5')) + '</p>';
+    this.dom.howtoBody.innerHTML = html;
+  };
+
+  // The figures use the board's own drawing language — same corner radii, same
+  // socket ring, same hazard hatch — so the diagram and the game are visibly the
+  // same object rather than an illustration of it.
+  var FIGURES = (function () {
+    function frame(inner) {
+      return '<svg viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+        '<rect x="1" y="1" width="70" height="70" rx="14" fill="rgba(140,160,230,0.05)" ' +
+        'stroke="rgba(150,170,255,0.14)"/>' + inner + '</svg>';
+    }
+    var block = '<rect x="8" y="42" width="22" height="22" rx="6" fill="#38D6F5"/>' +
+                '<circle cx="19" cy="53" r="3.4" fill="rgba(6,10,26,0.5)"/>';
+    return {
+      gravity: frame(
+        '<rect x="8" y="8" width="22" height="22" rx="6" fill="#38D6F5"/>' +
+        '<circle cx="19" cy="19" r="3.4" fill="rgba(6,10,26,0.5)"/>' +
+        '<path d="M40 19h18M52 13l6 6-6 6" stroke="#A6B0D2" stroke-width="2.6" ' +
+        'stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<rect x="42" y="42" width="22" height="22" rx="6" fill="rgba(56,214,245,0.28)"/>'),
+      // The block goes THROUGH the socket and stops past it: the one rule the
+      // whole game rests on, drawn as the mistake everybody makes once.
+      stop: frame(
+        '<rect x="26" y="26" width="20" height="20" rx="5" fill="rgba(0,0,10,0.3)" ' +
+        'stroke="#B9C6EE" stroke-width="2.4"/>' +
+        '<circle cx="36" cy="36" r="3.4" stroke="#B9C6EE" stroke-width="2"/>' +
+        '<path d="M10 36h10" stroke="#7A85AE" stroke-width="2.4" stroke-linecap="round" ' +
+        'stroke-dasharray="4 4"/>' +
+        '<rect x="50" y="25" width="22" height="22" rx="6" fill="#38D6F5" transform="translate(-6,0)"/>' +
+        '<circle cx="55" cy="36" r="3.4" fill="rgba(6,10,26,0.5)"/>'),
+      // All three brakes at once, in the order the campaign teaches them: a block
+      // pressed flat against the tray EDGE on the left, a WALL slab merged into
+      // the right-hand edge, and a second BLOCK stopped against it.
+      brake: frame(
+        '<rect x="1" y="24" width="22" height="24" rx="5" fill="#38D6F5"/>' +
+        '<circle cx="13" cy="36" r="3.4" fill="rgba(6,10,26,0.5)"/>' +
+        '<rect x="30" y="26" width="20" height="20" rx="5" fill="#B479FF"/>' +
+        '<rect x="36" y="32" width="8" height="8" fill="rgba(6,10,26,0.5)"/>' +
+        '<rect x="52" y="21" width="19" height="30" rx="2" fill="#232945" ' +
+        'stroke="rgba(160,180,250,0.22)"/>'),
+      hazard: frame(
+        '<clipPath id="hzc"><rect x="26" y="26" width="20" height="20" rx="5"/></clipPath>' +
+        '<rect x="26" y="26" width="20" height="20" rx="5" fill="#25070F"/>' +
+        '<g clip-path="url(#hzc)" stroke="rgba(255,96,110,0.55)" stroke-width="4">' +
+        '<path d="M18 50 38 22M28 50 48 22M38 50 58 22"/></g>' +
+        '<rect x="26" y="26" width="20" height="20" rx="5" stroke="rgba(255,116,116,0.5)"/>' +
+        '<path d="M12 36h8M52 36h8" stroke="#7A85AE" stroke-width="2.4" stroke-linecap="round" ' +
+        'stroke-dasharray="4 4"/>' + block.replace('y="42"', 'y="25"').replace('cy="53"', 'cy="36"')
+          .replace('x="8"', 'x="4"').replace('cx="19"', 'cx="15"'))
+    };
+  })();
 
   // -- wiring -----------------------------------------------------------------
 
@@ -671,25 +1227,73 @@
     };
     tap(this.dom.btnUndo, function () { self.undo(); });
     tap(this.dom.btnRestart, function () { self.restart(); });
-    tap(this.dom.btnSound, function () { self.toggleSound(); });
-    tap(this.dom.btnTilt, function () { self.toggleTilt(); });
     tap(this.dom.btnMenu, function () { self.openMenu(); });
-    tap(this.dom.btnClose, function () { self.closeMenu(); });
-    tap(this.dom.btnReset, function () {
-      if (window.confirm(t('resetAsk'))) {
-        self.save.reset();
-        self.renderStageGrid();
-        self.closeMenu();
-        self.loadStage(0);
-      }
-    });
+    tap(this.dom.btnClose, function () { self.closeAllSheets(); });
+    tap(this.dom.btnSettings, function () { self.openSettings(); });
+    tap(this.dom.btnSettingsBack, function () { self.closeSheet(); });
+    tap(this.dom.btnSettingsClose, function () { self.closeAllSheets(); });
+    tap(this.dom.btnHowtoClose, function () { self.closeSheet(); });
+    tap(this.dom.coach, function () { self.openHowTo(); });
+    tap(this.dom.scrim, function () { self.closeAllSheets(); });
+
+    this.bindSheetDrag(this.dom.menu);
+    this.bindSheetDrag(this.dom.settings);
+    this.bindSheetDrag(this.dom.howto);
 
     window.addEventListener('keydown', function (e) {
       if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') { e.preventDefault(); self.undo(); }
       else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); self.restart(); }
-      else if (e.key === 'Escape') { self.menuOpen ? self.closeMenu() : self.openMenu(); }
-      else if (e.key === 'Enter' && self.phase === 'clear') { self.next(); }
+      else if (e.key === 'Escape') {
+        if (self.sheets.length) self.closeSheet(); else self.openMenu();
+      } else if (e.key === 'Enter' && self.phase === 'clear') { self.next(); }
     });
+  };
+
+  /**
+   * Drag a sheet down to dismiss it.
+   *
+   * Bound to the grabber and the title bar only. Binding it to the whole sheet
+   * would mean every attempt to scroll the stage list fights the dismiss
+   * gesture, which is the single most common way this interaction is got wrong.
+   */
+  Game.prototype.bindSheetDrag = function (sheet) {
+    if (!sheet) return;
+    var self = this;
+    var handles = sheet.querySelectorAll('.grabber, .sheet-bar');
+    var startY = null, dy = 0, t0 = 0;
+
+    var down = function (e) {
+      if (e.target.closest && e.target.closest('button')) return;
+      var p = e.touches ? e.touches[0] : e;
+      startY = p.clientY; dy = 0; t0 = performance.now();
+      sheet.style.transition = 'none';
+    };
+    var move = function (e) {
+      if (startY == null) return;
+      var p = e.touches ? e.touches[0] : e;
+      dy = Math.max(0, p.clientY - startY);
+      if (dy > 2 && e.cancelable) e.preventDefault();
+      // Resist upward and past the top: the sheet is already where it goes.
+      sheet.style.transform = 'translateY(' + dy + 'px)';
+    };
+    var up = function () {
+      if (startY == null) return;
+      var quick = performance.now() - t0 < 300 && dy > 40;
+      sheet.style.transition = '';
+      sheet.style.transform = '';
+      startY = null;
+      if (dy > 110 || quick) self.closeSheet();
+    };
+
+    for (var i = 0; i < handles.length; i++) {
+      handles[i].addEventListener('touchstart', down, { passive: true });
+      handles[i].addEventListener('touchmove', move, { passive: false });
+      handles[i].addEventListener('touchend', up, { passive: true });
+      handles[i].addEventListener('touchcancel', up, { passive: true });
+      handles[i].addEventListener('mousedown', down);
+    }
+    window.addEventListener('mousemove', function (e) { if (startY != null) move(e); });
+    window.addEventListener('mouseup', function () { if (startY != null) up(); });
   };
 
   // -- frame loop -------------------------------------------------------------
@@ -698,6 +1302,7 @@
     var self = this;
     clearTimeout(this._resizeTimer);
     this._resizeTimer = setTimeout(function () {
+      document.documentElement.style.setProperty('--tsx', String(measureTypeScale()));
       self.renderer.layout();
       self.wake();
     }, 60);
@@ -727,13 +1332,13 @@
 
   Game.prototype.loop = function (now) {
     if (document.hidden) { this.running = false; return; }
-    // The menu covers the board completely; there is nothing to spend frames on.
-    if (this.menuOpen) { this.running = false; return; }
+    // A sheet covers the board completely; there is nothing to spend frames on.
+    if (this.sheets.length) { this.running = false; return; }
 
     var dt = Math.min(64, now - this.last);
 
-    // While the board is at rest, drop to a low frame rate. Thinking time is
-    // the longest part of this game and it should not cost the player battery.
+    // While the board is at rest, drop to a low frame rate. Thinking time is the
+    // longest part of this game and it should not cost the player battery.
     if (!this.busyFrames && dt < IDLE_FRAME_MS) {
       requestAnimationFrame(this.loop);
       return;
@@ -744,21 +1349,40 @@
     requestAnimationFrame(this.loop);
   };
 
-  function pad2(n) { return n < 10 ? '0' + n : String(n); }
-
   root.TiltGame = { Game: Game, TXT: TXT, JA: JA };
+
+  /**
+   * The launch curtain.
+   *
+   * It is the app's own background with the wordmark on it, which is exactly
+   * what a system launch screen is: the first frame of the app, not an
+   * advertisement in front of it. It costs no time on a return visit — it lifts
+   * the moment the board is ready — and is held for a beat exactly once, the
+   * first time somebody ever opens the game, so TILT gets to say its name.
+   */
+  function dropCurtain(first) {
+    var c = document.getElementById('launch');
+    if (!c) return;
+    setTimeout(function () {
+      c.classList.add('gone');
+      setTimeout(function () { if (c.parentNode) c.parentNode.removeChild(c); }, 460);
+    }, first ? 620 : 90);
+  }
 
   // Boot once the DOM is parseable. The engine has no async dependencies, so
   // this is the only load-order concern in the whole game.
   function boot() {
     try {
       root.game = new Game();
+      dropCurtain(!root.game.save.data.everMoved && !root.game.save.clearedCount());
     } catch (err) {
+      var c = document.getElementById('launch');
+      if (c && c.parentNode) c.parentNode.removeChild(c);
       var el = document.getElementById('app');
       if (el) {
         el.innerHTML = '<div class="fatal"><h1>TILT</h1><p>' +
           (JA ? 'ゲームを起動できませんでした。' : 'The game failed to start.') +
-          '</p><pre>' + String(err && err.message || err) + '</pre></div>';
+          '</p><pre>' + esc(String(err && err.message || err)) + '</pre></div>';
       }
       throw err;
     }

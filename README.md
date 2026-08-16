@@ -53,8 +53,8 @@ analyses every rule the game has or could have, with the measurements behind eac
 | **COLOUR** `A`/`a`, `B`/`b`, `C`/`c` | A goal collects a block only when they match. `o` takes any block; a plain `@` fits only `o`. | Not "three puzzles side by side". The point is that a goal is a hole for one block and an ordinary floor tile for the other. A block of the wrong colour can come to rest right in the socket and simply sit there — not collected, still a **wall**, still in the way. And being in the way is now the most valuable thing an uncollected block can do, so collecting in the wrong order does not merely waste moves, it removes the brake you were going to need. |
 
 The win condition is what "done" means. It never changes the physics — only the question.
-Boards that use anything other than the default say so in three words in the HUD, and all
-three are also visible in the picture itself.
+Every board states its objective in one short line under the board — permanently, so it is
+never something you had to catch — and all four are also visible in the picture itself.
 
 | | Rule | The question it asks |
 |---|---|---|
@@ -198,7 +198,8 @@ Worth recording, because each one changed the design rather than merely confirmi
   about substance, and the sweep settled it. ALL IN's ceiling under the two-per-colour cap
   is par 16. **SELECT reaches 58 and FORM reaches 60**, on the same twelve cells, with the
   same physics, with blindness 3 available at the top of both ranges. What shipped runs to
-  par 57. The briefing cost was one three-word chip in the HUD, on 20 boards out of 40.
+  par 57. The briefing cost was one short line under the board, which every board carries
+  anyway.
 - **Depth comes from the piece that is NOT constrained.** Three separate sweeps, one result:
   MATCH with one colour produces **zero** boards (two blocks under one gravity are adjacent
   immediately); SELECT with every colour given a goal produces **zero** past par 50; FORM
@@ -284,6 +285,9 @@ direction.
 - **Arrow keys / WASD** on a desktop. `Z` undo, `R` restart, `Esc` stage list.
 - **UNDO costs nothing and is meant to be used.** It works *during* a slide too — pressing
   it while the board is still moving cancels the move rather than being ignored.
+- **A goal you slide across answers you.** A grey ring opens on any socket a block went
+  straight through without stopping. That is the rule the whole game rests on, and it is
+  shown rather than written.
 - **A board you have jammed takes itself back.** If a tilt leaves the board unwinnable, the
   game undoes that tilt and says so. It used to put a DEAD END badge on the undo button and
   leave you to notice it, which asks you to read a label, understand it, and then perform the
@@ -291,8 +295,12 @@ direction.
   position is checked the moment it is reached — so one step back is always enough.
 - **A block left on a hazard ends the run.** It already made the stage unwinnable; the only
   question was whether the game said so. A game-over card names the rule and offers both ways
-  out, RETRY and UNDO.
-- **RESTART is always answerable**, mid-slide included.
+  out — **Undo first**, because one tap puts the block back and hands you a live position,
+  and restarting a fifty-move board should never be the obvious choice.
+- **RESTART is always answerable**, mid-slide included — and it is undoable. It happens
+  instantly with no dialog in front of it, and the notice that says it happened carries the
+  way back for a few seconds. Confirmations are for things that cannot be taken back, which
+  in this game is exactly one thing.
 - **You are never walled off.** Stages unlock in sequence, but you may always reach two
   stages past your frontier — one puzzle you cannot see the trick to never ends the run.
 
@@ -309,15 +317,17 @@ off the board rather than out of a sentence.
 
 ```
 index.html            markup and script order
-styles.css            interface
+styles.css            the design system and every screen
 src/engine.js         pure rules: compile, simulate, solve. No DOM, no timers.
 src/stages.js         GENERATED — the boards, one ASCII picture each
 src/render.js         canvas renderer and effects
 src/input.js          swipe, device tilt, keyboard
 src/audio.js          synthesised sound — no asset files
+src/haptics.js        touch feedback, where the platform has any
 src/save.js           localStorage, defensively parsed
-src/game.js           state machine, HUD, overlays
+src/game.js           state machine, screens, settings, coaching
 docs/RULES.md         every rule the game has or could have, and the measurements behind it
+docs/DESIGN.md        the interface: what was wrong with it, and every number in the fix
 tools/campaign.js     the forty slots as design briefs; regenerates src/stages.js
 tools/lib/design.js   what makes a board good — every measurement above
 tools/lib/generate.js terrain sweeping, exhaustive enumeration, climbing, variation
@@ -372,5 +382,5 @@ direction converges" to accommodate it. Removing the peg restored the strong for
 par, destroys a block on purpose and checks the run ends with a card that names the rule,
 walks the campaign for a genuinely jammed position and checks the board undoes itself out of
 it, verifies each colour has a distinct shape and not merely a distinct hue, checks every
-board with an unusual win condition says so in the HUD, and checks the board fits five
+board with an unusual win condition says so on screen, and checks the board fits five
 viewports from a 320px phone to a tablet.

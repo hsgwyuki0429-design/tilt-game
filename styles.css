@@ -1,31 +1,100 @@
-/*
+/* =============================================================================
  * TILT — interface.
  *
- * The board is the game; the chrome exists only to stay out of its way. Rules
- * applied throughout:
- *   - the grid gets every pixel that is not load-bearing UI
- *   - nothing animates while the player is thinking
- *   - tap targets are never smaller than 44px
- *   - the layout survives a 320px-wide phone with a notch
- */
+ * The board is the game. Everything in this file exists to stay out of its way
+ * and to make the one question the player is asking — "what happens if I tilt
+ * that way?" — the only question the screen is asking too.
+ *
+ * The rules this file is held to, in order:
+ *
+ *   1. The board gets every pixel that is not load-bearing.
+ *   2. Nothing moves while the player is thinking.
+ *   3. No tap target is under 44×44pt, and none of them sits where a thumb
+ *      reaching for the home indicator will find it by accident.
+ *   4. One accent colour. Nothing is distinguished by hue alone — every state
+ *      that matters also carries a shape, an icon, a label or a position.
+ *   5. Type is the iOS scale, in sentence case. Uppercase is a signal in this
+ *      interface (the wordmark, a stage name, a stat label), never a default.
+ *   6. The layout survives a 320pt phone, a Dynamic Island, a home indicator,
+ *      and Larger Text turned up.
+ * ============================================================================= */
+
+/* ── 1 · TOKENS ───────────────────────────────────────────────────────────── */
 
 :root {
-  --bg-0: #07080f;
-  --bg-1: #10132a;
-  --bg-2: #191d3d;
-  --ink: #e9edff;
-  --ink-dim: #8f9ac9;
-  --ink-faint: #5a6392;
-  --line: rgba(150, 170, 255, 0.14);
-  --line-soft: rgba(150, 170, 255, 0.08);
-  --cyan: #2ed3f2;
-  --rose: #ff5c9e;
-  --amber: #ffb43d;
-  --danger: #ff6b8a;
-  --ok: #4ce0b3;
-  --dock-h: 74px;
-  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans',
-          'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+  /* Surfaces. A single near-black ground with three lifts above it; the game is
+     dark by design (it is a puzzle about gravity in an empty room) rather than
+     by default, so there is no light theme to keep in sync. */
+  --bg:            #06070F;
+  --bg-raise:      #0C0F20;
+  --bg-sheet:      #0F1327;
+  --bg-card:       rgba(20, 25, 51, 0.86);
+
+  /* Fills, in the iOS sense: the background of a control, not of the page. */
+  --fill-1:        rgba(126, 150, 240, 0.09);
+  --fill-2:        rgba(126, 150, 240, 0.15);
+  --fill-3:        rgba(126, 150, 240, 0.22);
+  --sep:           rgba(150, 170, 255, 0.13);
+  --sep-strong:    rgba(150, 170, 255, 0.22);
+
+  /* Labels. Four steps, mirroring the system hierarchy. Contrast on --bg:
+     label 18:1 · label-2 8.6:1 · label-3 5.1:1 · label-4 is disabled-only. */
+  --label:         #F0F3FF;
+  --label-2:       #A6B0D2;
+  --label-3:       #7A85AE;
+  --label-4:       #4A5378;
+
+  /* One accent, and three semantics that each also carry a glyph somewhere. */
+  --accent:        #38D6F5;
+  --accent-hi:     #7FE7FF;
+  --accent-ink:    #032430;
+  --amber:         #FFB43D;   /* perfect / par */
+  --mint:          #45E3B0;   /* success */
+  --red:           #FF6070;   /* run ended */
+
+  /* Type. iOS scale, multiplied by --tsx, which the game sets from the device's
+     Dynamic Type size (clamped, so Larger Text can grow the interface without
+     ever pushing the board off screen). */
+  --tsx: 1;
+  --t-caption2:  calc(11px * var(--tsx));
+  --t-caption:   calc(12px * var(--tsx));
+  --t-footnote:  calc(13px * var(--tsx));
+  --t-subhead:   calc(15px * var(--tsx));
+  --t-callout:   calc(16px * var(--tsx));
+  --t-body:      calc(17px * var(--tsx));
+  --t-title3:    calc(20px * var(--tsx));
+  --t-title2:    calc(22px * var(--tsx));
+  --t-title1:    calc(28px * var(--tsx));
+
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Hiragino Sans',
+          'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+  --num: 'SF Pro Display', -apple-system, BlinkMacSystemFont, var(--font);
+
+  /* Space — an 8pt grid with a 4pt half-step. */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 20px; --s6: 24px; --s8: 32px;
+
+  /* Radii. Continuous-corner feel: the bigger the surface, the rounder. */
+  --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 24px; --r-sheet: 28px;
+
+  /* Motion. Two curves: things entering use the iOS sheet curve, things
+     responding to a finger use a short ease-out. Nothing here is decorative —
+     every duration below is the shortest one that still reads as caused. */
+  --dur-press: 110ms;
+  --dur:       240ms;
+  --dur-sheet: 420ms;
+  --ease:      cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-ios:  cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-pop:  cubic-bezier(0.2, 0.9, 0.28, 1.08);
+
+  /* Chrome heights, so the board can be told exactly what is left over. */
+  --hud-h:  52px;
+  --dock-h: 64px;
+
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
 }
 
 * { box-sizing: border-box; }
@@ -35,506 +104,849 @@ html, body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--bg-0);
-  color: var(--ink);
+  background: var(--bg);
+  color: var(--label);
   font-family: var(--font);
-  /* No pull-to-refresh, no rubber-banding, no double-tap zoom: every one of
-     those turns an intended swipe into a browser gesture. */
+  font-size: var(--t-body);
+  line-height: 1.35;
+  /* No pull-to-refresh, no rubber-banding, no double-tap zoom. `manipulation`
+     kills the double-tap without killing pinch — the accessibility gesture stays,
+     the accidental one goes. */
   overscroll-behavior: none;
   touch-action: manipulation;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
-  user-select: none;
   -webkit-user-select: none;
+  user-select: none;
 }
 
+/* The room the board sits in. Two very soft pools of light, one from above and
+   one from below, so the screen has a top and a bottom before anything is drawn
+   on it — which is the whole subject of the game. */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(120% 80% at 50% -10%, #232a5c 0%, rgba(35, 42, 92, 0) 60%),
-    radial-gradient(90% 60% at 50% 110%, #1a1240 0%, rgba(26, 18, 64, 0) 55%),
-    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%);
+    radial-gradient(118% 70% at 50% -12%, #1B2247 0%, rgba(27, 34, 71, 0) 62%),
+    radial-gradient(90% 55% at 50% 112%, #150F33 0%, rgba(21, 15, 51, 0) 58%),
+    var(--bg);
   z-index: -1;
 }
+
+#icons { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* ── LAUNCH CURTAIN ───────────────────────────────────────────────────────── */
+/* Same ground colour as the game, so the transition is the wordmark leaving and
+   nothing else — no flash, no colour change, no perceptible load. */
+#launch {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  transition: opacity 420ms var(--ease-ios), visibility 420ms;
+}
+#launch.gone { opacity: 0; visibility: hidden; }
+#launch .lw {
+  font-size: calc(30px * var(--tsx));
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;               /* balance the trailing letterspace */
+  color: var(--label);
+  opacity: 0.92;
+  animation: lw-in 620ms var(--ease) both;
+}
+@keyframes lw-in {
+  from { opacity: 0; letter-spacing: 0.28em; }
+  to   { opacity: 0.92; letter-spacing: 0.42em; }
+}
+
+/* One stroke weight across the entire icon set. */
+.ic {
+  width: 24px; height: 24px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* A pointer press must not leave a focus ring behind; a keyboard one must. */
+button:focus { outline: none; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--r-sm); }
+
+
+/* ── 2 · SHELL ────────────────────────────────────────────────────────────── */
 
 #app {
   position: fixed;
   inset: 0;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  padding:
-    calc(env(safe-area-inset-top, 0px))
-    calc(env(safe-area-inset-right, 0px))
-    calc(env(safe-area-inset-bottom, 0px))
-    calc(env(safe-area-inset-left, 0px));
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);
 }
 
-/* ── HUD ──────────────────────────────────────────────────────────────────── */
+
+/* ── 3 · HUD ──────────────────────────────────────────────────────────────── */
+/* Where you are, and how you are doing. Nothing else has earned a place here:
+   BEST moved to the stage card and the clear screen, where it is something you
+   are looking at rather than something in your peripheral vision. */
 
 #hud {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px 6px;
-  min-height: 52px;
+  gap: var(--s3);
+  /* An extra 8pt below the inset so the title never crowds the Dynamic Island. */
+  padding: var(--s2) var(--s4) var(--s1);
+  min-height: var(--hud-h);
 }
 
-.title-block {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-}
-
-#stage-label {
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  color: var(--ink-faint);
-  font-weight: 700;
-}
-
-.name-line {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-}
-
-#stage-name {
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 0.10em;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* What "done" means on this board. Four win conditions share one set of
-   physics, and which one is in play has to be readable without opening a menu —
-   otherwise the difficulty moves off the board and into a sentence. */
-.obj {
-  flex: 0 0 auto;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  padding: 2px 7px;
-  border-radius: 999px;
-  white-space: nowrap;
-  color: var(--cyan);
-  border: 1px solid rgba(46, 211, 242, 0.4);
-  background: rgba(46, 211, 242, 0.09);
-}
-.obj:empty { display: none; }
-
-.counters { display: flex; gap: 12px; flex: 0 0 auto; }
-
-.counter { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
-.counter .k { font-size: 9px; letter-spacing: 0.14em; color: var(--ink-faint); font-weight: 700; }
-.counter .v { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.counter.dim .v { color: var(--ink-dim); font-size: 15px; }
-#moves.over { color: var(--amber); }
-
-.icon-btn {
-  flex: 0 0 auto;
-  width: 40px; height: 40px;
+.hud-btn {
+  width: 44px; height: 44px;
+  margin-left: -6px;              /* optical: the glyph aligns, not the box */
   display: grid; place-items: center;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  color: var(--ink-dim);
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.15s, color 0.15s, transform 0.1s;
+  border-radius: var(--r-md);
+  color: var(--label-2);
+  background: var(--fill-1);
+  transition: background var(--dur-press) linear, color var(--dur-press) linear,
+              transform var(--dur-press) var(--ease);
 }
-.icon-btn svg { width: 19px; height: 19px; fill: currentColor; }
-/* The close glyph is a stroked path, not a filled shape — without this it
-   inherits fill:none and renders as nothing at all. */
-#btn-close svg { fill: none; stroke: currentColor; }
-.icon-btn:active { transform: scale(0.94); background: rgba(255, 255, 255, 0.1); }
+.hud-btn:active { background: var(--fill-3); color: var(--label); transform: scale(0.92); }
+.hud-btn .ic { width: 21px; height: 21px; }
 
-/* ── board ────────────────────────────────────────────────────────────────── */
+.hud-title { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+
+/* Uppercase appears exactly twice in this interface: on a stage nameplate and
+   on a stat label. Both are names, not sentences, and both are short enough
+   that the extra tracking reads as engraving rather than as shouting. */
+.hud-kicker {
+  font-size: var(--t-caption2);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--label-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hud-name {
+  font-size: var(--t-callout);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--label);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.hud-count { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 0; }
+
+.hud-moves {
+  font-family: var(--num);
+  font-size: var(--t-title2);
+  font-weight: 650;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  transition: color var(--dur) linear;
+}
+/* Past par is information, not a failure — amber, and only amber. Nothing is
+   taken away and nothing flashes. */
+.hud-moves.over { color: var(--amber); }
+
+.hud-par {
+  font-size: var(--t-caption2);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--label-3);
+  font-variant-numeric: tabular-nums;
+}
+.hud-par b { font-weight: 700; color: var(--label-2); }
+
+
+/* ── 4 · BOARD ────────────────────────────────────────────────────────────── */
 
 #board-area {
   position: relative;
   min-height: 0;
-  /* The canvas owns every gesture inside this box. */
-  touch-action: none;
+  touch-action: none;            /* the canvas owns every gesture inside this box */
 }
+#board { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
-#board {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
 
-/* ── hint ─────────────────────────────────────────────────────────────────── */
+/* ── 5 · COACH LINE ───────────────────────────────────────────────────────── */
+/* What "done" means on this board, permanently, in space the board was never
+   going to use. The old six-second hint was the right sentence in the wrong
+   shape: a player who looked away lost the rule and had no way to ask for it
+   back. This never leaves, never covers anything, and is a button — tapping it
+   opens the rules. */
 
-#hint {
-  position: absolute;
-  left: 50%;
-  bottom: 10px;
-  transform: translate(-50%, 12px);
-  padding: 9px 16px;
-  border-radius: 999px;
-  background: rgba(16, 20, 46, 0.88);
-  border: 1px solid var(--line);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--ink-dim);
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.35s ease, transform 0.35s ease;
-  max-width: calc(100% - 24px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-#hint.show { opacity: 1; transform: translate(-50%, 0); }
-
-/* The very first board gets a moving cue, because there is no way to guess
-   "swipe" from a static picture. */
-#hint.swipe-demo::after {
-  content: '';
-  display: inline-block;
-  vertical-align: middle;
-  margin-left: 9px;
-  width: 22px; height: 8px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(46, 211, 242, 0) 0%, var(--cyan) 70%);
-  animation: swipe-cue 1.5s ease-in-out infinite;
-}
-@keyframes swipe-cue {
-  0%, 100% { transform: translateX(-6px); opacity: 0.25; }
-  50%      { transform: translateX(6px);  opacity: 1; }
-}
-
-/* ── toast ────────────────────────────────────────────────────────────────── */
-
-#toast {
-  position: absolute;
-  left: 50%;
-  top: 12px;
-  transform: translate(-50%, -8px) scale(0.94);
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: rgba(46, 211, 242, 0.14);
-  border: 1px solid rgba(46, 211, 242, 0.4);
-  color: #b8f2ff;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  white-space: nowrap;
-}
-#toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
-
-/* ── overlays ─────────────────────────────────────────────────────────────── */
-
-.overlay {
-  position: absolute;
-  inset: 0;
-  display: none;
+.coach {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 18px;
-  z-index: 5;
+  gap: var(--s3);
+  width: calc(100% - var(--s4) * 2);
+  margin: 0 auto;
+  min-height: 44px;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-md);
+  text-align: left;
+  color: var(--label-2);
+  background: transparent;
+  transition: background var(--dur-press) linear, transform var(--dur-press) var(--ease);
 }
-.overlay.show { display: flex; }
+.coach:active { background: var(--fill-1); transform: scale(0.985); }
+.coach .ic { width: 19px; height: 19px; }
+.coach-ic { color: var(--label-3); }
+.coach-more { color: var(--label-3); }
 
-.ov-card {
-  width: min(340px, 100%);
-  padding: 24px 22px 20px;
-  border-radius: 22px;
-  text-align: center;
-  background: rgba(13, 16, 38, 0.93);
-  border: 1px solid var(--line);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  animation: card-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+.coach-text { flex: 1 1 auto; min-width: 0; display: grid; }
+/* Both lines occupy the same grid cell, so the swap between them is a cross-fade
+   in place and the row never changes height. */
+.coach-obj, .coach-hint {
+  grid-area: 1 / 1;
+  font-size: var(--t-footnote);
+  font-weight: 500;
+  line-height: 1.3;
+  transition: opacity var(--dur) var(--ease);
 }
-@keyframes card-in {
-  from { opacity: 0; transform: translateY(14px) scale(0.95); }
-  to   { opacity: 1; transform: none; }
-}
+.coach-obj { color: var(--label-2); }
+.coach-hint { color: var(--accent); font-weight: 600; }
 
-.ov-kicker {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: var(--ink-faint);
-  font-weight: 700;
-  margin-bottom: 6px;
-}
+.coach[data-show="obj"]  .coach-hint { opacity: 0; }
+.coach[data-show="obj"]  .coach-obj  { opacity: 1; }
+.coach[data-show="hint"] .coach-hint { opacity: 1; }
+.coach[data-show="hint"] .coach-obj  { opacity: 0; }
+.coach[data-show="hint"] .coach-ic   { color: var(--accent); }
 
-.ov-title {
-  margin: 0 0 14px;
-  font-size: 30px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  color: var(--cyan);
-  text-shadow: 0 0 26px rgba(46, 211, 242, 0.45);
-}
-.ov-title.perfect { color: var(--amber); text-shadow: 0 0 26px rgba(255, 180, 61, 0.45); }
-.ov-title.over { color: var(--danger); text-shadow: 0 0 26px rgba(255, 95, 109, 0.45); }
 
-.ov-stats { display: flex; justify-content: center; gap: 22px; margin-bottom: 12px; }
-.ov-stat { display: flex; flex-direction: column; gap: 2px; }
-.ov-stat .k { font-size: 9px; letter-spacing: 0.16em; color: var(--ink-faint); font-weight: 700; }
-.ov-stat .v { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
-
-.ov-flag {
-  display: inline-block;
-  margin-bottom: 10px;
-  padding: 3px 11px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  color: #0a2018;
-  background: var(--ok);
-}
-
-.ov-note { font-size: 12.5px; color: var(--ink-dim); margin-bottom: 16px; line-height: 1.5; }
-
-.ov-actions { display: flex; flex-direction: column; gap: 9px; }
-
-.btn {
-  appearance: none;
-  border: 1px solid transparent;
-  border-radius: 13px;
-  padding: 13px 18px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  cursor: pointer;
-  transition: transform 0.1s, filter 0.15s, background 0.15s;
-  min-height: 46px;
-}
-.btn:active { transform: scale(0.97); }
-.btn.primary {
-  background: linear-gradient(180deg, #43e2ff 0%, #1aa8cc 100%);
-  color: #04202a;
-  box-shadow: 0 8px 24px rgba(46, 211, 242, 0.3);
-}
-.btn.ghost {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: var(--line);
-  color: var(--ink-dim);
-}
-.btn.small { padding: 9px 14px; font-size: 11px; min-height: 38px; }
-
-/* ── dock ─────────────────────────────────────────────────────────────────── */
+/* ── 6 · DOCK ─────────────────────────────────────────────────────────────── */
+/* Two actions, and they are the only two the board itself cannot express.
+   Sound, tilt controls and everything else moved into Settings: they are things
+   a player sets once, and a control you touch once a month does not belong on
+   the screen you look at for an hour.
+ *
+ * Undo is twice the width of Restart because it is pressed a hundred times more
+ * often — exploration is the intended way to play — and because the two used to
+ * be identical twins side by side, which is how you throw away forty moves by
+ * hitting the wrong one. */
 
 #dock {
   display: flex;
-  align-items: stretch;
-  gap: 8px;
-  padding: 6px 14px 12px;
+  gap: var(--s2);
+  /* The safe-area inset is already applied on #app, so this is clearance ON TOP
+     of the home indicator, not instead of it: 10pt of dead space under the
+     buttons so a press near the bottom edge is never competing with the
+     swipe-up-to-home gesture. */
+  padding: var(--s1) var(--s4) 10px;
   min-height: var(--dock-h);
 }
 
 .dock-btn {
   position: relative;
-  flex: 1 1 0;
-  min-height: 52px;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 6px 4px;
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid var(--line);
-  color: var(--ink-dim);
-  font-family: inherit;
-  cursor: pointer;
-  transition: transform 0.1s, background 0.15s, color 0.15s, border-color 0.2s;
+  gap: var(--s2);
+  min-height: 54px;
+  padding: 0 var(--s3);
+  border-radius: var(--r-md);
+  background: var(--fill-1);
+  color: var(--label);
+  font-size: var(--t-subhead);
+  font-weight: 600;
+  transition: background var(--dur-press) linear, transform var(--dur-press) var(--ease),
+              opacity var(--dur) linear, color var(--dur) linear;
 }
-.dock-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; }
-.dock-btn .lbl { font-size: 9px; font-weight: 800; letter-spacing: 0.13em; }
-.dock-btn:active:not(:disabled) { transform: scale(0.96); background: rgba(255, 255, 255, 0.09); }
-.dock-btn:disabled { opacity: 0.3; cursor: default; }
-.dock-btn.small { flex: 0 0 62px; }
+.dock-btn .ic { width: 20px; height: 20px; }
+.dock-btn .lbl { white-space: nowrap; }
+.dock-btn.wide  { flex: 1.7 1 0; }
+.dock-btn.quiet { flex: 1 1 0; background: transparent; color: var(--label-3); box-shadow: inset 0 0 0 1px var(--sep); }
+.dock-btn:active:not(:disabled) { background: var(--fill-3); transform: scale(0.97); }
+.dock-btn.quiet:active:not(:disabled) { background: var(--fill-2); color: var(--label-2); }
+/* Disabled is a real state, not a dimmed enabled one: it loses its fill as well
+   as its contrast, so "there is nothing to undo" is legible at a glance. */
+.dock-btn:disabled { background: transparent; color: var(--label-4); box-shadow: inset 0 0 0 1px var(--sep); }
 
-.dock-btn.active { color: var(--cyan); border-color: rgba(46, 211, 242, 0.5); background: rgba(46, 211, 242, 0.1); }
-.dock-btn.unavailable { opacity: 0.35; }
+/* While a card is up, the dock recedes but stays live.
+ *
+ * The card offers Undo and Restart and so does the dock, and two identical pairs
+ * of buttons a centimetre apart is a real thing to look at twice. Disabling the
+ * dock would be worse: a player who has pressed Undo forty times this stage
+ * should not find it dead the one time the game put a panel in front of it. So
+ * the card takes the attention and the dock keeps the muscle memory. */
+body.carded #dock { opacity: 0.3; }
+#dock { transition: opacity var(--dur) var(--ease); }
 
-#btn-sound .cross { opacity: 0; }
-#btn-sound.off .wave { opacity: 0; }
-#btn-sound.off .cross { opacity: 1; }
-#btn-sound.off { color: var(--ink-faint); }
 
-/* ── stage menu ───────────────────────────────────────────────────────────── */
+/* ── 7 · TOAST ────────────────────────────────────────────────────────────── */
+/* Short, factual, and always about something that already happened. It sits at
+   the TOP of the board area, where a thumb is not, and where it cannot be
+   mistaken for the objective line at the bottom. */
 
-#menu {
+#toast {
+  position: absolute;
+  left: 50%;
+  top: var(--s3);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  max-width: calc(100% - var(--s6));
+  padding: var(--s2) var(--s3) var(--s2) var(--s4);
+  border-radius: 999px;
+  background: rgba(24, 29, 58, 0.92);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), inset 0 0 0 1px var(--sep);
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  color: var(--label);
+  font-size: var(--t-footnote);
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -10px) scale(0.96);
+  transition: opacity 200ms var(--ease), transform 260ms var(--ease-pop);
+}
+#toast.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+#toast .ic { width: 17px; height: 17px; color: var(--label-3); }
+#toast .t-txt { overflow: hidden; text-overflow: ellipsis; }
+/* An undoable action offers the way back inside the notice itself, which is why
+   restarting a stage needs no confirmation dialog in front of it. */
+#toast .t-act {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 var(--s3);
+  margin-left: var(--s1);
+  border-radius: 999px;
+  background: var(--fill-2);
+  color: var(--accent);
+  font-size: var(--t-footnote);
+  font-weight: 650;
+}
+#toast .t-act:active { background: var(--fill-3); }
+
+
+/* ── 8 · CLEAR / GAME-OVER CARD ───────────────────────────────────────────── */
+/* Anchored to the bottom of the board area, not centred: the buttons land in the
+   thumb arc, and the top of the board — the position you just solved — stays
+   visible above the card instead of being covered by it. */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  align-items: flex-end;
+  padding: var(--s4);
+}
+.overlay.show { display: flex; }
+.overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* Transparent at the top, solid behind the card. The board stays readable. */
+  background: linear-gradient(180deg, rgba(6, 7, 15, 0) 0%, rgba(6, 7, 15, 0.55) 42%, rgba(6, 7, 15, 0.86) 100%);
+  animation: fade-in 240ms var(--ease) both;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.ov-card {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  padding: var(--s5) var(--s5) var(--s4);
+  border-radius: var(--r-xl);
+  text-align: center;
+  background: var(--bg-card);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 0 0 1px var(--sep);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  animation: card-in 380ms var(--ease-ios) both;
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The result, as a mark before it is a word: a filled disc with a glyph in it.
+   Cleared, perfect and ended are three different shapes, so the outcome does not
+   depend on telling amber from cyan from red. */
+.ov-mark {
+  width: 52px; height: 52px;
+  margin: 0 auto var(--s3);
+  display: grid; place-items: center;
+  border-radius: 999px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  animation: mark-in 420ms var(--ease-pop) both 60ms;
+}
+.ov-mark .ic { width: 28px; height: 28px; stroke-width: 2.4; }
+.ov-mark.perfect { background: var(--amber); }
+.ov-mark.over    { background: var(--red); color: #2A0308; }
+@keyframes mark-in {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: none; }
+}
+
+.ov-kicker {
+  font-size: var(--t-caption2);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  color: var(--label-3);
+  margin-bottom: 3px;
+}
+.ov-title {
+  margin: 0 0 var(--s3);
+  font-size: var(--t-title1);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--label);
+}
+.ov-title.perfect { color: var(--amber); }
+.ov-title.over    { color: var(--red); }
+
+.ov-stats {
+  display: flex;
+  justify-content: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s4);
+  padding: var(--s3) var(--s2);
+  border-radius: var(--r-md);
+  background: var(--fill-1);
+}
+.ov-stat { flex: 1 1 0; display: flex; flex-direction: column; gap: 2px; }
+.ov-stat .k {
+  font-size: var(--t-caption2); font-weight: 600; letter-spacing: 0.06em; color: var(--label-3);
+}
+.ov-stat .v {
+  font-family: var(--num);
+  font-size: var(--t-title3); font-weight: 650; font-variant-numeric: tabular-nums;
+}
+.ov-stat.is-best .v { color: var(--accent); }
+
+.ov-flag {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin: calc(var(--s3) * -1 + 2px) 0 var(--s3);
+  padding: 3px 10px 3px 7px;
+  border-radius: 999px;
+  font-size: var(--t-caption); font-weight: 650;
+  color: var(--mint);
+  background: rgba(69, 227, 176, 0.14);
+}
+.ov-flag .ic { width: 14px; height: 14px; stroke-width: 2.6; }
+
+.ov-note {
+  font-size: var(--t-footnote);
+  line-height: 1.45;
+  color: var(--label-2);
+  margin: 0 0 var(--s4);
+}
+
+.ov-actions { display: flex; flex-direction: column; gap: var(--s2); }
+
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: var(--s2);
+  min-height: 50px;
+  padding: 0 var(--s4);
+  border-radius: var(--r-md);
+  font-size: var(--t-callout);
+  font-weight: 650;
+  transition: background var(--dur-press) linear, transform var(--dur-press) var(--ease),
+              opacity var(--dur-press) linear;
+}
+.btn:active { transform: scale(0.975); }
+/* Flat fill, not a gradient with a glow under it. The primary action is the one
+   that is filled; nothing else has to be done to say so. */
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.primary:active { background: var(--accent-hi); }
+.btn.ghost { background: var(--fill-1); color: var(--label); }
+.btn.ghost:active { background: var(--fill-3); }
+.btn.plain { background: transparent; color: var(--label-2); min-height: 44px; font-weight: 600; }
+.btn.plain:active { background: var(--fill-1); }
+.btn.danger { background: transparent; color: var(--red); }
+.btn.danger:active { background: rgba(255, 96, 112, 0.14); }
+.btn .ic { width: 19px; height: 19px; }
+/* Two secondary actions of equal weight share a row; a third would be a menu. */
+.ov-row { display: flex; gap: var(--s2); }
+.ov-row .btn { flex: 1 1 0; }
+
+
+/* ── 9 · SHEETS ───────────────────────────────────────────────────────────── */
+
+.scrim {
   position: fixed;
   inset: 0;
+  z-index: 18;
+  background: rgba(3, 4, 10, 0.5);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-sheet) var(--ease-ios), visibility var(--dur-sheet);
+}
+.scrim.show { opacity: 1; visibility: visible; }
+
+.sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
   z-index: 20;
   display: flex;
   flex-direction: column;
-  padding:
-    calc(env(safe-area-inset-top, 0px) + 16px)
-    calc(env(safe-area-inset-right, 0px) + 16px)
-    calc(env(safe-area-inset-bottom, 0px) + 16px)
-    calc(env(safe-area-inset-left, 0px) + 16px);
-  background: linear-gradient(180deg, #0d1029 0%, #07080f 100%);
+  /* Sheets stop short of the status bar, as system sheets do: the strip of the
+     screen behind it is what says "there is something underneath this".
+     Height is content-driven up to that cap — the system's medium/large detents
+     in one line: Settings comes up as a short card, the forty-stage list comes
+     up full height, and neither has to be told which it is. */
+  max-height: calc(100% - var(--safe-t) - 12px);
+  min-height: 30vh;
+  padding: 0 max(var(--safe-r), var(--s4)) 0 max(var(--safe-l), var(--s4));
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  background: var(--bg-sheet);
+  box-shadow: 0 -1px 0 var(--sep-strong), 0 -24px 70px rgba(0, 0, 0, 0.6);
   transform: translateY(100%);
-  transition: transform 0.32s cubic-bezier(0.3, 0.9, 0.3, 1);
   visibility: hidden;
+  transition: transform var(--dur-sheet) var(--ease-ios), visibility var(--dur-sheet);
 }
-#menu.show { transform: none; visibility: visible; }
+.sheet.show { transform: none; visibility: visible; }
+/* A sheet that presented another sheet slides down a little and dims, so the
+   stack is legible and Back is obviously going somewhere that still exists. */
+.sheet.behind { transform: translateY(14px) scale(0.965); }
+.sheet.behind::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: rgba(3, 4, 10, 0.45);
+}
 
-.menu-head { display: flex; align-items: center; justify-content: space-between; }
-.menu-head h1 {
+.grabber {
+  width: 36px; height: 5px;
+  margin: var(--s2) auto var(--s1);
+  border-radius: 999px;
+  background: var(--label-4);
+  flex: 0 0 auto;
+}
+
+.sheet-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 48px;
+  padding: var(--s1) 0 var(--s2);
+  flex: 0 0 auto;
+}
+.sheet-title {
+  flex: 1 1 auto;
   margin: 0;
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: 0.36em;
-  background: linear-gradient(90deg, #7df2ff, #ff8fc0);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-size: var(--t-title2);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.sheet-tools { display: flex; gap: var(--s2); flex: 0 0 auto; }
+
+.round-btn {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: var(--fill-2);
+  color: var(--label-2);
+  transition: background var(--dur-press) linear, transform var(--dur-press) var(--ease);
+  /* The box is 34pt for looks; the touch target is 44pt for thumbs. */
+  position: relative;
+}
+.round-btn::after { content: ''; position: absolute; inset: -5px; }
+.round-btn:active { background: var(--fill-3); transform: scale(0.92); }
+.round-btn .ic { width: 18px; height: 18px; stroke-width: 2.1; }
+
+.sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: max(var(--safe-b), var(--s5));
+}
+.fine {
+  margin: var(--s5) 0 0;
+  text-align: center;
+  font-size: var(--t-caption);
+  color: var(--label-4);
 }
 
-.menu-tag {
-  margin: 6px 0 16px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--ink-dim);
+
+/* ── 10 · STAGE LIST ──────────────────────────────────────────────────────── */
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s1) 0 var(--s4);
+  flex: 0 0 auto;
 }
-.menu-tag span { display: block; color: var(--ink-faint); font-size: 10.5px; letter-spacing: 0.05em; }
+.progress .pv {
+  font-family: var(--num);
+  font-size: var(--t-title1); font-weight: 700; color: var(--label);
+  font-variant-numeric: tabular-nums; line-height: 1;
+}
+.progress .pt { font-size: var(--t-subhead); font-weight: 600; color: var(--label-3); }
+.progress .pl { font-size: var(--t-footnote); color: var(--label-3); }
+/* The bar is the same fact as the number, in a form you read without counting. */
+.progress .pbar {
+  flex: 1 1 auto; height: 6px; min-width: 40px;
+  border-radius: 999px;
+  background: var(--fill-2);
+  overflow: hidden;
+}
+.progress .pbar i {
+  display: block; height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width var(--dur-sheet) var(--ease);
+}
 
 .grid {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  display: block;
-  padding-bottom: 8px;
-  /* The list is a hundred entries long; let it scroll on its own without
-     dragging the page behind it. */
   overscroll-behavior: contain;
+  padding-bottom: max(var(--safe-b), var(--s5));
+}
+
+.chap-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: var(--s5) 2px var(--s2);
+}
+.chap-head:first-child { padding-top: 0; }
+.chap-head .cname {
+  flex: 1 1 auto;
+  font-size: var(--t-footnote);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--label-2);
+}
+.chap-head .cn { font-size: var(--t-caption2); font-weight: 650; color: var(--label-4); font-variant-numeric: tabular-nums; }
+.chap-head .cprog { font-size: var(--t-caption); font-weight: 600; color: var(--label-3); font-variant-numeric: tabular-nums; }
+.chap-head.done .cname { color: var(--accent); }
+.chap-head.done .cprog { color: var(--accent); }
+.chap-head.locked { opacity: 0.45; }
+
+.chap-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(98px, 1fr));
+  gap: var(--s2);
 }
 
 .cell {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: 11px 10px;
-  min-height: 68px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line-soft);
-  color: var(--ink-dim);
-  font-family: inherit;
+  gap: 2px;
+  min-height: 76px;
+  padding: var(--s3) var(--s3) var(--s2);
+  border-radius: var(--r-md);
+  background: var(--fill-1);
   text-align: left;
-  cursor: pointer;
-  transition: transform 0.1s, background 0.15s, border-color 0.15s;
+  transition: background var(--dur-press) linear, transform var(--dur-press) var(--ease);
 }
-.cell:active:not(:disabled) { transform: scale(0.96); }
-.cell .n { font-size: 10px; font-weight: 800; letter-spacing: 0.16em; color: var(--ink-faint); }
-.cell .nm { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; color: var(--ink); }
-.cell .bs { font-size: 10px; font-weight: 700; color: var(--ink-faint); font-variant-numeric: tabular-nums; margin-top: auto; }
+.cell:active:not(:disabled) { transform: scale(0.955); background: var(--fill-3); }
+.cell .n { font-size: var(--t-caption2); font-weight: 650; color: var(--label-3); font-variant-numeric: tabular-nums; }
+.cell .nm { font-size: var(--t-footnote); font-weight: 650; letter-spacing: 0.03em; color: var(--label); }
+.cell .bs {
+  margin-top: auto;
+  display: flex; align-items: center; gap: 4px;
+  font-size: var(--t-caption2); font-weight: 600; color: var(--label-3);
+  font-variant-numeric: tabular-nums;
+}
+.cell .bs .ic { width: 13px; height: 13px; stroke-width: 2.3; }
 
-.cell.done { background: rgba(46, 211, 242, 0.09); border-color: rgba(46, 211, 242, 0.28); }
-.cell.done .bs { color: var(--cyan); }
-.cell.perfect { background: rgba(255, 180, 61, 0.1); border-color: rgba(255, 180, 61, 0.34); }
+/* Cleared and perfect differ by glyph first (check, then star-weight ring) and
+   by colour second, so the list is readable without colour vision. */
+.cell.done { background: rgba(56, 214, 245, 0.10); }
+.cell.done .bs { color: var(--accent); }
+.cell.perfect { background: rgba(255, 180, 61, 0.085); }
 .cell.perfect .bs { color: var(--amber); }
-.cell.current { box-shadow: 0 0 0 2px rgba(233, 237, 255, 0.35); }
-.cell.locked { opacity: 0.34; cursor: default; }
-.cell.locked .nm { color: var(--ink-faint); }
+.cell.current { box-shadow: inset 0 0 0 2px var(--label-2); }
+.cell.locked { opacity: 0.4; }
+.cell.locked .nm { color: var(--label-3); }
+.cell.locked .bs { color: var(--label-4); }
 
-.menu-foot { padding-top: 10px; display: flex; justify-content: center; }
 
-/* Pointer clicks should not leave a ring behind; keyboard focus must. */
-button:focus { outline: none; }
-button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* ── 11 · SETTINGS LIST ───────────────────────────────────────────────────── */
+/* The grouped-list idiom, because it is the one every iOS user already knows how
+   to read: a title on the left, the control on the right, a hairline between
+   rows, and an explanation under the group rather than inside it. */
 
-/* ── chapters ─────────────────────────────────────────────────────────────── */
-
-.progress {
+.list {
+  border-radius: var(--r-lg);
+  background: var(--fill-1);
+  overflow: hidden;
+  margin-bottom: var(--s3);
+}
+.row {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin: 2px 0 12px;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--s2) var(--s4);
+  text-align: left;
+  background: none;
 }
-.progress .pv { font-size: 26px; font-weight: 900; color: var(--cyan); font-variant-numeric: tabular-nums; }
-.progress .pt { font-size: 14px; font-weight: 700; color: var(--ink-faint); }
-.progress .pl { font-size: 9px; font-weight: 800; letter-spacing: 0.18em; color: var(--ink-faint); margin-left: 4px; }
+.row + .row { box-shadow: inset 0 1px 0 var(--sep); }
+.row.tap { transition: background var(--dur-press) linear; }
+.row.tap:active { background: var(--fill-2); }
+.row .rl { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.row .rt { font-size: var(--t-callout); font-weight: 500; color: var(--label); }
+.row .rs { font-size: var(--t-caption); color: var(--label-3); line-height: 1.3; }
+.row .ic { color: var(--label-3); width: 20px; height: 20px; }
+.row .chev { color: var(--label-4); width: 17px; height: 17px; }
+.row[aria-disabled="true"] { opacity: 0.45; }
+.row.destructive .rt { color: var(--red); }
 
-.chap-head {
+.group-note {
+  margin: calc(var(--s3) * -1 + 2px) var(--s4) var(--s5);
+  font-size: var(--t-caption);
+  line-height: 1.4;
+  color: var(--label-3);
+}
+
+/* The system switch, at system dimensions (51×31), so the muscle memory for it
+   transfers exactly. */
+.sw {
+  flex: 0 0 auto;
+  position: relative;
+  width: 51px; height: 31px;
+  border-radius: 999px;
+  background: var(--fill-3);
+  transition: background var(--dur) var(--ease);
+}
+.sw::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 27px; height: 27px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform var(--dur) var(--ease-pop);
+}
+.row[aria-checked="true"] .sw { background: var(--accent); }
+.row[aria-checked="true"] .sw::after { transform: translateX(20px); }
+
+
+/* ── 12 · HOW TO PLAY ─────────────────────────────────────────────────────── */
+/* Four rules, four pictures, one line each. A player who wants the rules gets
+   them in fifteen seconds; a player who does not never sees this screen. */
+
+.rule {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 14px 2px 7px;
-  border-bottom: 1px solid var(--line-soft);
-  margin-bottom: 9px;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) 0;
 }
-.chap-head:first-child { padding-top: 2px; }
-.chap-head .cn { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; color: var(--ink-faint); }
-.chap-head .cname { font-size: 12px; font-weight: 800; letter-spacing: 0.2em; color: var(--ink-dim); flex: 1 1 auto; }
-.chap-head .cprog { font-size: 10px; font-weight: 800; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
-.chap-head.done .cname { color: var(--cyan); }
-.chap-head.done .cprog { color: var(--cyan); }
-.chap-head.locked { opacity: 0.4; }
+.rule + .rule { box-shadow: inset 0 1px 0 var(--sep); }
+.rule .fig { flex: 0 0 auto; width: 72px; height: 72px; }
+.rule .rd { min-width: 0; }
+.rule .rh { font-size: var(--t-subhead); font-weight: 650; color: var(--label); margin-bottom: 2px; }
+.rule .rp { font-size: var(--t-footnote); color: var(--label-2); line-height: 1.4; }
 
-.chap-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 9px;
-  margin-bottom: 4px;
-}
 
-/* ── failure of last resort ───────────────────────────────────────────────── */
+/* ── 13 · FATAL ───────────────────────────────────────────────────────────── */
 
-.fatal { padding: 40px 24px; text-align: center; color: var(--ink-dim); }
-.fatal h1 { letter-spacing: 0.3em; color: var(--ink); }
-.fatal pre { font-size: 11px; color: var(--danger); white-space: pre-wrap; }
+.fatal { padding: 15vh var(--s6) 0; text-align: center; color: var(--label-2); }
+.fatal h1 { letter-spacing: 0.3em; color: var(--label); font-size: var(--t-title1); }
+.fatal p { font-size: var(--t-subhead); }
+.fatal pre { font-size: var(--t-caption); color: var(--red); white-space: pre-wrap; }
 
-/* ── responsive ───────────────────────────────────────────────────────────── */
 
-/* Short viewports (landscape phones, small windows): shrink the chrome, never
-   the board. */
-@media (max-height: 560px) {
-  #hud { padding: 6px 12px 2px; min-height: 44px; }
-  #stage-name { font-size: 14px; }
-  .counter .v { font-size: 15px; }
-  #dock { min-height: 60px; padding: 4px 12px 8px; }
-  .dock-btn { min-height: 44px; }
-  .dock-btn .lbl { font-size: 8px; }
-  #hint { bottom: 4px; font-size: 11.5px; padding: 7px 13px; }
+/* ── 14 · ADAPTATION ──────────────────────────────────────────────────────── */
+
+/* Short viewports — a landscape phone, a small window, a phone with the
+   keyboard idea of a browser. Shrink the chrome; never the board. */
+@media (max-height: 620px) {
+  :root { --hud-h: 44px; --dock-h: 56px; }
+  #hud { padding-top: 2px; padding-bottom: 0; }
+  .dock-btn { min-height: 46px; }
+  .coach { min-height: 38px; padding-top: 5px; padding-bottom: 5px; }
+  .ov-card { padding: var(--s4); }
+  .ov-mark { width: 42px; height: 42px; margin-bottom: var(--s2); }
 }
 
-@media (max-width: 340px) {
-  .counters { gap: 8px; }
-  /* PAR is what the player is aiming at, so it stays; BEST is the one that can
-     wait for a wider screen. */
-  #best-counter { display: none; }
-  #dock { gap: 6px; padding-inline: 10px; }
-  .dock-btn.small { flex: 0 0 52px; }
+/* Narrow phones (iPhone SE and the 320pt classics). Everything still fits; the
+   labels just stop competing for the width. */
+@media (max-width: 360px) {
+  #hud, .coach, #dock { --s4: 12px; }
+  .dock-btn { font-size: var(--t-footnote); gap: 6px; }
+  .chap-row { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); }
 }
 
-/* Wide screens: the board is still a phone-shaped puzzle, so cap the column
-   rather than stretching a 3×3 grid across a desktop monitor. */
+/* Wide screens. TILT is a phone-shaped puzzle; stretching a 3×3 grid across a
+   desktop monitor would make it a different, worse game. Cap the column and
+   frame it. */
 @media (min-width: 620px) {
-  #app { max-width: 520px; margin: 0 auto; box-shadow: 0 0 90px rgba(0, 0, 0, 0.55); }
-  #menu { max-width: 520px; margin: 0 auto; }
+  #app { max-width: 480px; margin: 0 auto; box-shadow: 0 0 120px rgba(0, 0, 0, 0.6); }
+  .sheet { max-width: 480px; margin: 0 auto; }
+  .scrim { cursor: pointer; }
 }
+
+/* Reduce Motion. Everything that exists to be *noticed* stops; everything that
+   exists to be *understood* — where a card came from, that a sheet is a layer
+   over the board — becomes a cross-fade instead. The canvas honours the same
+   preference in render.js.
+ *
+ * Two selectors, one behaviour: the media query is the system preference, and
+ * `:root.rm` is the switch in Settings. `:root.motion-full` is how a player who
+ * has explicitly asked for the animation back beats the system default — without
+ * it, turning the setting off would do nothing on a device where the system has
+ * it on, which is the bug every hand-rolled version of this has. */
+:root.rm *, :root.rm *::before, :root.rm *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+}
+:root.rm .sheet { transition: opacity 200ms linear, visibility 200ms; transform: none; opacity: 0; }
+:root.rm .sheet.show { opacity: 1; }
+:root.rm .sheet.behind { transform: none; }
+:root.rm .ov-card, :root.rm .ov-mark { animation: fade-in 180ms linear both !important; }
+:root.rm .dock-btn:active, :root.rm .btn:active, :root.rm .cell:active,
+:root.rm .hud-btn:active, :root.rm .round-btn:active, :root.rm .coach:active { transform: none; }
+:root.rm #toast, :root.rm #toast.show { transition: opacity 160ms linear; transform: translate(-50%, 0); }
 
 @media (prefers-reduced-motion: reduce) {
-  #hint.swipe-demo::after { animation: none; }
-  .ov-card { animation: none; }
+  :root:not(.motion-full) *, :root:not(.motion-full) *::before, :root:not(.motion-full) *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+  :root:not(.motion-full) .sheet { transition: opacity 200ms linear, visibility 200ms; transform: none; opacity: 0; }
+  :root:not(.motion-full) .sheet.show { opacity: 1; }
+  :root:not(.motion-full) .sheet.behind { transform: none; }
+  :root:not(.motion-full) .ov-card,
+  :root:not(.motion-full) .ov-mark { animation: fade-in 180ms linear both !important; }
+  :root:not(.motion-full) .dock-btn:active, :root:not(.motion-full) .btn:active,
+  :root:not(.motion-full) .cell:active, :root:not(.motion-full) .hud-btn:active,
+  :root:not(.motion-full) .round-btn:active, :root:not(.motion-full) .coach:active { transform: none; }
+  :root:not(.motion-full) #toast,
+  :root:not(.motion-full) #toast.show { transition: opacity 160ms linear; transform: translate(-50%, 0); }
 }
+
+/* ── 15 · CONFIRM ─────────────────────────────────────────────────────────── */
+/* The one destructive action in the game gets the one dialog in the game. It
+   reuses the card, and differs in exactly one way: the backdrop is solid, because
+   there is nothing behind it worth looking at while this question is open. */
+
+.overlay.confirm::before {
+  background: rgba(3, 4, 10, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.overlay.confirm { padding-bottom: max(var(--safe-b), var(--s4)); }

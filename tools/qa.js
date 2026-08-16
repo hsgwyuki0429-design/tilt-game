@@ -317,7 +317,13 @@ async function swipe(page, x, y, dx, dy) {
     var keyOf = { U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight' };
     await page.keyboard.press(keyOf[killed.dir]);
     await page.waitForFunction(function () { return window.game.phase !== 'busy'; }, null, { timeout: 6000 });
-    await page.waitForTimeout(200);
+    // The card is held back a beat so the shatter is seen in the cell that
+    // caused it, rather than behind the panel announcing it. Wait for the card
+    // itself rather than for a fixed delay — the delay is a design choice that
+    // may change, the card appearing is the thing being tested.
+    await page.waitForFunction(function () {
+      return document.getElementById('overlay').classList.contains('show');
+    }, null, { timeout: 4000 }).catch(function () {});
     var after = await page.evaluate(function () {
       var ov = document.getElementById('overlay');
       return {
