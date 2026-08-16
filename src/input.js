@@ -25,7 +25,11 @@
 
   function Input(el, handlers) {
     this.el = el;
-    this.on = handlers;      // { commit(dir), aim(dirOrNull) }
+    // { commit(dir), aim(dirOrNull), tap() } — `tap` is optional and exists for
+    // one reason: a first-time player who has not worked out the gesture pokes
+    // the board, and a board that answers a poke with silence has told them
+    // nothing. See Game#onTap.
+    this.on = handlers;
     this.start = null;
     this.aimed = null;
     this.tilt = {
@@ -65,10 +69,12 @@
       if (p) { dx = p.x - self.start.x; dy = p.y - self.start.y; }
       var quick = performance.now() - self.start.t < FLICK_MS;
       var dir = self.classify(dx, dy, quick);
+      var still = Math.abs(dx) < 10 && Math.abs(dy) < 10;
       self.start = null;
       self.aimed = null;
       self.on.aim(null);
       if (dir) self.on.commit(dir);
+      else if (still && self.on.tap) self.on.tap();
     };
     var cancel = function () {
       self.start = null;
