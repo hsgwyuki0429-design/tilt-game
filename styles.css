@@ -22,35 +22,45 @@
 /* ── 1 · TOKENS ───────────────────────────────────────────────────────────── */
 
 :root {
-  /* Surfaces. A single near-black ground with three lifts above it; the game is
-     dark by design (it is a puzzle about gravity in an empty room) rather than
-     by default, so there is no light theme to keep in sync. */
-  --bg:            #06070F;
-  --bg-raise:      #0C0F20;
-  --bg-sheet:      #0F1327;
-  --bg-card:       rgba(20, 25, 51, 0.86);
+  /* Surfaces. A very light cool grey ground with white lifted above it, so a
+     white card has something to sit ON — a white sheet on a white page has no
+     edge, and every layer in this interface has to be a layer you can see. */
+  --bg:            #F1F3F9;
+  --bg-raise:      #FFFFFF;
+  --bg-sheet:      #F5F6FB;
+  --bg-card:       rgba(255, 255, 255, 0.92);
 
-  /* Fills, in the iOS sense: the background of a control, not of the page. */
-  --fill-1:        rgba(126, 150, 240, 0.09);
-  --fill-2:        rgba(126, 150, 240, 0.15);
-  --fill-3:        rgba(126, 150, 240, 0.22);
-  --sep:           rgba(150, 170, 255, 0.13);
-  --sep-strong:    rgba(150, 170, 255, 0.22);
+  /* Fills, in the iOS sense: the background of a control, not of the page. On a
+     light ground these are the ink going translucent, not the paper. */
+  --fill-1:        rgba(60, 70, 120, 0.055);
+  --fill-2:        rgba(60, 70, 120, 0.10);
+  --fill-3:        rgba(60, 70, 120, 0.16);
+  --sep:           rgba(60, 70, 120, 0.14);
+  --sep-strong:    rgba(60, 70, 120, 0.22);
 
-  /* Labels. Four steps, mirroring the system hierarchy. Contrast on --bg:
-     label 18:1 · label-2 8.6:1 · label-3 5.1:1 · label-4 is disabled-only. */
-  --label:         #F0F3FF;
-  --label-2:       #A6B0D2;
-  --label-3:       #7A85AE;
-  --label-4:       #4A5378;
+  /* Labels. Four steps, mirroring the system hierarchy. Measured on --bg:
+     label 16.5:1 · label-2 7.4:1 · label-3 4.9:1 · label-4 is disabled-only. */
+  --label:         #10132A;
+  --label-2:       #474E6C;
+  --label-3:       #616986;
+  --label-4:       #A9AFC3;
 
-  /* One accent, and three semantics that each also carry a glyph somewhere. */
-  --accent:        #38D6F5;
-  --accent-hi:     #7FE7FF;
-  --accent-ink:    #032430;
-  --amber:         #FFB43D;   /* perfect / par */
-  --mint:          #45E3B0;   /* success */
-  --red:           #FF6070;   /* run ended */
+  /* One accent, and three semantics that each also carry a glyph somewhere.
+     These are the DEEP ends of the game's hues rather than the bright ones: a
+     colour that sings on black is invisible on white, and the identity lives in
+     the hue, not in the brightness. Pressed states go darker, not lighter. */
+  --accent:        #06718F;   /* 5.0:1 */
+  --accent-hi:     #055C76;   /* pressed */
+  --accent-ink:    #FFFFFF;   /* on an accent fill — 5.6:1 */
+  --amber:         #AF6E08;   /* perfect / past par — large text and glyphs */
+  --mint:          #0A7D59;   /* success */
+  --red:           #C3253A;   /* run ended */
+
+  /* Shadow. On a light theme this is the only thing that says "above", so it is
+     a token rather than a literal: one light source, one colour, three depths. */
+  --shade:         rgba(28, 36, 76, 0.10);
+  --shade-2:       rgba(28, 36, 76, 0.14);
+  --shade-3:       rgba(28, 36, 76, 0.20);
 
   /* Type. iOS scale, multiplied by --tsx, which the game sets from the device's
      Dynamic Type size (clamped, so Larger Text can grow the interface without
@@ -128,8 +138,8 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(118% 70% at 50% -12%, #1B2247 0%, rgba(27, 34, 71, 0) 62%),
-    radial-gradient(90% 55% at 50% 112%, #150F33 0%, rgba(21, 15, 51, 0) 58%),
+    radial-gradient(118% 70% at 50% -12%, #FFFFFF 0%, rgba(255, 255, 255, 0) 64%),
+    radial-gradient(92% 55% at 50% 112%, #E4E7F4 0%, rgba(228, 231, 244, 0) 60%),
     var(--bg);
   z-index: -1;
 }
@@ -358,7 +368,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; bo
   min-height: 54px;
   padding: 0 var(--s3);
   border-radius: var(--r-md);
-  background: var(--fill-1);
+  background: var(--bg-raise);
+  box-shadow: 0 0 0 1px var(--sep), 0 1px 2px var(--shade);
   color: var(--label);
   font-size: var(--t-subhead);
   font-weight: 600;
@@ -369,7 +380,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; bo
 .dock-btn .lbl { white-space: nowrap; }
 .dock-btn.wide  { flex: 1.7 1 0; }
 .dock-btn.quiet { flex: 1 1 0; background: transparent; color: var(--label-3); box-shadow: inset 0 0 0 1px var(--sep); }
-.dock-btn:active:not(:disabled) { background: var(--fill-3); transform: scale(0.97); }
+.dock-btn:active:not(:disabled) { background: #E9ECF6; transform: scale(0.97); }
 .dock-btn.quiet:active:not(:disabled) { background: var(--fill-2); color: var(--label-2); }
 /* Disabled is a real state, not a dimmed enabled one: it loses its fill as well
    as its contrast, so "there is nothing to undo" is legible at a glance. */
@@ -402,8 +413,8 @@ body.carded #dock { opacity: 0.3; }
   max-width: calc(100% - var(--s6));
   padding: var(--s2) var(--s3) var(--s2) var(--s4);
   border-radius: 999px;
-  background: rgba(24, 29, 58, 0.92);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), inset 0 0 0 1px var(--sep);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 28px var(--shade-2), 0 1px 3px var(--shade), inset 0 0 0 1px var(--sep);
   backdrop-filter: blur(18px) saturate(1.5);
   -webkit-backdrop-filter: blur(18px) saturate(1.5);
   color: var(--label);
@@ -426,12 +437,12 @@ body.carded #dock { opacity: 0.3; }
   padding: 0 var(--s3);
   margin-left: var(--s1);
   border-radius: 999px;
-  background: var(--fill-2);
+  background: rgba(6, 113, 143, 0.11);
   color: var(--accent);
   font-size: var(--t-footnote);
   font-weight: 650;
 }
-#toast .t-act:active { background: var(--fill-3); }
+#toast .t-act:active { background: rgba(6, 113, 143, 0.2); }
 
 
 /* ── 8 · CLEAR / GAME-OVER CARD ───────────────────────────────────────────── */
@@ -453,7 +464,7 @@ body.carded #dock { opacity: 0.3; }
   position: absolute;
   inset: 0;
   /* Transparent at the top, solid behind the card. The board stays readable. */
-  background: linear-gradient(180deg, rgba(6, 7, 15, 0) 0%, rgba(6, 7, 15, 0.55) 42%, rgba(6, 7, 15, 0.86) 100%);
+  background: linear-gradient(180deg, rgba(241, 243, 249, 0) 0%, rgba(241, 243, 249, 0.72) 42%, rgba(241, 243, 249, 0.94) 100%);
   animation: fade-in 240ms var(--ease) both;
 }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -467,7 +478,7 @@ body.carded #dock { opacity: 0.3; }
   border-radius: var(--r-xl);
   text-align: center;
   background: var(--bg-card);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 0 0 1px var(--sep);
+  box-shadow: 0 18px 48px var(--shade-3), 0 2px 8px var(--shade), inset 0 0 0 1px var(--sep);
   backdrop-filter: blur(24px) saturate(1.6);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   animation: card-in 380ms var(--ease-ios) both;
@@ -491,7 +502,7 @@ body.carded #dock { opacity: 0.3; }
 }
 .ov-mark .ic { width: 28px; height: 28px; stroke-width: 2.4; }
 .ov-mark.perfect { background: var(--amber); }
-.ov-mark.over    { background: var(--red); color: #2A0308; }
+.ov-mark.over    { background: var(--red); }
 @keyframes mark-in {
   from { opacity: 0; transform: scale(0.5); }
   to   { opacity: 1; transform: none; }
@@ -521,7 +532,8 @@ body.carded #dock { opacity: 0.3; }
   margin: 0 0 var(--s4);
   padding: var(--s3) var(--s2);
   border-radius: var(--r-md);
-  background: var(--fill-1);
+  background: #F2F4FA;
+  box-shadow: inset 0 0 0 1px var(--sep);
 }
 .ov-stat { flex: 1 1 0; display: flex; flex-direction: column; gap: 2px; }
 .ov-stat .k {
@@ -540,7 +552,7 @@ body.carded #dock { opacity: 0.3; }
   border-radius: 999px;
   font-size: var(--t-caption); font-weight: 650;
   color: var(--mint);
-  background: rgba(69, 227, 176, 0.14);
+  background: rgba(10, 125, 89, 0.11);
 }
 .ov-flag .ic { width: 14px; height: 14px; stroke-width: 2.6; }
 
@@ -566,14 +578,14 @@ body.carded #dock { opacity: 0.3; }
 .btn:active { transform: scale(0.975); }
 /* Flat fill, not a gradient with a glow under it. The primary action is the one
    that is filled; nothing else has to be done to say so. */
-.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 2px 8px rgba(6,113,143,0.28); }
 .btn.primary:active { background: var(--accent-hi); }
-.btn.ghost { background: var(--fill-1); color: var(--label); }
+.btn.ghost { background: #F2F4FA; box-shadow: inset 0 0 0 1px var(--sep); color: var(--label); }
 .btn.ghost:active { background: var(--fill-3); }
 .btn.plain { background: transparent; color: var(--label-2); min-height: 44px; font-weight: 600; }
 .btn.plain:active { background: var(--fill-1); }
 .btn.danger { background: transparent; color: var(--red); }
-.btn.danger:active { background: rgba(255, 96, 112, 0.14); }
+.btn.danger:active { background: rgba(195, 37, 58, 0.10); }
 .btn .ic { width: 19px; height: 19px; }
 /* Two secondary actions of equal weight share a row; a third would be a menu. */
 .ov-row { display: flex; gap: var(--s2); }
@@ -586,7 +598,7 @@ body.carded #dock { opacity: 0.3; }
   position: fixed;
   inset: 0;
   z-index: 18;
-  background: rgba(3, 4, 10, 0.5);
+  background: rgba(28, 36, 76, 0.28);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
   opacity: 0;
@@ -611,7 +623,7 @@ body.carded #dock { opacity: 0.3; }
   padding: 0 max(var(--safe-r), var(--s4)) 0 max(var(--safe-l), var(--s4));
   border-radius: var(--r-sheet) var(--r-sheet) 0 0;
   background: var(--bg-sheet);
-  box-shadow: 0 -1px 0 var(--sep-strong), 0 -24px 70px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 -1px 0 var(--sep), 0 -20px 56px var(--shade-3);
   transform: translateY(100%);
   visibility: hidden;
   transition: transform var(--dur-sheet) var(--ease-ios), visibility var(--dur-sheet);
@@ -620,11 +632,12 @@ body.carded #dock { opacity: 0.3; }
 /* A sheet that presented another sheet slides down a little and dims, so the
    stack is legible and Back is obviously going somewhere that still exists. */
 .sheet.behind { transform: translateY(14px) scale(0.965); }
+.sheet.behind .grabber { opacity: 0; }
 .sheet.behind::after {
   content: '';
   position: absolute; inset: 0;
   border-radius: inherit;
-  background: rgba(3, 4, 10, 0.45);
+  background: rgba(28, 36, 76, 0.22);
 }
 
 .grabber {
@@ -633,6 +646,9 @@ body.carded #dock { opacity: 0.3; }
   border-radius: 999px;
   background: var(--label-4);
   flex: 0 0 auto;
+  /* A sheet that is not the top of the stack cannot be dragged, so it does not
+     advertise that it can. Two grabbers a centimetre apart read as a glitch. */
+  transition: opacity var(--dur) var(--ease);
 }
 
 .sheet-bar {
@@ -755,11 +771,12 @@ body.carded #dock { opacity: 0.3; }
   min-height: 76px;
   padding: var(--s3) var(--s3) var(--s2);
   border-radius: var(--r-md);
-  background: var(--fill-1);
+  background: var(--bg-raise);
+  box-shadow: 0 0 0 1px var(--sep), 0 1px 2px var(--shade);
   text-align: left;
   transition: background var(--dur-press) linear, transform var(--dur-press) var(--ease);
 }
-.cell:active:not(:disabled) { transform: scale(0.955); background: var(--fill-3); }
+.cell:active:not(:disabled) { transform: scale(0.955); background: #EDEFF7; }
 .cell .n { font-size: var(--t-caption2); font-weight: 650; color: var(--label-3); font-variant-numeric: tabular-nums; }
 .cell .nm { font-size: var(--t-footnote); font-weight: 650; letter-spacing: 0.03em; color: var(--label); }
 .cell .bs {
@@ -772,11 +789,11 @@ body.carded #dock { opacity: 0.3; }
 
 /* Cleared and perfect differ by glyph first (check, then star-weight ring) and
    by colour second, so the list is readable without colour vision. */
-.cell.done { background: rgba(56, 214, 245, 0.10); }
+.cell.done { background: #E7F2F6; box-shadow: 0 0 0 1px rgba(6,113,143,0.22), 0 1px 2px var(--shade); }
 .cell.done .bs { color: var(--accent); }
-.cell.perfect { background: rgba(255, 180, 61, 0.085); }
+.cell.perfect { background: #FAF1E2; box-shadow: 0 0 0 1px rgba(175,110,8,0.26), 0 1px 2px var(--shade); }
 .cell.perfect .bs { color: var(--amber); }
-.cell.current { box-shadow: inset 0 0 0 2px var(--label-2); }
+.cell.current { box-shadow: 0 0 0 2px var(--label-2), 0 1px 2px var(--shade); }
 .cell.locked { opacity: 0.4; }
 .cell.locked .nm { color: var(--label-3); }
 .cell.locked .bs { color: var(--label-4); }
@@ -789,7 +806,8 @@ body.carded #dock { opacity: 0.3; }
 
 .list {
   border-radius: var(--r-lg);
-  background: var(--fill-1);
+  background: var(--bg-raise);
+  box-shadow: 0 0 0 1px var(--sep), 0 1px 2px var(--shade);
   overflow: hidden;
   margin-bottom: var(--s3);
 }
@@ -838,7 +856,7 @@ body.carded #dock { opacity: 0.3; }
   width: 27px; height: 27px;
   border-radius: 999px;
   background: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 5px var(--shade-2), 0 0 0 0.5px var(--shade);
   transition: transform var(--dur) var(--ease-pop);
 }
 .row[aria-checked="true"] .sw { background: var(--accent); }
@@ -895,7 +913,7 @@ body.carded #dock { opacity: 0.3; }
    desktop monitor would make it a different, worse game. Cap the column and
    frame it. */
 @media (min-width: 620px) {
-  #app { max-width: 480px; margin: 0 auto; box-shadow: 0 0 120px rgba(0, 0, 0, 0.6); }
+  #app { max-width: 480px; margin: 0 auto; box-shadow: 0 0 0 1px var(--sep), 0 0 90px var(--shade); }
   .sheet { max-width: 480px; margin: 0 auto; }
   .scrim { cursor: pointer; }
 }
@@ -945,7 +963,7 @@ body.carded #dock { opacity: 0.3; }
    there is nothing behind it worth looking at while this question is open. */
 
 .overlay.confirm::before {
-  background: rgba(3, 4, 10, 0.62);
+  background: rgba(28, 36, 76, 0.34);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }

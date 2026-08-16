@@ -133,7 +133,7 @@ Motion.
 | **A separate title/home screen** | A returning player should be one launch from the board they were on. The launch curtain gives TILT its name without costing a tap; the Stages sheet does everything a home screen would. |
 | **A pause screen** | There is no clock. "Stop and look at where I am" and "open the menu" are one intention, so they are one sheet. |
 | **A retry screen** | The Game Over card *is* the retry screen. |
-| **A light theme** | The game is a lit object in a dark room; that is the identity. Dark-only is a legitimate choice when the design demands it, and the palette is held to AA contrast regardless. |
+| ~~**A light theme**~~ | Originally rejected — "the game is a lit object in a dark room". That was overturned on request, and §H records what the inversion actually cost and taught. The game is now light-only, held to the same AA contrast. |
 | **A confirmation on Restart** | It taxes the ninety-nine intended restarts to catch the one that was not. Undoing it is strictly better (§C7). |
 
 ---
@@ -403,23 +403,31 @@ LAUNCH ─── curtain (90ms; 620ms on the very first launch ever)
 
 | Token | Value | Use |
 |---|---|---|
-| `--bg` | `#06070F` | ground |
-| `--bg-raise` | `#0C0F20` | lifted surface |
-| `--bg-sheet` | `#0F1327` | sheets |
-| `--bg-card` | `rgba(20,25,51,0.86)` | cards, over blur |
-| `--fill-1/2/3` | `rgba(126,150,240, .09/.15/.22)` | control · pressed · active |
-| `--sep` | `rgba(150,170,255,0.13)` | hairline |
-| `--label` | `#F0F3FF` | primary — **18:1** |
-| `--label-2` | `#A6B0D2` | secondary — **8.6:1** |
-| `--label-3` | `#7A85AE` | tertiary — **5.1:1** |
-| `--label-4` | `#4A5378` | disabled only (exempt from AA) |
-| `--accent` | `#38D6F5` | the only interactive colour — **11:1** |
-| `--amber` | `#FFB43D` | perfect, past par |
-| `--mint` | `#45E3B0` | new best |
-| `--red` | `#FF6070` | run ended |
+| `--bg` | `#F1F3F9` | ground — a light cool grey, so white can sit *on* it |
+| `--bg-raise` | `#FFFFFF` | cards, list rows, dock keys |
+| `--bg-sheet` | `#F5F6FB` | sheets |
+| `--bg-card` | `rgba(255,255,255,0.92)` | cards, over blur |
+| `--fill-1/2/3` | `rgba(60,70,120, .055/.10/.16)` | control · pressed · active |
+| `--sep` | `rgba(60,70,120,0.14)` | hairline |
+| `--shade`/`-2`/`-3` | `rgba(28,36,76, .10/.14/.20)` | the only thing that says "above" |
+| `--label` | `#10132A` | primary — **16.5:1** |
+| `--label-2` | `#474E6C` | secondary — **7.4:1** |
+| `--label-3` | `#616986` | tertiary — **4.9:1** |
+| `--label-4` | `#A9AFC3` | disabled only (exempt from AA) |
+| `--accent` | `#06718F` | the only interactive colour — **5.0:1** |
+| `--amber` | `#AF6E08` | perfect, past par — **3.7:1**, large text and glyphs only |
+| `--mint` | `#0A7D59` | new best — **4.6:1** |
+| `--red` | `#C3253A` | run ended — **5.2:1** |
 
-Every label colour above passes WCAG AA on `--bg`; `--label-4` is used only for
-disabled controls, which the standard exempts.
+Every label colour above passes WCAG AA on `--bg` *and* on white; `--label-4` is
+used only for disabled controls, which the standard exempts. `--amber` is the one
+value held to the 3:1 large-text threshold rather than 4.5 — orange on white
+cannot reach 4.5 without ceasing to be orange — and it is never used for body
+text, only for a 28pt title, a stat glyph and a badge fill.
+
+Every number in that table was **measured, not chosen**: the palette was run
+through a WCAG contrast script before it was written into the code, and four of
+the first-draft values failed and were replaced.
 
 **No state anywhere is carried by colour alone.**
 
@@ -492,12 +500,15 @@ system default, which is the bug every hand-rolled version of this has.
 
 ### The board's material language
 
+The tray is the grey and the cells are the white — inverting that makes the
+board read as a hole rather than as a surface.
+
 |  | Corner | Surface | Shadow | Sits |
 |---|---|---|---|---|
-| **Wall** | `cell × 0.06` | matte gradient, hairline top/left only | none | **in** the tray |
-| **Block** | `cell × 0.26` | lit gloss + coloured glow | cast, `+7%` Y | **on** the tray |
-| **Hazard** | `cell × 0.13` | sunken, inner shadow, hatched | inward | **below** the floor |
-| **Socket** | `cell × 0.20` | sunken well, lit rim, breathing | inward | **in** the floor |
+| **Wall** | `cell × 0.06` | matte grey gradient, lit hairline top/left | none | **in** the tray |
+| **Block** | `cell × 0.26` | saturated fill + light gloss + hairline rim | cast, `+5.5%` Y | **on** the tray |
+| **Hazard** | `cell × 0.13` | tinted recess, inner shadow, hatched | inward | **below** the floor |
+| **Socket** | `cell × 0.20` | tinted well + inner shadow, coloured rim | inward | **in** the floor |
 | **Target** | brackets | on-floor corners, hollow when filled | none | **on** the floor |
 
 Four axes separating a wall from a block, not one. You can tell them apart in a
@@ -507,8 +518,9 @@ merge with a seam so a run of them reads as one built mass rather than a row of
 loose bricks.
 
 Uncollectable blocks (SELECT) keep their **shadow and round corner** — they are
-objects — and lose their glow and their filled glyph. Since walls no longer look
-like blocks at all, the confusion in §A1 disappears from both directions.
+objects — and lose their saturation and their filled glyph, gaining an outline
+instead. Since walls no longer look like blocks at all, the confusion in §A1
+disappears from both directions.
 
 ### Icons
 
@@ -625,3 +637,69 @@ card appearing is the thing being tested.
 - **Stage 39 is unwinnable from 32% of its positions.** That is a property of the
   board, flagged by `tools/audit.js`, absorbed by the automatic rewind, and a
   campaign decision rather than an interface one.
+
+
+---
+
+## H · The light inversion
+
+The interface above was designed dark and then asked to be white. That is not a
+palette swap, and the three places it was not are the interesting ones — each is
+a case where the dark theme's reasoning was *correct* and its conclusion still had
+to be thrown away.
+
+### H1 · Emphasis flips direction
+
+On black, a thing matters by being **lighter** than its surroundings: cargo blocks
+carried an outer glow and furniture did not. On white that argument runs backwards
+— lighter means closer to the paper, which means *less* present — so the glow was
+deleted rather than translated. A glow on white is white on white.
+
+Its job passed to a **rim**, and the emphasis inverted with it: a cargo block is a
+solid saturated shape that needs only a hairline to sit off the page, while an
+uncollectable one has drained almost to the paper and the rim is now the thing
+doing the drawing. Filled is cargo, outlined is furniture — the same two states
+and the same meaning, re-derived from the background rather than carried over.
+
+### H2 · A hole does not draw itself
+
+On a dark board any cell darker than the floor is already a hole; the socket got a
+lit rim and the rest was free. On white, a pale ring on white paper is a **picture
+frame**. The recess had to be built: a tinted well, and then an inner shadow
+falling in from the top edge, which is the only cue that separates "sunk into the
+surface" from "printed on it" under a light from above.
+
+This was caught by looking at the first light build, not by reasoning — the socket
+passed every contrast check and still did not read as a hole.
+
+### H3 · The loudest thing available changed
+
+A wall on black receded by being darker than the room. On white "darker" is the
+single loudest move on the screen, and the first light build had walls as
+near-black slabs that dominated every board. They were pulled back to a mid grey
+that still clears 3:1 against the floor. The same is true of the gravity band:
+light-on-dark blended away at both ends, dark-on-light left a hard edge where the
+tray began that read as a rendering fault, so it lost a third of its weight and
+the chevron took over the job.
+
+### What did not change
+
+The four block colours kept their **hues and their shapes** — circle, triangle,
+square, diamond, matched between block and socket. The identity of this game lives
+in the hue and the glyph, not in the brightness, so every colour moved to the deep
+end of its own family rather than to a different family. The §A1 fix survives
+intact and is arguably stronger: the wall is now the only **grey** object on the
+board, so "is that a wall?" is answerable without reading a shape at all.
+
+### What this cost
+
+Nothing structural. No layout, no flow, no timing, no copy and no rule changed;
+`src/engine.js` and `src/stages.js` were never touched. It is `styles.css`, the
+renderer's theme, and the four how-to diagrams. Both suites stayed green
+throughout, which is the point of having had them.
+
+**Adding dark back** would be a data change rather than a rewrite: every colour the
+canvas uses now lives in one `THEME` object plus `PALETTE`, and every colour the
+chrome uses is a custom property in one `:root` block. That was not true before
+this pass — nineteen colours were inline literals in drawing code — and making it
+true was most of the work.

@@ -9,14 +9,14 @@
      itself claims every gesture inside it with `touch-action: none`. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="TILT — a gravity puzzle. You never move the blocks. You move the world.">
-<meta name="theme-color" content="#06070F">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#F1F3F9">
+<meta name="color-scheme" content="light">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="TILT">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%2306070F'/><rect x='34' y='34' width='56' height='56' rx='18' fill='%2338D6F5'/><rect x='98' y='98' width='48' height='48' rx='15' fill='none' stroke='%23B9C6EE' stroke-width='8'/></svg>">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2306070F'/><rect x='6' y='6' width='11' height='11' rx='3.5' fill='%2338D6F5'/><rect x='17.5' y='17.5' width='9' height='9' rx='2.8' fill='none' stroke='%23B9C6EE' stroke-width='2'/></svg>">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%23F1F3F9'/><rect x='34' y='34' width='56' height='56' rx='18' fill='%230B8DAE'/><rect x='98' y='98' width='48' height='48' rx='15' fill='none' stroke='%235C6484' stroke-width='8'/></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23F1F3F9'/><rect x='6' y='6' width='11' height='11' rx='3.5' fill='%230B8DAE'/><rect x='17.5' y='17.5' width='9' height='9' rx='2.8' fill='none' stroke='%235C6484' stroke-width='2'/></svg>">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -45,10 +45,14 @@
   <!-- A cog, not a sunburst. The teeth are a generated even polygon rather than
        eight radial strokes, which is the difference between reading as "settings"
        and reading as "brightness". -->
+  <!-- Filled, with the bore knocked out by even-odd, because an eight-tooth
+       outline stroked at 1.9 turns to fuzz by the time it is 18pt wide. It is
+       the only solid glyph in the set, and it earns that by being the only one
+       whose silhouette IS the meaning. -->
   <symbol id="i-gear" viewBox="0 0 24 24">
-    <path d="M9.79 2.04L14.21 2.04L13.64 4.58L16.08 5.59L17.48 3.40L20.60 6.52L18.41 7.92L19.42 10.36L21.96 9.79L21.96 14.21L19.42 13.64L18.41 16.08L20.60 17.48L17.48 20.60L16.08 18.41L13.64 19.42L14.21 21.96L9.79 21.96L10.36 19.42L7.92 18.41L6.52 20.60L3.40 17.48L5.59 16.08L4.58 13.64L2.04 14.21L2.04 9.79L4.58 10.36L5.59 7.92L3.40 6.52L6.52 3.40L7.92 5.59L10.36 4.58Z"
-          stroke-linejoin="round"/>
-    <circle cx="12" cy="12" r="3.2"/>
+    <path fill="currentColor" stroke="none" fill-rule="evenodd"
+          d="M9.79 2.04L14.21 2.04L13.64 4.58L16.08 5.59L17.48 3.40L20.60 6.52L18.41 7.92L19.42 10.36L21.96 9.79L21.96 14.21L19.42 13.64L18.41 16.08L20.60 17.48L17.48 20.60L16.08 18.41L13.64 19.42L14.21 21.96L9.79 21.96L10.36 19.42L7.92 18.41L6.52 20.60L3.40 17.48L5.59 16.08L4.58 13.64L2.04 14.21L2.04 9.79L4.58 10.36L5.59 7.92L3.40 6.52L6.52 3.40L7.92 5.59L10.36 4.58Z
+             M15.4 12A3.4 3.4 0 0 1 8.6 12A3.4 3.4 0 0 1 15.4 12Z"/>
   </symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9.5 5.5 7 6.5-7 6.5"/></symbol>

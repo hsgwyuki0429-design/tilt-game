@@ -48,21 +48,53 @@
   // -- theme ------------------------------------------------------------------
 
   var THEME = {
-    trayFill:   'rgba(11, 14, 32, 0.62)',
-    trayEdge:   'rgba(150, 170, 255, 0.14)',
-    floor:      'rgba(140, 160, 230, 0.040)',
-    floorEdge:  'rgba(150, 175, 255, 0.055)',
-    // Masonry. Cool, flat, and DARKER than the floor rather than lighter — a
-    // wall is mass, and mass does not glow.
-    wallFill:   '#232945',
-    wallFillLo: '#1A1F38',
-    wallEdge:   'rgba(160, 180, 250, 0.20)',
-    wallSeam:   'rgba(8, 10, 24, 0.55)',
-    hazEdge:    'rgba(255, 116, 116, 0.50)',
-    hazDeep:    '#25070F',
-    hazStripe:  'rgba(255, 96, 110, 0.30)',
-    aim:        'rgba(120, 214, 245, ',
-    grav:       'rgba(150, 185, 235, '
+    // The tray is the grey; the cells are the white. Inverting that — white tray,
+    // grey cells — makes the board read as a hole rather than as a surface.
+    trayFill:   '#E9ECF5',
+    trayEdge:   'rgba(60, 70, 120, 0.16)',
+    floor:      '#FFFFFF',
+    floorEdge:  'rgba(60, 70, 120, 0.085)',
+
+    // Masonry. Mid-dark, flat, and the ONLY grey object on the board — every
+    // other solid thing carries a hue, so "is that a wall?" is answerable
+    // without reading a shape. 3.8:1 against the white floor.
+    wallHi:     '#8B94AF',
+    wallLo:     '#7C86A3',
+    wallEdge:   'rgba(255, 255, 255, 0.34)',   // the lit top edge, now light
+    wallSeam:   'rgba(34, 42, 74, 0.32)',
+
+    // A pit in a white floor: paler than the paper is wrong, so the well is a
+    // tinted recess with the shadow falling IN from the top.
+    hazFill:    '#F8E1E5',
+    hazFillLo:  '#EFCAD1',
+    hazStripe:  'rgba(195, 37, 58, 0.34)',
+    hazShade:   'rgba(120, 20, 34, 0.22)',
+    hazEdge:    'rgba(195, 37, 58, 0.60)',
+
+    socketWell: 'rgba(60, 70, 120, 0.11)',
+    socketShade: 'rgba(38, 48, 92, 0.26)',
+    blockShade: 'rgba(28, 36, 76, 0.30)',
+    // White ink on a saturated block: 3.3:1 at the worst colour, and it is a
+    // glyph rather than text. A dark glyph on these mid-tones would not clear 3.
+    glyphInk:   'rgba(255, 255, 255, 0.92)',
+    inertEdge:  '#5A6280',
+    grazeRing:  'rgba(70, 80, 124, 1)',
+    cueInk:     'rgba(24, 32, 68, 0.82)',
+    cueTrail:   'rgba(24, 32, 68, ',
+    cueGlow:    'rgba(90, 110, 170, 0.35)',
+    clearRing:  'rgba(6, 113, 143, 0.6)',
+    rebuffRing: 'rgba(60, 70, 120, 0.3)',
+    lost:       '#C3253A',
+    lostRing:   'rgba(195, 37, 58, 0.85)',
+    // On a light ground a thing recedes by moving TOWARD the paper, so an
+    // uncollectable block drains to a pale tint — and gets an outline, because a
+    // pale shape on white with no edge is not a shape.
+    inertDrain: '#FFFFFF',
+    inertDrainK: 0.72,
+    inertEdgeK:  0.35,
+
+    aim:        'rgba(6, 113, 143, ',
+    grav:       'rgba(70, 80, 124, '
   };
 
   // One palette and one SHAPE per colour of block, and the socket that will take
@@ -74,14 +106,14 @@
   //   2  B       violet   square
   //   3  C       mint     diamond
   var PALETTE = [
-    { hi: '#AEF3FF', mid: '#38D6F5', lo: '#0A7EA0', glow: 'rgba(56,214,245,0.55)',
-      socket: '#B9C6EE', socketGlow: 'rgba(200,215,255,0.45)', shape: 'circle' },
-    { hi: '#FFE7AC', mid: '#FFB43D', lo: '#A05A00', glow: 'rgba(255,180,61,0.55)',
-      socket: '#FFC766', socketGlow: 'rgba(255,190,90,0.50)', shape: 'triangle' },
-    { hi: '#E8CCFF', mid: '#B479FF', lo: '#5A2EA0', glow: 'rgba(180,121,255,0.55)',
-      socket: '#C295FF', socketGlow: 'rgba(190,150,255,0.50)', shape: 'square' },
-    { hi: '#C6FFE2', mid: '#45E3B0', lo: '#127A55', glow: 'rgba(69,227,176,0.55)',
-      socket: '#7FF0C2', socketGlow: 'rgba(120,240,190,0.50)', shape: 'diamond' }
+    { hi: '#5FC7E2', mid: '#0B8DAE', lo: '#05637C', rim: 'rgba(5, 99, 124, 0.6)',
+      socket: '#5C6484', socketGlow: 'rgba(60, 70, 120, 0.30)', shape: 'circle' },
+    { hi: '#F0AE47', mid: '#C87C08', lo: '#8A5300', rim: 'rgba(138, 83, 0, 0.6)',
+      socket: '#AF6E08', socketGlow: 'rgba(175, 110, 8, 0.32)', shape: 'triangle' },
+    { hi: '#B79BFF', mid: '#7A4AE8', lo: '#4A249B', rim: 'rgba(74, 36, 155, 0.6)',
+      socket: '#6D3FD4', socketGlow: 'rgba(109, 63, 212, 0.32)', shape: 'square' },
+    { hi: '#5FD3AE', mid: '#0D9469', lo: '#06674A', rim: 'rgba(6, 103, 74, 0.6)',
+      socket: '#0A7D59', socketGlow: 'rgba(10, 125, 89, 0.32)', shape: 'diamond' }
   ];
 
   var BLOCK = PALETTE[0];
@@ -303,8 +335,8 @@
 
     roundRect(g, x, y, s, s, r);
     var grad = g.createLinearGradient(x, y, x, y + s);
-    grad.addColorStop(0, THEME.wallFill);
-    grad.addColorStop(1, THEME.wallFillLo);
+    grad.addColorStop(0, THEME.wallHi);
+    grad.addColorStop(1, THEME.wallLo);
     g.fillStyle = grad;
     g.fill();
 
@@ -351,9 +383,9 @@
 
     roundRect(g, x, y, s, s, r);
     var grad = g.createLinearGradient(x, y, x, y + s);
-    grad.addColorStop(0, THEME.hazDeep);
-    grad.addColorStop(0.55, '#16060F');
-    grad.addColorStop(1, '#210A12');
+    grad.addColorStop(0, THEME.hazFillLo);
+    grad.addColorStop(0.5, THEME.hazFill);
+    grad.addColorStop(1, THEME.hazFill);
     g.fillStyle = grad;
     g.fill();
 
@@ -372,8 +404,8 @@
     }
     // Inner shadow along the top, so the cell reads as below the floor.
     var sh = g.createLinearGradient(x, y, x, y + s * 0.5);
-    sh.addColorStop(0, 'rgba(0,0,0,0.60)');
-    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    sh.addColorStop(0, THEME.hazShade);
+    sh.addColorStop(1, 'rgba(120,20,34,0)');
     g.fillStyle = sh;
     g.fillRect(x, y, s, s * 0.5);
     g.restore();
@@ -553,8 +585,8 @@
       // Losing a block has to be unmistakable and has to be legible: the player
       // must know instantly WHICH cell did it, or the rule has not been taught.
       // It costs one tap of undo, so this is information, not punishment.
-      this.burst(cx, cy, '#FF6070', 18, this.cell * 0.022);
-      this.ripple(cx, cy, 'rgba(255,96,112,0.85)', this.cell * 0.2, this.cell * 1.25, 460);
+      this.burst(cx, cy, THEME.lost, 18, this.cell * 0.022);
+      this.ripple(cx, cy, THEME.lostRing, this.cell * 0.2, this.cell * 1.25, 460);
       this.addShake(2.6, 4);
     }
     if (this.onEvent) this.onEvent(ev);
@@ -681,13 +713,18 @@
     var st = this.stage;
     var bw = this.cell * st.w, bh = this.cell * st.h;
     var dirs = [];
-    if (this.gravity && this.gravity !== this.aimDir) dirs.push({ d: this.gravity, a: 0.26, aim: false });
-    if (this.aimDir) dirs.push({ d: this.aimDir, a: 0.95, aim: true });
+    // Quieter than on the dark board, and deliberately. There the band was light
+    // ON dark and blended away at both ends; here it is dark ON light with a hard
+    // edge where the tray begins, and at the old weight that edge reads as a
+    // rendering fault rather than as a pull. The chevron carries the direction;
+    // the band only has to say which side it is on.
+    if (this.gravity && this.gravity !== this.aimDir) dirs.push({ d: this.gravity, a: 0.16, aim: false });
+    if (this.aimDir) dirs.push({ d: this.aimDir, a: 0.72, aim: true });
 
     for (var i = 0; i < dirs.length; i++) {
       var d = dirs[i].d, alpha = dirs[i].a, isAim = dirs[i].aim;
       var tint = isAim ? THEME.aim : THEME.grav;
-      var thick = this.cell * (isAim ? 0.44 : 0.30);
+      var thick = this.cell * (isAim ? 0.40 : 0.26);
       var x0, y0, x1, y1, gx0, gy0, gx1, gy1;
       if (d === 'D')      { x0 = this.ox; y0 = this.oy + bh; x1 = bw; y1 = thick; gx0 = 0; gy0 = y0; gx1 = 0; gy1 = y0 + thick; }
       else if (d === 'U') { x0 = this.ox; y0 = this.oy - thick; x1 = bw; y1 = thick; gx0 = 0; gy0 = this.oy; gx1 = 0; gy1 = this.oy - thick; }
@@ -695,7 +732,7 @@
       else                { x0 = this.ox - thick; y0 = this.oy; x1 = thick; y1 = bh; gx0 = this.ox; gy0 = 0; gx1 = this.ox - thick; gy1 = 0; }
 
       var grad = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
-      grad.addColorStop(0, tint + (alpha * 0.55) + ')');
+      grad.addColorStop(0, tint + (alpha * 0.42) + ')');
       grad.addColorStop(1, tint + '0)');
       ctx.fillStyle = grad;
       ctx.fillRect(x0, y0, x1, y1);
@@ -772,17 +809,36 @@
         }
 
         ctx.globalAlpha = 0.85;
-        // Socket well
-        roundRect(ctx, r.x + pad, r.y + pad, r.s - pad * 2, r.s - pad * 2, r.s * 0.2);
-        ctx.fillStyle = 'rgba(0,0,10,0.32)';
+        /*
+         * The socket well.
+         *
+         * On a black board a hole draws itself: anything darker than the floor is
+         * already a hole. On a white one it does not — a pale ring on white is a
+         * picture frame, not a socket — so the recess has to be built. A tinted
+         * floor, and then an inner shadow falling IN from the top edge, which is
+         * the only cue that separates "sunk into the surface" from "printed on
+         * it" under a light from above.
+         */
+        var wx = r.x + pad, wy = r.y + pad, ws = r.s - pad * 2;
+        roundRect(ctx, wx, wy, ws, ws, r.s * 0.2);
+        ctx.fillStyle = THEME.socketWell;
         ctx.fill();
+        ctx.save();
+        roundRect(ctx, wx, wy, ws, ws, r.s * 0.2);
+        ctx.clip();
+        var well = ctx.createLinearGradient(wx, wy, wx, wy + ws * 0.55);
+        well.addColorStop(0, THEME.socketShade);
+        well.addColorStop(1, 'rgba(38,48,92,0)');
+        ctx.fillStyle = well;
+        ctx.fillRect(wx, wy, ws, ws * 0.55);
+        ctx.restore();
 
         ctx.shadowColor = pal.socketGlow;
         ctx.shadowBlur = r.s * (0.12 + pulse * 0.10 + flash * 0.6);
         ctx.strokeStyle = pal.socket;
         ctx.lineWidth = Math.max(1.8, r.s * (0.055 + flash * 0.04));
         ctx.globalAlpha = 0.55 + pulse * 0.25 + flash * 0.45;
-        roundRect(ctx, r.x + pad, r.y + pad, r.s - pad * 2, r.s - pad * 2, r.s * 0.2);
+        roundRect(ctx, wx, wy, ws, ws, r.s * 0.2);
         ctx.stroke();
 
         // The ring the block's dot is shaped to drop into — same shape, same
@@ -804,7 +860,7 @@
   Renderer.prototype.drawGraze = function (ctx, r, p) {
     var t = 1 - p;
     ctx.globalAlpha = p * 0.55;
-    ctx.strokeStyle = 'rgba(190, 205, 245, 1)';
+    ctx.strokeStyle = THEME.grazeRing;
     ctx.lineWidth = Math.max(1.4, r.s * 0.035 * p);
     ctx.setLineDash([r.s * 0.11, r.s * 0.09]);
     ctx.beginPath();
@@ -906,78 +962,99 @@
 
     // Every block casts a shadow, inert ones included — that is what says it is
     // an OBJECT resting on the tray rather than part of the tray. It is the one
-    // property a wall must never borrow.
-    ctx.shadowColor = 'rgba(0,0,12,0.62)';
-    ctx.shadowBlur = cell * 0.18;
-    ctx.shadowOffsetY = cell * 0.07;
+    // property a wall must never borrow, and on a light board it is the ONLY
+    // thing that says "above" at all.
+    ctx.shadowColor = THEME.blockShade;
+    ctx.shadowBlur = cell * 0.16;
+    ctx.shadowOffsetY = cell * 0.055;
     roundRect(ctx, x, y, w, h, rad);
     var grad = ctx.createLinearGradient(x, y, x, y + h);
-    grad.addColorStop(0, inert ? mix(pal.hi) : pal.hi);
-    grad.addColorStop(0.42, inert ? mix(pal.mid) : pal.mid);
-    grad.addColorStop(1, inert ? mix(pal.lo) : pal.lo);
+    if (inert) {
+      grad.addColorStop(0, pale(pal.hi));
+      grad.addColorStop(0.42, pale(pal.mid));
+      grad.addColorStop(1, pale(pal.lo));
+    } else {
+      grad.addColorStop(0, pal.hi);
+      grad.addColorStop(0.42, pal.mid);
+      grad.addColorStop(1, pal.lo);
+    }
     ctx.fillStyle = grad;
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
 
-    // Outer glow makes the movable things pop away from the matte terrain
-    // instantly — and a block with nowhere to go does not get one. It still
-    // slides, it still blocks, and it reads as cargo nobody ordered.
-    if (!inert) {
-      ctx.shadowColor = pal.glow;
-      ctx.shadowBlur = cell * 0.3;
-      ctx.globalAlpha = 0.55;
-      roundRect(ctx, x, y, w, h, rad);
-      ctx.strokeStyle = pal.hi;
-      ctx.lineWidth = 1.4;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.shadowBlur = 0;
-    }
+    /*
+     * The rim, and why it is the opposite of what the dark board did.
+     *
+     * On black, cargo got an outer GLOW and furniture got none: light meant
+     * "this one matters". On white a glow is nothing at all — it is white on
+     * white — so the job passes to a crisp rim, and the emphasis flips with it.
+     *
+     * A cargo block is a solid saturated shape and needs only a hairline of its
+     * own dark end to sit off the paper. An inert block has drained almost to
+     * the paper, so the rim is now the thing DOING the drawing: without it a
+     * pale tile on a white floor is not a shape at all. Same two states, same
+     * meaning — filled is cargo, outlined is furniture — argued from the
+     * background out rather than carried over from a theme that had none.
+     */
+    roundRect(ctx, x, y, w, h, rad);
+    ctx.strokeStyle = inert ? drainEdge(pal.mid) : pal.rim;
+    ctx.lineWidth = inert ? Math.max(1.4, cell * 0.022) : Math.max(1, cell * 0.014);
+    ctx.stroke();
 
-    // Gloss
+    // Gloss. Much lighter than on the dark board: a white sheen over a pale tile
+    // is invisible, and over a saturated one it only has to suggest a curve.
     ctx.save();
     roundRect(ctx, x, y, w, h, rad);
     ctx.clip();
     var gl = ctx.createLinearGradient(x, y, x, y + h * 0.55);
-    gl.addColorStop(0, 'rgba(255,255,255,' + (inert ? 0.14 : 0.42) + ')');
+    gl.addColorStop(0, 'rgba(255,255,255,' + (inert ? 0.30 : 0.26) + ')');
     gl.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = gl;
     ctx.fillRect(x, y, w, h * 0.55);
     ctx.restore();
 
     // The dot that matches the ring on the goal which will take this block —
-    // hollow when no goal anywhere will.
+    // hollow and dashed when no goal anywhere will.
     glyph(ctx, x + w / 2, y + h / 2, cell * 0.15, pal.shape);
     if (inert) {
-      ctx.strokeStyle = 'rgba(226,233,255,0.42)';
+      ctx.strokeStyle = drainEdge(pal.mid);
       ctx.lineWidth = Math.max(1.4, cell * 0.04);
       ctx.setLineDash([cell * 0.055, cell * 0.045]);
       ctx.stroke();
       ctx.setLineDash([]);
     } else {
-      ctx.fillStyle = 'rgba(6,10,26,0.5)';
+      ctx.fillStyle = THEME.glyphInk;
       ctx.fill();
     }
     ctx.restore();
   };
 
-  /**
-   * Drain a hex colour toward the board's slate, for a block with no home.
-   *
-   * Toward a DARK slate rather than a pale one, which was the first attempt and
-   * was backwards: washing a colour out makes it lighter, and a lighter block on
-   * a dark board reads as more important, not less. Furniture has to recede.
-   */
-  function mix(hex) {
-    var n = parseInt(hex.slice(1), 16);
-    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    var k = 0.70;
-    r = Math.round(r * (1 - k) + 0x46 * k);
-    g = Math.round(g * (1 - k) + 0x4C * k);
-    b = Math.round(b * (1 - k) + 0x74 * k);
+  function blend(hex, target, k) {
+    var n = parseInt(hex.slice(1), 16), t = parseInt(target.slice(1), 16);
+    var r = Math.round(((n >> 16) & 255) * (1 - k) + ((t >> 16) & 255) * k);
+    var g = Math.round(((n >> 8) & 255) * (1 - k) + ((t >> 8) & 255) * k);
+    var b = Math.round((n & 255) * (1 - k) + (t & 255) * k);
     return 'rgb(' + r + ',' + g + ',' + b + ')';
   }
+
+  /**
+   * Drain a colour toward the paper, for a block with no home.
+   *
+   * The dark board drained toward a DARK slate, and had to: washing a colour out
+   * makes it lighter, and a lighter block on a black board reads as more
+   * important rather than less. On white the same argument runs the other way
+   * and lands on the opposite answer — here a thing recedes by approaching the
+   * background, so furniture goes pale.
+   *
+   * Measured, because "pale" is one step from "gone": the drained fills sit at
+   * 1.4:1 against the floor, which is why `drainEdge` exists and is not
+   * optional, and 2.6:1 against the wall they must never be mistaken for.
+   */
+  function pale(hex) { return blend(hex, THEME.inertDrain, THEME.inertDrainK); }
+
+  /** The outline that makes a drained block a shape again. 4.2:1 or better. */
+  function drainEdge(hex) { return blend(hex, THEME.inertEdge, THEME.inertEdgeK); }
 
   /**
    * The first-run cue: how to play, shown rather than written.
@@ -1000,7 +1077,7 @@
       // a static arrow pointing the way, which says the same thing in one glance.
       ctx.save();
       ctx.globalAlpha = 0.45;
-      ctx.strokeStyle = '#DCE6FF';
+      ctx.strokeStyle = THEME.cueInk;
       ctx.lineWidth = Math.max(2, this.cell * 0.05);
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       var a = this.cell * 0.2;
@@ -1034,8 +1111,8 @@
     ctx.save();
     // Trail
     var tg = ctx.createLinearGradient(tx, ty, x, y);
-    tg.addColorStop(0, 'rgba(220,232,255,0)');
-    tg.addColorStop(1, 'rgba(220,232,255,' + (0.30 * fade) + ')');
+    tg.addColorStop(0, THEME.cueTrail + '0)');
+    tg.addColorStop(1, THEME.cueTrail + (0.28 * fade) + ')');
     ctx.strokeStyle = tg;
     ctx.lineWidth = this.cell * 0.13;
     ctx.lineCap = 'round';
@@ -1045,8 +1122,8 @@
     ctx.stroke();
     // The fingertip
     ctx.globalAlpha = fade;
-    ctx.fillStyle = 'rgba(236, 243, 255, 0.92)';
-    ctx.shadowColor = 'rgba(160, 200, 255, 0.7)';
+    ctx.fillStyle = THEME.cueInk;
+    ctx.shadowColor = THEME.cueGlow;
     ctx.shadowBlur = this.cell * 0.35;
     ctx.beginPath();
     ctx.arc(x, y, this.cell * 0.115, 0, Math.PI * 2);
@@ -1121,7 +1198,7 @@
     var cx = this.ox + this.cell * st.w / 2;
     var cy = this.oy + this.cell * st.h / 2;
     if (!this.reduceMotion) {
-      this.ripple(cx, cy, 'rgba(190,230,255,0.75)', this.cell * 0.3, this.cell * st.w * 0.8, 620);
+      this.ripple(cx, cy, THEME.clearRing, this.cell * 0.3, this.cell * st.w * 0.8, 620);
       this.burst(cx, cy, paletteOf(st.colour ? st.colour[0] : 0).mid, 14, this.cell * 0.018);
       this.addShake(2.0, 4);
     }
@@ -1133,7 +1210,7 @@
     if (this.reduceMotion) {
       var st = this.stage;
       this.ripple(this.ox + this.cell * st.w / 2, this.oy + this.cell * st.h / 2,
-        'rgba(255,255,255,0.22)', this.cell * st.w * 0.5, this.cell * st.w * 0.56, 240);
+        THEME.rebuffRing, this.cell * st.w * 0.5, this.cell * st.w * 0.56, 240);
       return;
     }
     this.nudge = { dir: dir, life: 0, max: 300 };

@@ -1173,45 +1173,44 @@
   var FIGURES = (function () {
     function frame(inner) {
       return '<svg viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-        '<rect x="1" y="1" width="70" height="70" rx="14" fill="rgba(140,160,230,0.05)" ' +
-        'stroke="rgba(150,170,255,0.14)"/>' + inner + '</svg>';
+        '<rect x="1" y="1" width="70" height="70" rx="14" fill="#FFFFFF" ' +
+        'stroke="rgba(60,70,120,0.16)"/>' + inner + '</svg>';
     }
-    var block = '<rect x="8" y="42" width="22" height="22" rx="6" fill="#38D6F5"/>' +
-                '<circle cx="19" cy="53" r="3.4" fill="rgba(6,10,26,0.5)"/>';
+    var block = '<rect x="8" y="42" width="22" height="22" rx="6" fill="#0B8DAE"/>' +
+                '<circle cx="19" cy="53" r="3.4" fill="rgba(255,255,255,0.92)"/>';
     return {
       gravity: frame(
-        '<rect x="8" y="8" width="22" height="22" rx="6" fill="#38D6F5"/>' +
-        '<circle cx="19" cy="19" r="3.4" fill="rgba(6,10,26,0.5)"/>' +
-        '<path d="M40 19h18M52 13l6 6-6 6" stroke="#A6B0D2" stroke-width="2.6" ' +
+        '<rect x="8" y="8" width="22" height="22" rx="6" fill="#0B8DAE"/>' +
+        '<circle cx="19" cy="19" r="3.4" fill="rgba(255,255,255,0.92)"/>' +
+        '<path d="M40 19h18M52 13l6 6-6 6" stroke="#616986" stroke-width="2.6" ' +
         'stroke-linecap="round" stroke-linejoin="round"/>' +
-        '<rect x="42" y="42" width="22" height="22" rx="6" fill="rgba(56,214,245,0.28)"/>'),
+        '<rect x="42" y="42" width="22" height="22" rx="6" fill="rgba(11,141,174,0.34)"/>'),
       // The block goes THROUGH the socket and stops past it: the one rule the
       // whole game rests on, drawn as the mistake everybody makes once.
       stop: frame(
-        '<rect x="26" y="26" width="20" height="20" rx="5" fill="rgba(0,0,10,0.3)" ' +
-        'stroke="#B9C6EE" stroke-width="2.4"/>' +
-        '<circle cx="36" cy="36" r="3.4" stroke="#B9C6EE" stroke-width="2"/>' +
-        '<path d="M10 36h10" stroke="#7A85AE" stroke-width="2.4" stroke-linecap="round" ' +
+        '<rect x="26" y="26" width="20" height="20" rx="5" fill="rgba(60,70,120,0.09)" ' +
+        'stroke="#5C6484" stroke-width="2.4"/>' +
+        '<circle cx="36" cy="36" r="3.4" stroke="#5C6484" stroke-width="2"/>' +
+        '<path d="M10 36h10" stroke="#616986" stroke-width="2.4" stroke-linecap="round" ' +
         'stroke-dasharray="4 4"/>' +
-        '<rect x="50" y="25" width="22" height="22" rx="6" fill="#38D6F5" transform="translate(-6,0)"/>' +
-        '<circle cx="55" cy="36" r="3.4" fill="rgba(6,10,26,0.5)"/>'),
+        '<rect x="50" y="25" width="22" height="22" rx="6" fill="#0B8DAE" transform="translate(-6,0)"/>' +
+        '<circle cx="55" cy="36" r="3.4" fill="rgba(255,255,255,0.92)"/>'),
       // All three brakes at once, in the order the campaign teaches them: a block
       // pressed flat against the tray EDGE on the left, a WALL slab merged into
       // the right-hand edge, and a second BLOCK stopped against it.
       brake: frame(
-        '<rect x="1" y="24" width="22" height="24" rx="5" fill="#38D6F5"/>' +
-        '<circle cx="13" cy="36" r="3.4" fill="rgba(6,10,26,0.5)"/>' +
-        '<rect x="30" y="26" width="20" height="20" rx="5" fill="#B479FF"/>' +
-        '<rect x="36" y="32" width="8" height="8" fill="rgba(6,10,26,0.5)"/>' +
-        '<rect x="52" y="21" width="19" height="30" rx="2" fill="#232945" ' +
-        'stroke="rgba(160,180,250,0.22)"/>'),
+        '<rect x="1" y="24" width="22" height="24" rx="5" fill="#0B8DAE"/>' +
+        '<circle cx="13" cy="36" r="3.4" fill="rgba(255,255,255,0.92)"/>' +
+        '<rect x="30" y="26" width="20" height="20" rx="5" fill="#7A4AE8"/>' +
+        '<rect x="36" y="32" width="8" height="8" fill="rgba(255,255,255,0.92)"/>' +
+        '<rect x="52" y="21" width="19" height="30" rx="2" fill="#78829F"/>'),
       hazard: frame(
         '<clipPath id="hzc"><rect x="26" y="26" width="20" height="20" rx="5"/></clipPath>' +
-        '<rect x="26" y="26" width="20" height="20" rx="5" fill="#25070F"/>' +
-        '<g clip-path="url(#hzc)" stroke="rgba(255,96,110,0.55)" stroke-width="4">' +
+        '<rect x="26" y="26" width="20" height="20" rx="5" fill="#F8E1E5"/>' +
+        '<g clip-path="url(#hzc)" stroke="rgba(195,37,58,0.4)" stroke-width="4">' +
         '<path d="M18 50 38 22M28 50 48 22M38 50 58 22"/></g>' +
-        '<rect x="26" y="26" width="20" height="20" rx="5" stroke="rgba(255,116,116,0.5)"/>' +
-        '<path d="M12 36h8M52 36h8" stroke="#7A85AE" stroke-width="2.4" stroke-linecap="round" ' +
+        '<rect x="26" y="26" width="20" height="20" rx="5" stroke="rgba(195,37,58,0.6)"/>' +
+        '<path d="M12 36h8M52 36h8" stroke="#616986" stroke-width="2.4" stroke-linecap="round" ' +
         'stroke-dasharray="4 4"/>' + block.replace('y="42"', 'y="25"').replace('cy="53"', 'cy="36"')
           .replace('x="8"', 'x="4"').replace('cx="19"', 'cx="15"'))
     };
