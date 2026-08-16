@@ -9,6 +9,9 @@
  *   node tools/forge.js --w 3 --h 3 --blocks 3 --walls 1:2 --top 8
  *   node tools/forge.js --w 3 --h 3 --blocks 3 --hazards 1 --unlock 1:2
  *   node tools/forge.js --w 4 --h 3 --colours AAB --walls 1:2 --blind 3
+ *   node tools/forge.js --w 4 --h 3 --colours AABBCC --win select --goals ab
+ *   node tools/forge.js --w 4 --h 3 --colours AABB --win match --par 6:30
+ *   node tools/forge.js --w 4 --h 3 --colours AABBC --win form --goals aabb
  *
  * At 3×3 and 4×3 this is not a sample. It enumerates every arrangement of the
  * budget you give it, up to rotation, reflection and which colour is called A,
@@ -58,11 +61,24 @@ var MINTRAPS = num(arg('traps'), 0);
 var TOP = num(arg('top'), 8);
 var SORT = arg('sort', 'shape');
 var LOOSE = argv.indexOf('--loose') >= 0;    // skip the deletion test
+var WIN = arg('win', 'allin');
+var GOALS = arg('goals', null);              // e.g. "ab" or "aabb"; MATCH takes none
 
 var blocks = COLOURS ? String(COLOURS).split('') : new Array(NBLOCKS).fill('@');
-var goals = COLOURS && /[AB]/.test(COLOURS) ? ['a', 'b'] : ['o'];
 
-var spec = { w: W, h: H, blocks: blocks, walls: WALLS, hazards: HAZ, goals: goals };
+// What the marked cells should be. A MATCH board has none at all; otherwise the
+// default is one socket per colour present, or a single 'o' on a plain board.
+var goals;
+if (GOALS != null && GOALS !== true) goals = String(GOALS).split('');
+else if (WIN === 'match') goals = [];
+else if (COLOURS && /[ABC]/.test(COLOURS)) {
+  goals = [];
+  ['A', 'B', 'C'].forEach(function (c) {
+    if (COLOURS.indexOf(c) >= 0) goals.push(c.toLowerCase());
+  });
+} else goals = ['o'];
+
+var spec = { w: W, h: H, blocks: blocks, walls: WALLS, hazards: HAZ, goals: goals, win: WIN };
 
 var ESC = '';
 var dim = function (s) { return ESC + '[2m' + s + ESC + '[0m'; };
@@ -71,7 +87,7 @@ var yel = function (s) { return ESC + '[33m' + s + ESC + '[0m'; };
 
 console.log('\n  forging ' + W + '×' + H + '  blocks ' + blocks.join('') +
   '  walls ' + WALLS.join('–') + '  hazards ' + HAZ.join('–') +
-  '  goals ' + goals.join('') + '\n');
+  '  goals ' + (goals.join('') || '—') + '  win ' + WIN + '\n');
 
 var t0 = Date.now();
 var raw = [], seen = Object.create(null);
@@ -89,7 +105,7 @@ console.log(dim('  ' + stats.terrains + ' terrains → ' + raw.length +
 
 var kept = [];
 raw.forEach(function (c) {
-  var p = D.profile(c.board, { quick: true, cap: 80000 });
+  var p = D.profile(c.board, { quick: true, cap: 200000, win: WIN, cruxBudget: PAR[1] > 20 ? 60 : 4000 });
   if (!p) return;
   if (p.flow < MINFLOW || p.blindness < MINBLIND || p.traps < MINTRAPS) return;
   if (p.luck > 0.03) return;
@@ -111,7 +127,7 @@ var shown = 0;
 for (var i = 0; i < kept.length && shown < TOP; i++) {
   var p = kept[i];
   if (!LOOSE) {
-    var full = D.profile(p.board, { cap: 80000 });
+    var full = D.profile(p.board, { cap: 200000, win: WIN, cruxBudget: PAR[1] > 20 ? 60 : 4000 });
     if (!full || full.inert) continue;         // carrying a piece it would not miss
     p = full;
   }

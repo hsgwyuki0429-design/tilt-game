@@ -35,7 +35,9 @@
     undo:      { ja: 'UNDO', en: 'UNDO' },
     restart:   { ja: 'RESTART', en: 'RESTART' },
     stages:    { ja: 'ステージ', en: 'STAGES' },
-    deadEnd:   { ja: '行き止まり', en: 'DEAD END' },
+    rewound:   { ja: '詰み — 1手戻しました', en: 'Dead end — that move was taken back' },
+    gameOver:  { ja: 'ゲームオーバー', en: 'GAME OVER' },
+    overBody:  { ja: 'ブロックが危険マスの上で止まりました。', en: 'A block was left standing on a hazard.' },
     allClear:  { ja: 'ALL STAGES CLEAR', en: 'ALL STAGES CLEAR' },
     allBody:   { ja: '全ステージ突破。', en: 'Every stage solved.' },
     progress:  { ja: 'クリア', en: 'CLEARED' },
@@ -48,8 +50,16 @@
     resetAsk:  { ja: '進行状況をすべて消去しますか？', en: 'Erase all progress?' },
     locked:    { ja: 'まだ挑戦できません', en: 'Locked' },
     chain:     { ja: 'CHAIN', en: 'CHAIN' },
-    lost:      { ja: '危険マスで止まった', en: 'STOPPED ON A HAZARD' }
+    lost:      { ja: '危険マスで止まった', en: 'STOPPED ON A HAZARD' },
+    // What "done" means, when it is not the default. ALL IN gets no chip: every
+    // block gone is what the picture already says, and labelling it would make
+    // the other three look like exceptions to a rule rather than what they are.
+    winSelect: { ja: '指定だけ', en: 'ONLY MARKED' },
+    winMatch:  { ja: 'くっつける', en: 'JOIN PAIRS' },
+    winForm:   { ja: 'かたちを作る', en: 'BUILD THE SHAPE' }
   };
+
+  var OBJECTIVE = { select: 'winSelect', match: 'winMatch', form: 'winForm' };
 
   function t(key) { var v = TXT[key]; return JA ? v.ja : v.en; }
 
@@ -64,9 +74,8 @@
     this.stage = null;
     this.state = null;
     this.history = [];
-    this.phase = 'play';        // play | busy | clear
+    this.phase = 'play';        // play | busy | clear | over
     this.queued = null;
-    this.deadEnd = false;
     this.animStart = 0;
     this.animLen = 1;
 
@@ -74,6 +83,7 @@
       app: document.getElementById('app'),
       stageLabel: document.getElementById('stage-label'),
       stageName: document.getElementById('stage-name'),
+      objective: document.getElementById('objective'),
       moves: document.getElementById('moves'),
       par: document.getElementById('par'),
       hint: document.getElementById('hint'),
@@ -130,7 +140,6 @@
     this.state = E.initialState(this.stage);
     this.history = [];
     this.queued = null;
-    this.deadEnd = false;
     this.phase = 'play';
 
     this.renderer.setStage(this.stage, this.state);
@@ -140,13 +149,14 @@
     this.dom.stageLabel.textContent = 'STAGE ' + pad2(def.id) +
       (chap.name ? ' · ' + chap.name : '');
     this.dom.stageName.textContent = def.name;
+    if (this.dom.objective) {
+      var obj = OBJECTIVE[this.stage.win];
+      this.dom.objective.textContent = obj ? t(obj) : '';
+    }
     this.dom.par.textContent = String(def.par);
     this.hideOverlay();
     this.showHint(def);
     this.syncHud();
-    // Recompute rather than merely resetting the flag: this is what clears the
-    // dead-end styling the previous stage may have left on the dock.
-    this.checkDeadEnd();
     this.wake();
   };
 
@@ -188,6 +198,10 @@
       this.next();
       return;
     }
+
+    // A game over is a decision — take the move back, or start again — and a
+    // stray swipe is not an answer to it.
+    if (this.phase === 'over') return;
 
     if (this.phase === 'busy') {
       // Accept a follow-up only once the current slide is mostly played, so a
@@ -238,12 +252,9 @@
       self.renderer.onEvent = null;
       self.state = res.state;
       self.syncHud();
-      // Say what just happened, in the order it matters. A block destroyed
-      // outranks a chain: the player needs to know the board is now unwinnable
-      // and that undo is right there, before anything else competes for the
-      // toast.
-      if (lost) self.showToast(t('lost'));
-      else if (chain >= 2) self.showToast(t('chain') + ' ×' + chain);
+      // A destroyed block ends the run, and the overlay that says so is the
+      // announcement — a toast underneath it would only be competing with it.
+      if (!lost && chain >= 2) self.showToast(t('chain') + ' ×' + chain);
       self.settle(res);
     });
     this.syncHud();
@@ -262,8 +273,18 @@
       return;
     }
 
+    // A block left standing on a hazard is not a setback, it is the end of the
+    // run. The player watched it happen and knows exactly which tilt did it,
+    // which is what makes stopping here fair rather than punitive.
+    if (res.broken) {
+      this.queued = null;
+      this.setPhase('over');
+      this.showGameOver();
+      return;
+    }
+
     this.setPhase('play');
-    this.checkDeadEnd();
+    if (this.rewindIfStuck()) return;
 
     if (this.queued) {
       var d = this.queued;
@@ -273,20 +294,50 @@
   };
 
   /**
-   * If the board can no longer be solved, say so quietly.
+   * A jammed board takes itself back.
    *
-   * Nothing in this game can destroy a block, so a board is almost never
-   * genuinely stuck — but "almost never" is not "never", and a player who has
-   * jammed one should be told rather than left to discover it by exhaustion.
-   * Undo is one tap away and costs nothing.
+   * The old behaviour was a DEAD END badge on the undo button: correct
+   * information, and the wrong shape for it. It asks the player to notice a
+   * label, understand what it means, and then perform the only move the game
+   * was ever going to accept — three steps to arrive somewhere there was no
+   * choice about. Worse, a player who does not read it keeps tilting a board
+   * that cannot be won, and the game says nothing while they do.
+   *
+   * So the game does it: the move that jammed the board is undone, and a toast
+   * says that is what happened. The position it lands on is guaranteed
+   * winnable, because every position is checked the moment it is reached — so
+   * one step back is always enough, and there is no risk of unwinding a run.
+   *
+   * A truncated search means "we could not tell in time", and the board is
+   * given the benefit of the doubt. Refusing a legal position because the
+   * solver ran out of nodes would be far worse than missing a jam.
    */
-  Game.prototype.checkDeadEnd = function () {
+  Game.prototype.rewindIfStuck = function () {
+    if (!this.history.length) return false;
     var r = E.solve(this.stage, this.state, 40000);
-    this.deadEnd = !r.solvable && !r.truncated;
-    this.dom.btnUndo.classList.toggle('urgent', this.deadEnd);
-    this.dom.app.classList.toggle('dead-end', this.deadEnd);
-    var badge = this.dom.btnUndo.querySelector('.badge');
-    if (badge) badge.textContent = this.deadEnd ? t('deadEnd') : '';
+    if (r.solvable || r.truncated) return false;
+
+    this.state = this.history.pop();
+    this.queued = null;
+    this.renderer.showState(this.state);
+    this.renderer.gravity = null;
+    this.audio.undo();
+    this.setPhase('play');
+    this.showToast(t('rewound'));
+    this.wake();
+    return true;
+  };
+
+  Game.prototype.showGameOver = function () {
+    var lines = [];
+    lines.push('<div class="ov-kicker">STAGE ' + pad2(STAGES[this.index].id) + '</div>');
+    lines.push('<h2 class="ov-title over">' + t('gameOver') + '</h2>');
+    lines.push('<div class="ov-note">' + t('overBody') + '</div>');
+    lines.push('<div class="ov-actions">' +
+      '<button class="btn primary" data-act="restart">' + t('retry') + '</button>' +
+      (this.history.length ? '<button class="btn ghost" data-act="undo">' + t('undo') + '</button>' : '') +
+      '</div>');
+    this.openOverlay(lines.join(''), 'over');
   };
 
   // -- undo / restart ---------------------------------------------------------
@@ -323,7 +374,6 @@
       this.renderer.gravity = null;
       this.audio.undo();
       this.syncHud();
-      this.checkDeadEnd();
       this.wake();
       return;
     }
@@ -338,7 +388,6 @@
     this.hideOverlay();
     this.audio.undo();
     this.syncHud();
-    this.checkDeadEnd();
     this.wake();
   };
 
@@ -350,13 +399,11 @@
     this.state = E.initialState(this.stage);
     this.history = [];
     this.queued = null;
-    this.deadEnd = false;
     this.phase = 'play';
     this.renderer.setStage(this.stage, this.state);
     this.hideOverlay();
     this.audio.ui(false);
     this.syncHud();
-    this.checkDeadEnd();
     this.wake();
   };
 

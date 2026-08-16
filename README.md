@@ -4,9 +4,9 @@
 You never move the blocks. You move the world.
 
 A gravity puzzle for phones. Swipe (or tilt the device) to change which way gravity pulls;
-every block slides as far as it can. A block that reaches a goal it fits is collected —
-mid-slide, which is where the chain reactions come from. Clear a stage by collecting every
-block.
+every block slides as far as it can. Nothing resolves mid-slide: a block is collected only
+if it comes to a complete **stop** on a goal it fits, which is a completely different game
+from steering blocks at holes.
 
 No build step, no runtime dependencies, no network. Open `index.html` and play.
 
@@ -18,7 +18,7 @@ node tools/serve.js        # then open the printed LAN address on a phone
 
 ## The rules
 
-**The base rules. Ten of the twenty stages use nothing else.**
+**The base rules. Ten of the forty stages use nothing else.**
 
 1. The board is a grid of **floor** and **wall** cells. Some floor cells are **goals**.
 2. Tilting sends gravity one of four ways. Every block slides until something stops it —
@@ -27,7 +27,8 @@ node tools/serve.js        # then open the printed LAN address on a phone
    Sliding across a goal does nothing at all.
 4. A collected block frees its cell, and gravity is still on — so whatever was held up
    behind it now slides, and the board settles again. That is where chains come from.
-5. **CLEAR** when every block has been collected.
+5. **CLEAR** when the board's win condition is satisfied — by default, when every block has
+   been collected.
 
 Rule 3 is the whole game, and it is worth being blunt about what it costs. **A goal is not
 a target.** Aim gravity at it and the block sails straight over the top and into the far
@@ -39,7 +40,7 @@ catch it there. It makes a goal in open floor nearly inert until the player buil
 backstop themselves. And it makes blocks worth keeping, because an uncollected block is
 the only movable brake on the board — which is why finishing early is how you lose.
 
-**The three devices. A stage may use one, or none. No stage uses two.**
+**Two optional devices, and three alternative win conditions. One per board.**
 
 A device is not a difficulty setting and not a reward for reaching a later chapter. Each one
 exists because it creates a kind of thinking the base rules cannot ask for, and a stage may
@@ -48,22 +49,33 @@ analyses every rule the game has or could have, with the measurements behind eac
 
 | | Rule | Why it exists |
 |---|---|---|
-| **PIN** `+` | A block that rolls onto a pin **stops there for that tilt**. Next tilt it is completely free. Nothing else happens to it. | It is not an addition, it is a completion. Floor lets you through; a wall refuses entry; a hazard and a goal both let you through and then act on you at rest. The pin is the one remaining case: you may enter, you may not pass, and nothing happens to you. That makes it the only cell where a block can be left standing in **open ground** — so it is the only backstop the player gets to position. It is also the one thing in the game that makes tilting the same way twice do more work than tilting it once. |
-| **HAZARD** `x` | A block **left standing** on a hazard when the board settles is lost. Sliding straight across one is completely safe. | The exact mirror of a goal, and that is the point of it. Both resolve at rest and only at rest; both ask the one question the whole game is built on — **where does this block stop?** — and they answer it in opposite directions. A goal is a cell you are trying to be stopped on; a hazard is a cell you may cross and must not be caught on. Once the two obey one rule, a hazard stops being an obstacle and becomes equipment: you route blocks straight over it on purpose, and the puzzle is what is waiting on the far side. |
-| **COLOUR** `A`/`a`, `B`/`b` | A goal collects a block only when they match. `o` takes any block; a plain `@` fits only `o`. | Not "two puzzles side by side". The point is that a goal is a hole for one block and an ordinary floor tile for the other. A block of the wrong colour can come to rest right in the socket and simply sit there — not collected, still a **wall**, still in the way. And being in the way is now the most valuable thing an uncollected block can do, so collecting in the wrong order does not merely waste moves, it removes the brake you were going to need. |
+| **HAZARD** `x` | A block **left standing** on a hazard when the board settles is destroyed, and **the run ends there**. Sliding straight across one is completely safe. | The exact mirror of a goal, and that is the point of it. Both resolve at rest and only at rest; both ask the one question the whole game is built on — **where does this block stop?** — and they answer it in opposite directions. A goal is a cell you are trying to be stopped on; a hazard is a cell you may cross and must not be caught on. Once the two obey one rule, a hazard stops being an obstacle and becomes equipment: you route blocks straight over it on purpose, and the puzzle is what is waiting on the far side. |
+| **COLOUR** `A`/`a`, `B`/`b`, `C`/`c` | A goal collects a block only when they match. `o` takes any block; a plain `@` fits only `o`. | Not "three puzzles side by side". The point is that a goal is a hole for one block and an ordinary floor tile for the other. A block of the wrong colour can come to rest right in the socket and simply sit there — not collected, still a **wall**, still in the way. And being in the way is now the most valuable thing an uncollected block can do, so collecting in the wrong order does not merely waste moves, it removes the brake you were going to need. |
+
+The win condition is what "done" means. It never changes the physics — only the question.
+Boards that use anything other than the default say so in three words in the HUD, and all
+three are also visible in the picture itself.
+
+| | Rule | The question it asks |
+|---|---|---|
+| **ALL IN** *(default)* | Collect every block. | *How do I get all of them home?* The only win condition that needs no words at all, which is why it is the default and why 25 of the 40 stages use it. |
+| **SELECT** | Collect every block whose colour has a goal. A block whose colour has **no socket anywhere** can never leave — it is furniture that moves, and it is drawn dimmed and hollow to say so. | *How do I move this one without the others getting in the way?* It creates the only **permanent** backstop in the game: under ALL IN every block is spent eventually, so every brake is temporary. You cannot move one block — you move the world, and everything answers. |
+| **MATCH** | No goals at all. Blocks of the same colour must end up **touching**. | *How do I make these two meet?* The board stops being about a destination and becomes about a relationship — and the two blocks you are joining are driven by the same gravity, so most of the work is driving them apart first. Nothing is ever banked, so every pair you closed is still on the board being pushed around. |
+| **FORM** | The goal characters mark cells to be **stood on**, not holes. Every one must be occupied at the same time, and nothing is ever removed. | *How do I satisfy all of these at once?* Where ALL IN drains the board one block at a time, FORM has to land every constraint simultaneously — and every block placed correctly is a new wall in the way of the next one. |
 
 Nothing else is coming: no cell that teleports, no block that behaves differently from
 another block of its own colour, no hidden state, and no randomness anywhere. A stage is
 hard because of where things are and the order they have to be moved in.
 
 **At most two blocks of any one colour**, anywhere in the game. Three identical blocks on a
-small board is not depth, it is bookkeeping. The cap costs nothing: the longest well-formed
-board in the project is four blocks under the cap, at par 15.
+small board is not depth, it is bookkeeping. The cap costs nothing: under it, SELECT with
+three colours reaches **par 58 on twelve cells** — deeper than anything the uncapped search
+ever produced.
 
-`tools/audit.js` enforces all of this. Any board character outside `.` `#` `x` `+` `o` `@`
-`a` `b` `A` `B` fails, any stage field the rules do not define fails, and **any board using
-two devices at once fails** — which is not a stylistic preference, it is what the sweep says
-(see below).
+`tools/audit.js` enforces all of this. Any board character outside `.` `#` `x` `o` `@` `a`
+`b` `c` `A` `B` `C` fails, any stage field the rules do not define fails, and **any board
+outside the last chapter using two devices at once fails** — which is not a stylistic
+preference, it is what the sweep says (see below).
 
 ## What makes a board good
 
@@ -141,7 +153,7 @@ A board ships only if all of these hold:
 | **no dead weight** | delete any wall, block, goal or hazard and the puzzle measurably changes |
 | distinct | not a rotation, reflection or recolouring of another stage, and never the same terrain *and* block count |
 
-### Three things the exhaustive search turned up
+### What the exhaustive search turned up
 
 Worth recording, because each one changed the design rather than merely confirming it:
 
@@ -150,9 +162,11 @@ Worth recording, because each one changed the design rather than merely confirmi
   would suggest and which carry no dead weight — and they share a terrain. The game already
   ships most of the genuinely excellent 3×3 base boards by stage 5. Rather than pad chapter
   two with near-misses, the two slots 3×3 cannot supply are allowed twelve cells.
-- **About six boards in seven are carrying a piece the board would not miss.** Across the
-  campaign's finalists the deletion test rejects **88%**. It is the most expensive gate and
-  by a distance the most useful.
+- **More than half of every board's finalists are carrying a piece the board would not
+  miss.** Across the campaign's finalists the deletion test rejects **57%** — it was 88% when
+  the game was twenty-five stages of mostly 3×3, and it falls as boards get larger only
+  because a piece has more chances to matter. It is the most expensive gate and by a distance
+  the most useful.
 - **A perfect crux is not enough.** Two stages passed every measurement above and were
   still wrong, and it took looking at the filmstrips to see it: `unlock 1`, `flow 8`, and a
   tail that was `L U L U L U L U`. Nothing being measured could tell a reward from a pump
@@ -160,20 +174,37 @@ Worth recording, because each one changed the design rather than merely confirmi
   the replacement for stage 8 is *longer* than what it replaced (11 tilts against 10) while
   scoring higher on discovery, density and satisfaction. Length was never the thing that
   was wrong with them.
-- **Every device is worthless alone and worse than useless with another device.** Measured at
-  4×3 with two blocks, same gates throughout: walls alone produce 300+ viable boards; a **pin
-  alone produces 20** (average blindness 0.00); a **hazard alone produces zero**. Paired with
-  walls both are excellent — a pin raises average flow from 2.6 to 4.3 where simply adding a
-  third wall only reaches 3.4, and a hazard raises the par ceiling from 9 to 11. But paired
-  with *each other* they always lose: colour alone reaches par 16 with 4% silent jams and
-  clarity 6.3, while colour+pin reaches 11 with 7% and 4.6, and colour+hazard reaches 11 with
-  11% and 4.6. **Colour alone beats both colour pairings on every axis measured.**
-- **Combining both devices loses.** 26,744 boards carrying a hazard *and* two colours were
-  built and measured, and the best was compared against the best single-device board across
-  all ten axes. The combined board is longer (15 tilts against 10) and more surprising — and
-  loses **6 axes to 2**, because it is harder to read and 4% of its positions are quietly
-  unwinnable rather than visibly so. Length and surprise do not outrank being legible and
-  being fair. Had it won, it would be in the campaign; this is a result, not a rule.
+- **Every terrain device is worthless alone and worse than useless with another one.**
+  Measured at 4×3 with two blocks, same gates throughout: walls alone produce 300+ viable
+  boards; a **hazard alone produces zero**. Paired with walls a hazard is excellent — it
+  raises the par ceiling from 9 to 11 and flow from 2.6 to 4.3. But paired with *colour* it
+  always loses: colour alone reaches par 16 with 4% silent jams and clarity 6.3, colour +
+  hazard reaches 11 with 11% and 4.6. 26,744 boards carrying a hazard *and* two colours were
+  built and measured, and the best of them lost to the best single-device board **6 axes to
+  2** despite being longer and more surprising. Length and surprise do not outrank being
+  legible and being fair.
+- **The pin was measured and removed, after it had shipped.** A cell a block may enter, may
+  not pass, and is safe on — the only place a block could be parked in open ground. It had a
+  five-stage chapter. Then the sweep: a pin alone produces **20 viable boards with average
+  blindness 0.00**, meaning every single one of them is solved by the first tilt a hurrying
+  player would try. It made boards *longer* and never once made one harder to see, and it
+  was the only rule in the game that broke the idempotence of a repeated tilt — which had
+  forced the audit's strongest physics invariant to be weakened to accommodate it. Removing
+  it restored the invariant. **[`docs/RULES.md` §7.1](docs/RULES.md) keeps the whole
+  argument, including the elegant one for keeping it.**
+- **The rejected category was where the game was.** An earlier version of this README
+  rejected alternative win conditions in a sentence: *"each moves the difficulty off the
+  board and into the briefing."* That is a claim about presentation being used as a claim
+  about substance, and the sweep settled it. ALL IN's ceiling under the two-per-colour cap
+  is par 16. **SELECT reaches 58 and FORM reaches 60**, on the same twelve cells, with the
+  same physics, with blindness 3 available at the top of both ranges. What shipped runs to
+  par 57. The briefing cost was one three-word chip in the HUD, on 20 boards out of 40.
+- **Depth comes from the piece that is NOT constrained.** Three separate sweeps, one result:
+  MATCH with one colour produces **zero** boards (two blocks under one gravity are adjacent
+  immediately); SELECT with every colour given a goal produces **zero** past par 50; FORM
+  with every block in the shape produces **zero** past par 40. SELECT is deep *because* some
+  blocks are furniture, and FORM is deep *because* one block is spare. Adding constraint to
+  a space that was deep because it had slack removes exactly what made it deep.
 
 Because blocks of one colour are identical, two positions differing only by swapping two of
 them *are* the same position, and the solver says so. That is not an optimisation — it is
@@ -181,28 +212,67 @@ what "these two blocks are the same block" means, and it is why the par on scree
 
 ## The campaign
 
-**Twenty-five stages, all of which are worth playing** — rather than a hundred that are mostly
+**Forty stages, all of which are worth playing** — rather than a hundred that are mostly
 filler. Every slot is a stated idea with a required signature; the search runs against it
 and one board out of tens of thousands survives.
 
-| Ch | Name | Stages | Board | Rules | Par | What it is |
-|---|---|---|---|---|---|---|
-| 1 | GRAVITY · 重力 | 1–5 | 3×3, 4×3 | base | 2–7 | the whole vocabulary: gravity, then *you slid over it*, then what a backstop is, then that blocks are backstops too, then the first board that turns on you |
-| 2 | NINE · 九マス | 6–10 | 3×3–4×4 | base | 4–8 | nothing new added — just the same few things made to work much harder |
-| 3 | PEG · 杭 | 11–15 | 3×3, 4×3 | + pin | 3–10 | the only cell where a block can be left standing in open ground, and therefore the only backstop you get to place |
-| 4 | EDGE · 境界 | 16–20 | 3×3, 4×3 | + hazard | 4–11 | a square you may cross and may not stop on: it removes places to rest, and that is what makes a small board deep |
-| 5 | PAIR · 対 | 21–25 | 3×3–4×4 | + colour | 7–15 | a goal that is a hole for one block and a floor for the other, so finishing early is how you lose |
+| Ch | Name | Stages | Rules | Par | What it is |
+|---|---|---|---|---|---|
+| 1 | GRAVITY · 重力 | 1–5 | base | 2–7 | the whole vocabulary: gravity, then *you slid over it*, then what a backstop is, then that blocks are backstops too, then the first board that turns on you |
+| 2 | NINE · 九マス | 6–10 | base | 4–8 | nothing new added — just the same few things made to work much harder |
+| 3 | EDGE · 境界 | 11–15 | + hazard | 4–11 | a square you may cross and may not stop on: it removes places to rest, and that is what makes a small board deep |
+| 4 | PAIR · 対 | 16–20 | + colour | 7–15 | a goal that is a hole for one block and a floor for the other, so finishing early is how you lose |
+| 5 | TOGETHER · 結 | 21–25 | + MATCH | 4–22 | no holes at all: same colours must end up touching, and one gravity moves both of them |
+| 6 | CHOSEN · 選 | 26–30 | + SELECT | 4–26 | only the lit blocks have to get home; the rest can never leave, and are the best walls you have |
+| 7 | SHAPE · 形 | 31–35 | + FORM | 3–24 | the marks are standing spots, not holes — every one has to be covered at the same moment |
+| 8 | ABYSS · 深淵 | 36–40 | combined | **35–57** | the only chapter where length is the target, and the rules that were kept apart all game put together on purpose |
 
-Boards stay small on purpose, and **no board carries more than two blocks of one colour**.
-Small board, high thought density is the point, not a beginner's concession — and the sweep
-backs it: capping identical blocks at two costs nothing, because the longest board in the
-game is four blocks under the cap at par 15.
+Boards stay small on purpose — nothing in the game is larger than 4×4, including the
+forty-tilt boards — and **no board carries more than two blocks of one colour**. Small board,
+high thought density is the point, not a beginner's concession.
 
 Par is a target, not a requirement. Clearing in more moves is a normal clear, and your best
 is kept so you can come back and shave it down.
 
-Six stages exist to put a rule on screen for the first time (1, 2, 3, 11, 16, 21) and are
-allowed to be gentle; each says so in its own note. Everything else has to earn its place.
+Nine stages exist to put a rule on screen for the first time (1, 2, 3, 11, 16, 21, 26, 31)
+and are allowed to be gentle; each says so in its own note. Everything else has to earn its
+place.
+
+### Chapter 8 is the one place the rules are broken on purpose
+
+Every measurement in this README argues that a long solution is not a good one, and that
+argument stands: no board in chapters 1–7 was chosen for being long. But it was always an
+argument about the **default**, not a law. A player who has finished thirty-five boards has
+earned the right to be handed something that takes an afternoon.
+
+So chapter 8 relaxes exactly two things — devices may combine, and `unlock` is no longer
+required to be small — and enforces two gates **harder** than anywhere else in the game,
+because they are what separates a long puzzle from a long chore:
+
+| Gate | Value | Why |
+|---|---|---|
+| `insights` | ≥ 6 | moves on the shortest line where instinct is wrong. A forty-tilt board with two decisions in it is thirty-eight tilts of admin. |
+| `guided` | ≥ 42% | and at least that much of it plays itself. A board where every move is its own fight is a corridor, however long it is. |
+
+Big blocks were explicitly permitted for this chapter and turned out not to be needed. A new
+movement rule was not going to beat par 57 on twelve cells — and the searches that tried to
+go past it all came back shorter:
+
+| search | best par that passes every gate |
+|---|---|
+| **4×3 SELECT, three colours (exhaustive)** | **57** ← shipped as stage 40 |
+| 4×3 FORM, three colours (exhaustive) | 49 |
+| 4×4 SELECT, six blocks (sampled, ~700 climbs) | 51 |
+| 5×3 SELECT, six blocks (sampled) | 50 |
+| 5×3 FORM, five blocks (sampled) | 44 |
+| 4×3 SELECT + hazard (exhaustive) | 48 |
+| 4×4 / 5×3 SELECT, **eight** blocks (sampled) | longest seen at all: 23 |
+
+That last row is the interesting one. Eight blocks on sixteen cells is not a deeper puzzle,
+it is a jammed one: half the board cannot move, so the state space collapses and the longest
+thing in it is shorter than a good 3×3 colour board. **More material makes boards shorter,
+not longer** — which is the two-per-colour cap arriving at the same answer from the other
+direction.
 
 ## Playing
 
@@ -213,17 +283,27 @@ allowed to be gentle; each says so in its own note. Everything else has to earn 
   must return to centre before it fires again. Swipe alone plays the whole game.
 - **Arrow keys / WASD** on a desktop. `Z` undo, `R` restart, `Esc` stage list.
 - **UNDO costs nothing and is meant to be used.** It works *during* a slide too — pressing
-  it while the board is still moving cancels the move rather than being ignored. On the ten
-  base-rule stages nothing can be destroyed at all; on a hazard stage a lost block makes the
-  board unwinnable, the dock says so immediately, and one tap takes it back.
+  it while the board is still moving cancels the move rather than being ignored.
+- **A board you have jammed takes itself back.** If a tilt leaves the board unwinnable, the
+  game undoes that tilt and says so. It used to put a DEAD END badge on the undo button and
+  leave you to notice it, which asks you to read a label, understand it, and then perform the
+  only move available. The position it lands on is guaranteed winnable, because every
+  position is checked the moment it is reached — so one step back is always enough.
+- **A block left on a hazard ends the run.** It already made the stage unwinnable; the only
+  question was whether the game said so. A game-over card names the rule and offers both ways
+  out, RETRY and UNDO.
 - **RESTART is always answerable**, mid-slide included.
 - **You are never walled off.** Stages unlock in sequence, but you may always reach two
   stages past your frontier — one puzzle you cannot see the trick to never ends the run.
 
 Every colour carries its own **shape** as well as its own hue — the dot on a block and the
 ring on the goal that accepts it are always the same shape — so the board is fully readable
-without colour vision. A wall is drawn raised and lit from above; a hazard is drawn as a
-pit sunk below the floor. One stops things, the other is crossed.
+without colour vision. A wall is drawn raised and lit from above; a hazard is drawn as a pit
+sunk below the floor. One stops things, the other is crossed. A FORM target is drawn as
+brackets *on* the floor rather than a sunken socket, because it is a place to stand rather
+than a place to fall; a SELECT block with no socket anywhere is drawn dimmed with a hollow
+glyph, because it is scenery rather than cargo. In every case the rule is something you read
+off the board rather than out of a sentence.
 
 ## Layout
 
@@ -238,7 +318,7 @@ src/audio.js          synthesised sound — no asset files
 src/save.js           localStorage, defensively parsed
 src/game.js           state machine, HUD, overlays
 docs/RULES.md         every rule the game has or could have, and the measurements behind it
-tools/campaign.js     the twenty-five slots as design briefs; regenerates src/stages.js
+tools/campaign.js     the forty slots as design briefs; regenerates src/stages.js
 tools/lib/design.js   what makes a board good — every measurement above
 tools/lib/generate.js terrain sweeping, exhaustive enumeration, climbing, variation
 tools/audit.js        rules suite, per-stage proof, campaign-wide design checks
@@ -261,7 +341,7 @@ npm test           # both
 npm run campaign   # rebuild src/stages.js from tools/campaign.js
 ```
 
-**`audit` has three parts.** First a **rules suite**: 32 property tests on purpose-built
+**`audit` has three parts.** First a **rules suite**: 52 property tests on purpose-built
 micro-boards, each pinning one rule to a board that does nothing except demonstrate it.
 These do not depend on the campaign at all, so they keep working — and keep failing usefully
 — no matter what the generator ships next. Then **per stage**: par is the proven shortest,
@@ -271,18 +351,26 @@ same input always gives the same result, and every piece is load-bearing. Then t
 **campaign as a whole**: each device is introduced by a stage that explains it, no two
 stages are the same puzzle, and nothing uses more rules at once than the design allows.
 
-Per-stage checks include deliberately hostile operation sequences — the same direction nine
-times, undo held past the beginning of the stage, restart pressed on the winning move — none
-of which is a plausible way to play, which is exactly why they are the ones that find bugs.
-Two real defects came out of writing them: undo and restart were both being silently ignored
+Per-stage checks include deliberately hostile operation sequences — the same direction twice,
+undo held past the beginning of the stage, restart pressed on the winning move — none of
+which is a plausible way to play, which is exactly why they are the ones that find bugs. Two
+real defects came out of writing them: undo and restart were both being silently ignored
 while a slide was animating.
 
 Counting in the audit is deliberately its own implementation rather than a call into the
 generator's measurement code. An auditor that shares arithmetic with the thing it audits
-cannot catch that arithmetic being wrong — and on 235 boards the two implementations agree
-exactly.
+cannot catch that arithmetic being wrong — and across the campaign and every deletion variant
+of it the two implementations agree exactly.
 
-`qa` drives a real mobile-sized Chromium through the real input path: it plays all twenty
-stages to par, destroys a block on purpose and checks the game announces it and offers the
-way back, verifies each colour has a distinct shape and not merely a distinct hue, and
-checks the board fits five viewports from a 320px phone to a tablet.
+One invariant is worth naming because it was WEAKENED once and is now back: *tilting the same
+direction twice must do nothing the second time.* Gravity is idempotent, and the engine's
+settle → resolve → settle loop runs until that is true of every block, chain reactions
+included. The peg rule broke it on purpose, and the check had to be relaxed to "repeating a
+direction converges" to accommodate it. Removing the peg restored the strong form.
+
+`qa` drives a real mobile-sized Chromium through the real input path: it plays every stage to
+par, destroys a block on purpose and checks the run ends with a card that names the rule,
+walks the campaign for a genuinely jammed position and checks the board undoes itself out of
+it, verifies each colour has a distinct shape and not merely a distinct hue, checks every
+board with an unusual win condition says so in the HUD, and checks the board fits five
+viewports from a 320px phone to a tablet.

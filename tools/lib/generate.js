@@ -89,6 +89,10 @@ function freeCells(terrain) {
  * `spec` = { w, h, goals: ['o'] | ['a','b'], walls: [min,max], hazards: [min,max] }
  * Yields canonical terrains only — two terrains that differ by a rotation
  * describe the same puzzle and only one of them is worth searching.
+ *
+ * A MATCH spec has no goals at all: `goals: []` is legal and simply skips the
+ * goal-placing step, which is the entire difference between a MATCH terrain and
+ * an ALL IN one.
  */
 function eachTerrain(spec, emit) {
   var w = spec.w, h = spec.h, n = w * h;
@@ -96,8 +100,6 @@ function eachTerrain(spec, emit) {
   var wallLo = spec.walls[0], wallHi = spec.walls[1];
   var hazLo = spec.hazards ? spec.hazards[0] : 0;
   var hazHi = spec.hazards ? spec.hazards[1] : 0;
-  var pinLo = spec.pins ? spec.pins[0] : 0;
-  var pinHi = spec.pins ? spec.pins[1] : 0;
 
   var cells = [];
   for (var i = 0; i < n; i++) cells.push(i);
@@ -117,21 +119,15 @@ function eachTerrain(spec, emit) {
           var rest2 = rest1.filter(function (c) { return wallAt.indexOf(c) < 0; });
           for (var nh = hazLo; nh <= hazHi; nh++) {
             chooseN(rest2, nh, function (hazAt) {
-              var rest3 = rest2.filter(function (c) { return hazAt.indexOf(c) < 0; });
-              for (var np = pinLo; np <= pinHi; np++) {
-                chooseN(rest3, np, function (pinAt) {
-                  var rows = blankRows(w, h);
-                  var k;
-                  for (k = 0; k < goalAt.length; k++) rows[(goalAt[k] / w) | 0] = D.setCh(rows[(goalAt[k] / w) | 0], goalAt[k] % w, labels[k]);
-                  for (k = 0; k < wallAt.length; k++) rows[(wallAt[k] / w) | 0] = D.setCh(rows[(wallAt[k] / w) | 0], wallAt[k] % w, '#');
-                  for (k = 0; k < hazAt.length; k++) rows[(hazAt[k] / w) | 0] = D.setCh(rows[(hazAt[k] / w) | 0], hazAt[k] % w, 'x');
-                  for (k = 0; k < pinAt.length; k++) rows[(pinAt[k] / w) | 0] = D.setCh(rows[(pinAt[k] / w) | 0], pinAt[k] % w, '+');
-                  var key = D.canonical(rows);
-                  if (seen[key]) return;
-                  seen[key] = 1;
-                  emit(rows);
-                });
-              }
+              var rows = blankRows(w, h);
+              var k;
+              for (k = 0; k < goalAt.length; k++) rows[(goalAt[k] / w) | 0] = D.setCh(rows[(goalAt[k] / w) | 0], goalAt[k] % w, labels[k]);
+              for (k = 0; k < wallAt.length; k++) rows[(wallAt[k] / w) | 0] = D.setCh(rows[(wallAt[k] / w) | 0], wallAt[k] % w, '#');
+              for (k = 0; k < hazAt.length; k++) rows[(hazAt[k] / w) | 0] = D.setCh(rows[(hazAt[k] / w) | 0], hazAt[k] % w, 'x');
+              var key = D.canonical(rows);
+              if (seen[key]) return;
+              seen[key] = 1;
+              emit(rows);
             });
           }
         });
@@ -232,6 +228,7 @@ function paint(terrain, placement) {
  */
 function sweepTerrain(terrain, colours, filters, emit) {
   filters = filters || {};
+  var win = filters.win || 'allin';
   var free = freeCells(terrain);
   if (free.length <= colours.length) return 0;
 
@@ -239,7 +236,7 @@ function sweepTerrain(terrain, colours, filters, emit) {
   // only ever reads terrain, goals and per-block colour from it, and those do
   // not change as the blocks move around.
   var template = paint(terrain, free.slice(0, colours.length).map(function (c, i) { return [c, colours[i]]; }));
-  var stage = D.compile(template);
+  var stage = D.compile(template, win);
   if (!stage) return 0;
 
   var key = E.makeStateKey(stage);
@@ -259,7 +256,7 @@ function sweepTerrain(terrain, colours, filters, emit) {
     index[k] = at;
     states.push(s);
     next.push(null);
-    clear.push(E.isClear(s) ? 1 : 0);
+    clear.push(E.isClear(stage, s) ? 1 : 0);
     broken.push(E.isBroken(s) ? 1 : 0);
     return at;
   }
@@ -328,9 +325,7 @@ function sweepTerrain(terrain, colours, filters, emit) {
     for (d = 0; d < 4; d++) {
       var j = next[i][d];
       if (j === i) continue;
-      var got = states[j].collected - states[i].collected;
-      var died = (states[j].lost || 0) - (states[i].lost || 0);
-      var appeal = got * 1000 - D.distSum(stage, goals, states[j]) - died * 10000;
+      var appeal = D.appealScore(stage, goals, states[i], states[j], clear[j]);
       if (!best || appeal > best.appeal) best = { appeal: appeal, to: j };
     }
     policy[i] = best ? best.to : i;
@@ -371,10 +366,10 @@ function sweepTerrain(terrain, colours, filters, emit) {
       if (to === start) continue;
       live++;
       var good = dist[to] >= 0 && dist[to] === par - 1;
-      if (!good) { traps++; if (states[to].collected > 0) bait++; }
+      var gained = D.progress(stage, states[to]) - D.progress(stage, states[start]);
+      if (!good) { traps++; if (gained > 0) bait++; }
       ranked.push({
-        appeal: states[to].collected * 1000 - D.distSum(stage, goals, states[to]) -
-                (states[to].lost || 0) * 10000,
+        appeal: D.appealScore(stage, goals, states[start], states[to], clear[to]),
         good: good
       });
     }
@@ -447,9 +442,13 @@ function sweepTerrain(terrain, colours, filters, emit) {
  */
 function exhaust(spec, filters, onFound, onProgress) {
   var found = 0, terrains = 0;
+  var f = {};
+  for (var k in filters) f[k] = filters[k];
+  if (spec.win) f.win = spec.win;
   eachTerrain(spec, function (terrain) {
     terrains++;
-    sweepTerrain(terrain, spec.blocks, filters, function (cand) {
+    sweepTerrain(terrain, spec.blocks, f, function (cand) {
+      cand.win = f.win || 'allin';
       found++;
       onFound(cand);
     });
@@ -527,18 +526,21 @@ function shapeScore(p, want) {
   return s;
 }
 
-function climb(spec, rng, filters, steps) {
+function climb(spec, rng, filters, steps, score) {
+  var opts = { quick: true, cap: filters.nodeCap || 60000, win: spec.win || 'allin',
+               cruxBudget: filters.cruxBudget };
+  var rank = score || shapeScore;
   var rows = randomBoard(spec, rng);
   if (!rows) return null;
-  var best = D.profile(rows, { quick: true, cap: filters.nodeCap || 60000 });
-  var bestScore = fits(best, filters) ? shapeScore(best, filters) : -Infinity;
+  var best = D.profile(rows, opts);
+  var bestScore = fits(best, filters) ? rank(best, filters) : -Infinity;
   var stall = 0;
 
   for (var i = 0; i < steps; i++) {
     var cand = vary(rows, rng);
-    var p = D.profile(cand, { quick: true, cap: filters.nodeCap || 60000 });
+    var p = D.profile(cand, opts);
     if (!p) continue;
-    var sc = fits(p, filters) ? shapeScore(p, filters) : -Infinity;
+    var sc = fits(p, filters) ? rank(p, filters) : -Infinity;
     if (sc > bestScore || (sc === bestScore && sc > -Infinity && rng.next() < 0.3)) {
       if (sc > bestScore) stall = 0;
       rows = cand; best = p; bestScore = sc;
@@ -576,6 +578,14 @@ function fits(p, f) {
   if (f.minLive != null && p.live < f.minLive) return false;
   if (f.maxPump != null && p.pump > f.maxPump) return false;
   if (f.naiveSolves === false && p.naiveSolved) return false;
+  // The long-board axis: how many moves the player has to overrule instinct on,
+  // and how much of the rest plays itself. A forty-tilt board where every move
+  // is a fight is a corridor; one where six are and thirty-four are momentum is
+  // a puzzle that happens to be long.
+  if (f.minInsights != null && p.insights < f.minInsights) return false;
+  if (f.maxInsights != null && p.insights > f.maxInsights) return false;
+  if (f.minGuided != null && p.guided / Math.max(1, p.par) < f.minGuided) return false;
+  if (f.maxRatchet != null && p.ratchet > f.maxRatchet) return false;
   if (f.floors) {
     for (var axis in f.floors) if (p.score[axis] < f.floors[axis]) return false;
   }

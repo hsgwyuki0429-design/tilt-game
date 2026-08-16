@@ -8,67 +8,65 @@
  * runs.
  *
  * ---------------------------------------------------------------------------
- * THE BASE RULES — every stage has these
+ * THE MOVEMENT RULES — every stage has these
  * ---------------------------------------------------------------------------
  *
- *   1. The board is a grid of floor and wall cells. Some floor cells are goals.
+ *   1. The board is a grid of floor and wall cells.
  *   2. Tilting sends gravity one of four ways. Every block slides until
  *      something stops it — the edge, a wall, or another block.
- *   3. WHEN THE BOARD COMES TO REST, a block standing on a goal it fits is
- *      collected. Sliding across a goal does nothing at all.
- *   4. A collected block frees its cell, and gravity is still on — so whatever
- *      was held up behind it now slides, and the board settles again. That is
- *      where chain reactions come from.
- *   5. CLEAR when every block has been collected.
+ *   3. Nothing resolves mid-slide. Everything a cell does to a block, it does
+ *      WHEN THE BOARD COMES TO REST, and only then.
+ *   4. If resolving removed a block, gravity has not gone away — whatever was
+ *      held up behind it now slides and the board settles again. That is where
+ *      chain reactions come from.
  *
- * Rule 3 is the whole game, so it is worth being blunt about what it costs. A
- * goal is not a target you steer a block towards; it is a cell a block has to
- * be STOPPED on. Pointing gravity at the exit sends every block straight over
- * the top of it and into the far wall. To collect anything you have to arrange,
- * first, for something to be standing in the way one cell beyond — the edge, a
- * wall, or another block you have not collected yet.
- *
- * That makes every goal a two-part problem (get a block to the line, and get
- * something to catch it there) and it makes a goal in open floor nearly inert
- * until the player builds the buffer themselves. It is also why blocks are worth
- * keeping: an uncollected block is the only movable brake on the board.
+ * Rule 3 is the whole game. A goal is not a target you steer at; it is a cell a
+ * block must be STOPPED on. Point gravity at the exit and the block sails over
+ * the top of it into the far wall. To collect anything you first have to
+ * arrange for something to be standing one cell beyond — the edge, a wall, or
+ * another block you have not collected yet.
  *
  * ---------------------------------------------------------------------------
- * THE TWO DEVICES — a stage may use one, or neither
+ * WHAT YOU ARE TRYING TO DO — one win condition per stage
  * ---------------------------------------------------------------------------
  *
- * These are not "advanced modes" and they are not difficulty knobs. Each one
- * exists because it creates a kind of thinking the base rules cannot ask for,
- * and a stage is allowed to use one only when that thinking is the point of
- * the stage. Most stages use neither.
+ * The verb never changes. What changes is what "done" means, and each of these
+ * turns the same physics into a different question:
  *
- *   HAZARD  'x'   A block LEFT STANDING on a hazard when the board settles is
- *                 lost. Sliding across one is completely safe.
+ *   ALL IN   collect every block.
+ *            "How do I get all of them home?"
  *
- *       The exact mirror of a goal, and that is the point of it. Both resolve
- *       at rest and only at rest; both ask the one question the whole game is
- *       built on — WHERE DOES THIS BLOCK STOP? — and they answer it in opposite
- *       directions. A goal is a cell you are trying to be stopped on. A hazard
- *       is a cell you are free to cross and must not be caught on. Once the two
- *       obey one rule, a hazard stops being an obstacle and becomes machinery:
- *       you route blocks straight over it on purpose, and the puzzle is what is
- *       waiting on the far side.
+ *   SELECT   collect every block that HAS a goal. Blocks whose colour has no
+ *            socket anywhere can never leave — they are furniture that moves.
+ *            "How do I move this one without the others getting in the way?"
+ *            The whole difficulty is that you cannot move one block. You move
+ *            the world, and everything answers.
  *
- *   COLOUR  'A'/'a', 'B'/'b'   A goal collects a block only when they match.
- *                 'o' takes any block; a plain '@' fits only 'o'.
+ *   MATCH    no goals at all. Blocks of the same colour must end up TOUCHING.
+ *            "How do I make these two meet?"
+ *            The board stops being about a destination and becomes about a
+ *            relationship: two blocks driven by one gravity, which usually have
+ *            to be driven apart before they can be brought together.
  *
- *       Why. Not "two puzzles side by side" — the point is that a goal is a
- *       hole for one block and an ordinary floor tile for the other. A block of
- *       the wrong colour can come to rest right in the socket and simply sit
- *       there, still a WALL, still in the way — and being in the way is now the
- *       most valuable thing an uncollected block can do. So collecting in the
- *       wrong order does not merely waste moves, it removes the brake you were
- *       going to need.
+ *   FORM     goals are targets, not holes. Every marked cell must be occupied
+ *            by a block that fits it, all at the same time, and nothing is ever
+ *            removed.
+ *            "How do I satisfy all of these at once?"
+ *            Where ALL IN drains the board one block at a time, FORM has to
+ *            land every constraint simultaneously — and every block placed is a
+ *            new wall in the way of the next one.
  *
- * Nothing else is coming. There is no cell that teleports, no block that
- * behaves differently from another block of its own colour, no hidden state,
- * and no randomness anywhere in this file. A stage is hard because of where
- * things are and the order they have to be moved in.
+ * ---------------------------------------------------------------------------
+ * THE HAZARD — a stage may use it, or not
+ * ---------------------------------------------------------------------------
+ *
+ *   HAZARD 'x'  A block left standing on a hazard when the board settles is
+ *               destroyed, and the run is over. Sliding across one is safe.
+ *
+ * The exact mirror of a goal: both resolve at rest and only at rest, and both
+ * ask the one question this game is built on — WHERE DOES THIS BLOCK STOP? A
+ * goal is a cell you are trying to be stopped on; a hazard is a cell you may
+ * cross and must not be caught on.
  *
  * ---------------------------------------------------------------------------
  * IDENTICAL BLOCKS ARE IDENTICAL
@@ -88,15 +86,17 @@
   var DIRS = ['U', 'R', 'D', 'L'];
   var DV = { U: [0, -1], R: [1, 0], D: [0, 1], L: [-1, 0] };
 
-  var FLOOR = 0, WALL = 1, HAZARD = 2, PIN = 3;
+  var FLOOR = 0, WALL = 1, HAZARD = 2;
 
-  // Colour 0 means "no colour". On a block it is the plain '@'; on a goal it is
-  // the plain 'o', which takes anything.
+  // Colour 0 means "no colour": the plain '@' block and the plain 'o' goal,
+  // which takes anything.
   var ANY = 0;
 
-  var BLOCK_CHARS = { '@': ANY, 'A': 1, 'B': 2 };
-  var GOAL_CHARS  = { 'o': ANY, 'a': 1, 'b': 2 };
-  var COLOUR_NAME = ['any', 'A', 'B'];
+  var BLOCK_CHARS = { '@': ANY, 'A': 1, 'B': 2, 'C': 3 };
+  var GOAL_CHARS  = { 'o': ANY, 'a': 1, 'b': 2, 'c': 3 };
+  var COLOUR_NAME = ['any', 'A', 'B', 'C'];
+
+  var WINS = ['allin', 'select', 'match', 'form'];
 
   /** Does a goal of this colour take a block of that colour? */
   function accepts(goalColour, blockColour) {
@@ -107,16 +107,14 @@
   // Stage compilation
   // ---------------------------------------------------------------------------
   //
-  // A stage is one ASCII picture:
-  //
   //     '.'  floor            '#'  wall           'x'  hazard
   //     'o'  goal, any        '@'  block, any
-  //     'a'  goal, colour A   'A'  block, colour A
-  //     'b'  goal, colour B   'B'  block, colour B
+  //     'a'  goal A           'A'  block A
+  //     'b'  goal B           'B'  block B
+  //     'c'  goal C           'C'  block C
   //
-  //   board: ['@..',
-  //           '.#.',
-  //           '..o']
+  // On a FORM board the goal characters mark TARGET cells rather than holes:
+  // nothing is collected, and a block has to be left standing on each of them.
 
   function fail(def, msg) {
     throw new Error('stage ' + (def && def.id != null ? def.id : '?') + ': ' + msg);
@@ -126,10 +124,13 @@
     var rows = def.board;
     if (!rows || !rows.length) fail(def, 'board missing');
 
+    var win = def.win || 'allin';
+    if (WINS.indexOf(win) < 0) fail(def, 'unknown win condition "' + win + '"');
+
     var h = rows.length;
     var w = rows[0].length;
     var terrain = new Uint8Array(w * h);
-    var goal = new Uint8Array(w * h);        // 0 = not a goal
+    var goal = new Uint8Array(w * h);
     var goalColour = new Uint8Array(w * h);
     var blocks = [];                          // [x, y, colour]
     var y, x, i, ch;
@@ -142,7 +143,6 @@
         if (ch === '.') { /* floor */ }
         else if (ch === '#') { terrain[i] = WALL; }
         else if (ch === 'x') { terrain[i] = HAZARD; }
-        else if (ch === '+') { terrain[i] = PIN; }
         else if (GOAL_CHARS[ch] !== undefined) { goal[i] = 1; goalColour[i] = GOAL_CHARS[ch]; }
         else if (BLOCK_CHARS[ch] !== undefined) { blocks.push([x, y, BLOCK_CHARS[ch]]); }
         else fail(def, 'unknown board character "' + ch + '" at ' + x + ',' + y);
@@ -151,21 +151,59 @@
 
     if (!blocks.length) fail(def, 'no blocks');
 
-    var goalCount = 0;
-    for (i = 0; i < w * h; i++) if (goal[i]) goalCount++;
-    if (!goalCount) fail(def, 'no goals');
+    var goalCells = [];
+    for (i = 0; i < w * h; i++) if (goal[i]) goalCells.push(i);
 
-    // Which devices does this board actually use? The tools read this to keep
-    // a stage honest about how many rules it is asking the player to hold.
-    var usesHazard = false, usesPin = false;
-    for (i = 0; i < w * h; i++) {
-      if (terrain[i] === HAZARD) usesHazard = true;
-      if (terrain[i] === PIN) usesPin = true;
+    var colour = blocks.map(function (b) { return b[2]; });
+    var collects = (win === 'allin' || win === 'select');
+
+    // Which blocks can ever leave the board? Under ALL IN and SELECT that is
+    // the blocks whose colour some goal accepts; under MATCH and FORM nothing
+    // is ever collected at all.
+    var collectable = colour.map(function (c) {
+      if (!collects) return 0;
+      for (var g = 0; g < goalCells.length; g++) {
+        if (accepts(goalColour[goalCells[g]], c)) return 1;
+      }
+      return 0;
+    });
+    var mustCollect = 0;
+    for (i = 0; i < collectable.length; i++) mustCollect += collectable[i];
+
+    // ── what each win condition requires of the picture ──────────────────────
+    if (win === 'allin') {
+      if (!goalCells.length) fail(def, 'ALL IN needs at least one goal');
+      for (i = 0; i < blocks.length; i++) {
+        if (!collectable[i]) {
+          fail(def, 'ALL IN, but the ' + COLOUR_NAME[colour[i]] +
+            ' block at ' + blocks[i][0] + ',' + blocks[i][1] + ' has no goal that accepts it');
+        }
+      }
+    } else if (win === 'select') {
+      if (!mustCollect) fail(def, 'SELECT, but no block has a goal that accepts it');
+      if (mustCollect === blocks.length) {
+        fail(def, 'SELECT, but every block is collectable — that is ALL IN');
+      }
+    } else if (win === 'match') {
+      if (goalCells.length) fail(def, 'MATCH boards have no goals');
+      var groups = {};
+      for (i = 0; i < colour.length; i++) groups[colour[i]] = (groups[colour[i]] || 0) + 1;
+      var pairs = 0;
+      for (var gk in groups) if (groups[gk] > 1) pairs++;
+      if (!pairs) fail(def, 'MATCH needs at least two blocks of one colour to bring together');
+    } else if (win === 'form') {
+      if (!goalCells.length) fail(def, 'FORM needs at least one target cell');
+      if (goalCells.length > blocks.length) {
+        fail(def, 'FORM has ' + goalCells.length + ' targets and only ' + blocks.length + ' blocks');
+      }
     }
-    var colours = {};
-    for (i = 0; i < blocks.length; i++) colours[blocks[i][2]] = true;
-    for (i = 0; i < w * h; i++) if (goal[i]) colours[goalColour[i]] = true;
-    var usesColour = !colours[ANY] || Object.keys(colours).length > 1;
+
+    var usesHazard = false;
+    for (i = 0; i < w * h; i++) if (terrain[i] === HAZARD) usesHazard = true;
+    var seen = {};
+    for (i = 0; i < colour.length; i++) seen[colour[i]] = true;
+    for (i = 0; i < goalCells.length; i++) seen[goalColour[goalCells[i]]] = true;
+    var usesColour = !seen[ANY] || Object.keys(seen).length > 1;
 
     // A block cannot begin the stage standing somewhere it would immediately
     // die: that is not a puzzle, it is a typo.
@@ -173,13 +211,6 @@
       if (terrain[blocks[i][1] * w + blocks[i][0]] === HAZARD) {
         fail(def, 'block starts on a hazard at ' + blocks[i][0] + ',' + blocks[i][1]);
       }
-    }
-
-    // Every block must have somewhere it could go, or the stage is a lie.
-    for (i = 0; i < blocks.length; i++) {
-      var c = blocks[i][2], reachable = false;
-      for (var g = 0; g < w * h; g++) if (goal[g] && accepts(goalColour[g], c)) reachable = true;
-      if (!reachable) fail(def, 'block of colour ' + COLOUR_NAME[c] + ' has no goal that accepts it');
     }
 
     return {
@@ -191,9 +222,14 @@
       terrain: terrain,
       goal: goal,
       goalColour: goalColour,
+      goalCells: goalCells,
       blocks: blocks,
-      colour: blocks.map(function (b) { return b[2]; }),
-      rules: { hazard: usesHazard, colour: usesColour, pin: usesPin },
+      colour: colour,
+      collectable: collectable,
+      mustCollect: mustCollect,
+      win: win,
+      collects: collects,
+      rules: { hazard: usesHazard, colour: usesColour, win: win },
       par: def.par != null ? def.par : null,
       def: def
     };
@@ -202,8 +238,6 @@
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
-  // A state is a live position per block. `alive[i] === 0` means block i is off
-  // the board — collected or lost — and its position is then meaningless.
 
   function initialState(stage) {
     return {
@@ -229,16 +263,10 @@
    * The identity of a position, as the player sees it.
    *
    * Blocks of one colour are interchangeable, so the key is the SET of cells
-   * each colour occupies, not which block is where. Sorting is what makes two
-   * boards that differ only by a swap compare equal — and since the physics
-   * treats same-coloured blocks identically, they really do have the same
-   * future.
-   *
-   * The trailing count is what keeps a hazard board honest. Two positions can
-   * show exactly the same blocks in exactly the same cells and still have
-   * completely different futures — one got here by collecting a block, the
-   * other by losing one. Without the count the solver would happily plan a
-   * route through a board it had already broken.
+   * each colour occupies, not which block is where. The trailing count keeps a
+   * hazard board honest: two positions can show the same blocks in the same
+   * cells and have completely different futures, because one got here by
+   * collecting and the other by losing.
    */
   function stateKey(s) {
     var cells = [];
@@ -263,15 +291,78 @@
     };
   }
 
-  function isClear(s) { return s.collected === s.pos.length; }
+  // ---------------------------------------------------------------------------
+  // Winning
+  // ---------------------------------------------------------------------------
+
+  /** Are all live blocks of each colour orthogonally connected? (MATCH) */
+  function matched(stage, s) {
+    var byColour = {};
+    var i;
+    for (i = 0; i < s.pos.length; i++) {
+      if (!s.alive[i]) continue;
+      var c = stage.colour[i];
+      (byColour[c] = byColour[c] || []).push(s.pos[i]);
+    }
+    for (var key in byColour) {
+      var group = byColour[key];
+      if (group.length < 2) continue;
+      // Flood-fill from the first, moving only between orthogonal neighbours.
+      var stack = [0], mark = [true];
+      for (i = 1; i < group.length; i++) mark.push(false);
+      while (stack.length) {
+        var at = group[stack.pop()];
+        for (i = 0; i < group.length; i++) {
+          if (mark[i]) continue;
+          var d = Math.abs(group[i][0] - at[0]) + Math.abs(group[i][1] - at[1]);
+          if (d === 1) { mark[i] = true; stack.push(i); }
+        }
+      }
+      for (i = 0; i < group.length; i++) if (!mark[i]) return false;
+    }
+    return true;
+  }
+
+  /** Is every target cell occupied by a block that fits it? (FORM) */
+  function formed(stage, s) {
+    var occ = {};
+    for (var i = 0; i < s.pos.length; i++) {
+      if (s.alive[i]) occ[s.pos[i][1] * stage.w + s.pos[i][0]] = stage.colour[i];
+    }
+    for (var g = 0; g < stage.goalCells.length; g++) {
+      var cell = stage.goalCells[g];
+      var here = occ[cell];
+      if (here === undefined) return false;
+      if (!accepts(stage.goalColour[cell], here)) return false;
+    }
+    return true;
+  }
 
   /**
-   * A position with a lost block can never be cleared again, because clearing
-   * needs every block. Such a state is a leaf: the player must undo. Search
-   * treats it as terminal rather than pretending there is something past it.
+   * A block was destroyed. Under every win condition that ends the run: ALL IN
+   * and SELECT may have lost a block they needed, MATCH and FORM may have lost
+   * one of the pieces the shape is made of. Rather than work out which, the
+   * rule is simply that losing a block is losing.
    */
   function isBroken(s) { return (s.lost || 0) > 0; }
-  function isTerminal(s) { return isClear(s) || isBroken(s); }
+
+  /**
+   * Is this position a win?
+   *
+   * Takes the stage, because what "done" means is a property of the stage and
+   * not of the position.
+   */
+  function isClear(stage, s) {
+    if (isBroken(s)) return false;
+    switch (stage.win) {
+      case 'select': return s.collected >= stage.mustCollect;
+      case 'match':  return matched(stage, s);
+      case 'form':   return formed(stage, s);
+      default:       return s.collected === s.pos.length;
+    }
+  }
+
+  function isTerminal(stage, s) { return isClear(stage, s) || isBroken(s); }
 
   // ---------------------------------------------------------------------------
   // Simulation
@@ -284,21 +375,13 @@
   //            reproduces simultaneous sliding exactly and keeps trains of
   //            blocks correctly spaced.
   //
-  //   RESOLVE  the board is now at rest, so ask what that means for each block
-  //            standing still. On a goal it fits: collected. On a hazard: lost.
-  //            Both leave, and both free their cell.
+  //   RESOLVE  the board is now at rest, so ask what standing still means. On a
+  //            goal it fits (and if this stage collects at all): collected. On
+  //            a hazard: destroyed. Both leave, and both free their cell.
   //
-  // If RESOLVE removed anything, gravity has not gone away — whatever was being
-  // held up behind the departed block can now move, so SETTLE runs again. That
-  // loop is the chain reaction, and it is also the only way a chain can happen
-  // now: nothing is collected in passing, so a cascade is always a sequence of
-  // boards coming to rest, not a queue draining through a hole.
-  //
-  // Both rules resolving at rest, and only at rest, is what makes "you must be
-  // STOPPED on a goal" and "you may cross a hazard but not park on one" exactly
-  // true rather than approximately true. A block that pauses mid-slide because
-  // something is in its way has not stopped; it is waiting, and while it waits
-  // it is neither collected nor destroyed.
+  // If RESOLVE removed anything, gravity has not gone away, so SETTLE runs
+  // again. That loop is the chain reaction — and it is the only way a chain can
+  // happen, because nothing is ever collected in passing.
   //
   // Returns { state, moved, frames, events, clear, broken }.
   //   frames[t] = { pos, alive } snapshot after t ticks (frames[0] = start)
@@ -316,9 +399,8 @@
     var alive = s0.alive.slice();
     var collected = s0.collected;
     var lost = s0.lost || 0;
-    var i, k;
+    var i;
 
-    // Live occupancy grid: -1 empty, else block index.
     var occ = new Int16Array(w * h).fill(-1);
     for (i = 0; i < n; i++) {
       if (alive[i]) occ[pos[i][1] * w + pos[i][0]] = i;
@@ -335,26 +417,16 @@
     var order = [];
     for (i = 0; i < n; i++) order.push(i);
 
-    // How far "downstream" a block is along the gravity axis.
     var lead = function (idx) { return pos[idx][0] * dx + pos[idx][1] * dy; };
 
     var guard = w * h * (n + 1) + 16;
     var anythingMoved = false;
 
-    // A pin catches anything that rolls onto it: entering one ends that block's
-    // slide for the REST OF THIS TILT. It is not a wall — next tilt the block
-    // rolls off again — and it is not a goal or a hazard, because nothing
-    // happens to the block beyond being stopped. `held` is per-tilt state and
-    // is deliberately not part of the position: a block sitting on a pin at the
-    // start of a tilt is completely free.
-    var held = new Array(n).fill(false);
-
-    // At most one settle per block removed, plus the first one and a margin.
     for (var round = 0; round <= n + 1; round++) {
 
       // ── SETTLE ────────────────────────────────────────────────────────────
       while (guard-- > 0) {
-        var tIndex = frames.length;   // the frame index this pass will produce
+        var tIndex = frames.length;
         var live = order.filter(function (idx) { return alive[idx]; });
         // Front-most first; ties broken by index so a run is fully
         // deterministic. Blocks that tie are in parallel lanes and cannot
@@ -369,7 +441,6 @@
 
         for (var q = 0; q < live.length; q++) {
           i = live[q];
-          if (held[i]) continue;                    // caught on a pin this tilt
           var nx = pos[i][0] + dx, ny = pos[i][1] + dy;
           if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
           var ni = ny * w + nx;
@@ -383,10 +454,8 @@
           movedThisPass = true;
           anythingMoved = true;
           movingNow[i] = true;
-          if (stage.terrain[ni] === PIN) held[i] = true;
         }
 
-        // A block that was sliding and has now stopped: that is an impact.
         if (wantFrames) {
           for (i = 0; i < n; i++) {
             if (movingLast[i] && !movingNow[i] && alive[i]) {
@@ -401,15 +470,13 @@
       }
 
       // ── RESOLVE ───────────────────────────────────────────────────────────
-      // The board is at rest. Now, and only now, does standing somewhere mean
-      // anything.
       var restTick = frames.length;
       var removed = 0;
       for (i = 0; i < n; i++) {
         if (!alive[i]) continue;
         var at = pos[i][1] * w + pos[i][0];
 
-        if (stage.goal[at] && accepts(stage.goalColour[at], colour[i])) {
+        if (stage.collects && stage.goal[at] && accepts(stage.goalColour[at], colour[i])) {
           alive[i] = 0;
           collected++;
           occ[at] = -1;
@@ -426,8 +493,6 @@
 
       if (!removed) break;
       if (wantFrames) frames.push(snapshot());
-      // Anything that was leaning on a departed block is now unsupported, and
-      // gravity never stopped. Around again.
       movingLast = new Array(n).fill(false);
     }
 
@@ -444,7 +509,7 @@
       moved: anythingMoved,
       frames: frames,
       events: events,
-      clear: isClear(state),
+      clear: isClear(stage, state),
       broken: isBroken(state)
     };
   }
@@ -467,7 +532,7 @@
     var key = makeStateKey(stage);
     var start = from ? cloneState(from) : initialState(stage);
     var cap = limitNodes || 400000;
-    if (isClear(start)) return { solvable: true, moves: 0, path: [], visited: 1, truncated: false };
+    if (isClear(stage, start)) return { solvable: true, moves: 0, path: [], visited: 1, truncated: false };
     if (isBroken(start)) return { solvable: false, moves: -1, path: null, visited: 1, truncated: false };
 
     var seen = Object.create(null);
@@ -487,8 +552,8 @@
         seen[k] = true;
         visited++;
         var path = node.path.concat(dir);
-        if (isClear(ns)) return { solvable: true, moves: path.length, path: path, visited: visited, truncated: false };
-        if (isBroken(ns)) continue;                   // nothing lies past a broken board
+        if (isClear(stage, ns)) return { solvable: true, moves: path.length, path: path, visited: visited, truncated: false };
+        if (isBroken(ns)) continue;
         queue.push({ s: ns, path: path });
       }
     }
@@ -508,7 +573,7 @@
     while (head < queue.length && list.length <= cap) {
       var s = queue[head++];
       list.push(s);
-      if (isTerminal(s)) continue;
+      if (isTerminal(stage, s)) continue;
       for (var di = 0; di < 4; di++) {
         var ns = step(stage, s, DIRS[di]);
         if (!ns) continue;
@@ -524,20 +589,9 @@
   /**
    * The whole reachable position graph in one pass.
    *
-   * Everything the design tools want to know — how long the stage really is,
-   * how many optimal lines it has, how much of it is a dead end, how lucky a
-   * random player could get — is a question about this graph. Building it once
-   * and answering from it is both exact and far cheaper than re-walking the
-   * board per question.
-   *
-   * Returns null if the graph exceeds `cap`, which is the tools' signal that a
-   * board is too sprawling to be worth measuring.
-   *
-   *   keys    canonical key per node, in breadth-first order from the start
-   *   next    next[i][d] = node index after tilting DIRS[d], or i if nothing moved
-   *   clear   1 if the node is a cleared board
-   *   broken  1 if the node has lost a block and can never clear
-   *   dist    moves from the start (breadth-first, so shortest)
+   * Everything the design tools want to know is a question about this graph.
+   * Building it once and answering from it is both exact and far cheaper than
+   * re-walking the board per question. Returns null if the graph exceeds `cap`.
    */
   function graph(stage, cap) {
     cap = cap || 200000;
@@ -545,7 +599,7 @@
     var start = initialState(stage);
     var index = Object.create(null);
     var states = [start], keys = [key(start)];
-    var next = [], clear = [isClear(start) ? 1 : 0], broken = [0], dist = [0];
+    var next = [], clear = [isClear(stage, start) ? 1 : 0], broken = [0], dist = [0];
     index[keys[0]] = 0;
 
     for (var i = 0; i < states.length; i++) {
@@ -553,7 +607,7 @@
       if (!clear[i] && !broken[i]) {
         for (var d = 0; d < 4; d++) {
           var ns = step(stage, states[i], DIRS[d]);
-          if (!ns) { row[d] = i; continue; }     // a tilt that changes nothing
+          if (!ns) { row[d] = i; continue; }
           var k = key(ns);
           var at = index[k];
           if (at == null) {
@@ -561,7 +615,7 @@
             at = states.length;
             index[k] = at;
             states.push(ns); keys.push(k);
-            clear.push(isClear(ns) ? 1 : 0);
+            clear.push(isClear(stage, ns) ? 1 : 0);
             broken.push(isBroken(ns) ? 1 : 0);
             dist.push(dist[i] + 1);
           }
@@ -581,8 +635,9 @@
 
   return {
     DIRS: DIRS, DV: DV,
-    FLOOR: FLOOR, WALL: WALL, HAZARD: HAZARD, PIN: PIN, ANY: ANY,
+    FLOOR: FLOOR, WALL: WALL, HAZARD: HAZARD, ANY: ANY,
     BLOCK_CHARS: BLOCK_CHARS, GOAL_CHARS: GOAL_CHARS, COLOUR_NAME: COLOUR_NAME,
+    WINS: WINS,
     accepts: accepts,
     compile: compile,
     initialState: initialState,
@@ -592,6 +647,8 @@
     isClear: isClear,
     isBroken: isBroken,
     isTerminal: isTerminal,
+    matched: matched,
+    formed: formed,
     simulate: simulate,
     step: step,
     solve: solve,

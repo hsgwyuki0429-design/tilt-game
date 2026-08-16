@@ -38,10 +38,7 @@
     wallEdge: 'rgba(180,200,255,0.30)',
     hazEdge: 'rgba(255,120,120,0.55)',
     hazDeep: '#2a0c14',
-    hazStripe: 'rgba(255,96,110,0.34)',
-    pinTop: '#9fb0d8',
-    pinLow: '#4a5680',
-    pinEdge: 'rgba(190,210,255,0.45)'
+    hazStripe: 'rgba(255,96,110,0.34)'
   };
 
   // One palette and one SHAPE per colour of block, and the socket that will
@@ -51,13 +48,16 @@
   //   0  any     cyan     circle
   //   1  A       amber    triangle
   //   2  B       violet   square
+  //   3  C       mint     diamond
   var PALETTE = [
     { hi: '#a9f4ff', mid: '#2ed3f2', lo: '#0a7fa0', glow: 'rgba(46,211,242,0.55)',
       socket: '#b9c6ee', socketGlow: 'rgba(200,215,255,0.45)', shape: 'circle' },
     { hi: '#ffe6a8', mid: '#ffb43d', lo: '#a05a00', glow: 'rgba(255,180,61,0.55)',
       socket: '#ffc766', socketGlow: 'rgba(255,190,90,0.50)', shape: 'triangle' },
     { hi: '#e8ccff', mid: '#b479ff', lo: '#5a2ea0', glow: 'rgba(180,121,255,0.55)',
-      socket: '#c295ff', socketGlow: 'rgba(190,150,255,0.50)', shape: 'square' }
+      socket: '#c295ff', socketGlow: 'rgba(190,150,255,0.50)', shape: 'square' },
+    { hi: '#c6ffe2', mid: '#3fe0a0', lo: '#127a55', glow: 'rgba(63,224,160,0.55)',
+      socket: '#7ff0c2', socketGlow: 'rgba(120,240,190,0.50)', shape: 'diamond' }
   ];
 
   var BLOCK = PALETTE[0];
@@ -83,6 +83,13 @@
       g.moveTo(cx, cy - h);
       g.lineTo(cx + h * 0.93, cy + h * 0.62);
       g.lineTo(cx - h * 0.93, cy + h * 0.62);
+      g.closePath();
+    } else if (shape === 'diamond') {
+      var d = r * 1.24;
+      g.moveTo(cx, cy - d);
+      g.lineTo(cx + d, cy);
+      g.lineTo(cx, cy + d);
+      g.lineTo(cx - d, cy);
       g.closePath();
     } else {
       g.arc(cx, cy, r, 0, Math.PI * 2);
@@ -207,8 +214,6 @@
           drawWall(g, px, py, cell);
         } else if (st.terrain[i] === E.HAZARD) {
           drawHazard(g, px, py, cell);
-        } else if (st.terrain[i] === E.PIN) {
-          drawPin(g, px, py, cell);
         } else {
           roundRect(g, px + inset, py + inset, cell - inset * 2, cell - inset * 2, cell * 0.13);
           g.fillStyle = THEME.floor;
@@ -297,51 +302,6 @@
     g.strokeStyle = THEME.hazEdge;
     g.lineWidth = 1.2;
     g.stroke();
-  }
-
-  /**
-   * A pin is drawn as a stud standing PROUD of an otherwise ordinary floor.
-   *
-   * The cell has to read as floor first — you may enter it, unlike a wall — and
-   * as something that will catch you second. So the tile underneath is the
-   * normal floor tile, and the only addition is a small raised peg in the
-   * middle, lit from the same direction as the walls. Nothing about it is
-   * coloured like a hazard or ringed like a goal, because nothing happens to a
-   * block that stops here: it simply stops.
-   */
-  function drawPin(g, px, py, cell) {
-    var inset = Math.max(1.5, cell * 0.035);
-    roundRect(g, px + inset, py + inset, cell - inset * 2, cell - inset * 2, cell * 0.13);
-    g.fillStyle = THEME.floor;
-    g.fill();
-    g.strokeStyle = THEME.floorEdge;
-    g.lineWidth = 1;
-    g.stroke();
-
-    var cx = px + cell / 2, cy = py + cell / 2, r = cell * 0.22;
-
-    // A soft shadow on the floor, so the peg reads as standing up off it.
-    g.beginPath();
-    g.ellipse(cx, cy + r * 0.5, r * 1.05, r * 0.5, 0, 0, Math.PI * 2);
-    g.fillStyle = 'rgba(0,0,12,0.38)';
-    g.fill();
-
-    var grad = g.createLinearGradient(cx, cy - r, cx, cy + r);
-    grad.addColorStop(0, THEME.pinTop);
-    grad.addColorStop(1, THEME.pinLow);
-    g.beginPath();
-    g.arc(cx, cy, r, 0, Math.PI * 2);
-    g.fillStyle = grad;
-    g.fill();
-    g.strokeStyle = THEME.pinEdge;
-    g.lineWidth = 1.2;
-    g.stroke();
-
-    // Highlight on the upper left, matching the chamfer on the walls.
-    g.beginPath();
-    g.arc(cx - r * 0.28, cy - r * 0.3, r * 0.34, 0, Math.PI * 2);
-    g.fillStyle = 'rgba(255,255,255,0.28)';
-    g.fill();
   }
 
   // -- animation --------------------------------------------------------------
@@ -583,13 +543,27 @@
     }
   };
 
+  /**
+   * The marked cells — and what they mean depends on the win condition.
+   *
+   * On an ALL IN or SELECT board a marked cell is a HOLE: a block that stops on
+   * it is gone, so it is drawn sunk below the floor with a lit rim. On a FORM
+   * board the same cell is a STANDING SPOT: nothing is ever removed, and a
+   * block has to be left there. Drawing both the same way would be a lie about
+   * the rules, so a FORM target is drawn as four corner brackets sitting ON the
+   * floor — a place to park, not a place to fall.
+   */
   Renderer.prototype.drawGoals = function (ctx) {
     var st = this.stage;
     var pulse = 0.5 + 0.5 * Math.sin(this.time / 620);
+    var form = st.win === 'form';
+    var filled = form ? this.occupancy() : null;
+
     for (var y = 0; y < st.h; y++) {
       for (var x = 0; x < st.w; x++) {
-        if (!st.goal[y * st.w + x]) continue;
-        var pal = paletteOf(st.goalColour ? st.goalColour[y * st.w + x] : 0);
+        var i = y * st.w + x;
+        if (!st.goal[i]) continue;
+        var pal = paletteOf(st.goalColour ? st.goalColour[i] : 0);
         var r = this.cellRect(x, y);
         var cx = r.x + r.s / 2, cy = r.y + r.s / 2;
         var pad = r.s * 0.17;
@@ -601,6 +575,13 @@
         }
 
         ctx.save();
+        if (form) {
+          var done = filled[i] !== undefined && E.accepts(st.goalColour[i], filled[i]);
+          drawTarget(ctx, r, pal, pulse, done);
+          ctx.restore();
+          continue;
+        }
+
         ctx.globalAlpha = 0.85;
         // Socket well
         roundRect(ctx, r.x + pad, r.y + pad, r.s - pad * 2, r.s - pad * 2, r.s * 0.2);
@@ -628,6 +609,46 @@
     }
   };
 
+  /** Which colour is standing on each cell right now, for the FORM readout. */
+  Renderer.prototype.occupancy = function () {
+    var st = this.stage, out = {};
+    var frames = this.anim ? this.anim.frames : null;
+    var snap = frames ? frames[frames.length - 1] : this.state;
+    if (!snap) return out;
+    for (var i = 0; i < snap.pos.length; i++) {
+      if (snap.alive[i]) out[snap.pos[i][1] * st.w + snap.pos[i][0]] = st.colour[i];
+    }
+    return out;
+  };
+
+  function drawTarget(g, r, pal, pulse, done) {
+    var pad = r.s * 0.14;
+    var x = r.x + pad, y = r.y + pad, s = r.s - pad * 2;
+    var arm = s * 0.3;
+
+    g.globalAlpha = done ? 0.95 : 0.30 + pulse * 0.22;
+    g.strokeStyle = pal.socket;
+    g.shadowColor = pal.socketGlow;
+    g.shadowBlur = r.s * (done ? 0.35 : 0.08 + pulse * 0.06);
+    g.lineWidth = Math.max(2, r.s * 0.06);
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(x, y + arm); g.lineTo(x, y); g.lineTo(x + arm, y);
+    g.moveTo(x + s - arm, y); g.lineTo(x + s, y); g.lineTo(x + s, y + arm);
+    g.moveTo(x + s, y + s - arm); g.lineTo(x + s, y + s); g.lineTo(x + s - arm, y + s);
+    g.moveTo(x + arm, y + s); g.lineTo(x, y + s); g.lineTo(x, y + s - arm);
+    g.stroke();
+
+    // The glyph stays, because on a coloured FORM board the target still says
+    // WHICH block belongs here — but it goes hollow once the spot is taken, so
+    // "how many are still open" is countable at a glance.
+    g.shadowBlur = 0;
+    g.globalAlpha = done ? 0.25 : 0.45 + pulse * 0.2;
+    glyph(g, r.x + r.s / 2, r.y + r.s / 2, r.s * 0.15, pal.shape);
+    g.lineWidth = Math.max(1.4, r.s * 0.045);
+    g.stroke();
+  }
+
   Renderer.prototype.drawBlocks = function (ctx, elapsed) {
     var st = this.stage;
     var state = this.anim ? null : this.state;
@@ -648,11 +669,15 @@
         if (!state.alive[i]) continue;
         pos = state.pos[i];
       }
-      this.drawBlock(ctx, pos, squash, st.colour ? st.colour[i] : 0);
+      // On a SELECT board some blocks have no socket anywhere and can never
+      // leave. The player has to be able to SEE which ones those are, or the
+      // puzzle moves off the board and into the briefing.
+      var inert = st.win === 'select' && st.collectable && !st.collectable[i];
+      this.drawBlock(ctx, pos, squash, st.colour ? st.colour[i] : 0, inert);
     }
   };
 
-  Renderer.prototype.drawBlock = function (ctx, pos, squash, colour) {
+  Renderer.prototype.drawBlock = function (ctx, pos, squash, colour, inert) {
     var pal = paletteOf(colour);
     var cell = this.cell;
     var inset = Math.max(2, cell * 0.075);
@@ -679,42 +704,70 @@
     ctx.shadowOffsetY = cell * 0.06;
     roundRect(ctx, x, y, w, h, rad);
     var grad = ctx.createLinearGradient(x, y, x, y + h);
-    grad.addColorStop(0, pal.hi);
-    grad.addColorStop(0.42, pal.mid);
-    grad.addColorStop(1, pal.lo);
+    grad.addColorStop(0, inert ? mix(pal.hi) : pal.hi);
+    grad.addColorStop(0.42, inert ? mix(pal.mid) : pal.mid);
+    grad.addColorStop(1, inert ? mix(pal.lo) : pal.lo);
     ctx.fillStyle = grad;
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
 
-    // Outer glow makes the movable things pop away from the matte walls instantly.
-    ctx.shadowColor = pal.glow;
-    ctx.shadowBlur = cell * 0.3;
-    ctx.globalAlpha = 0.55;
-    roundRect(ctx, x, y, w, h, rad);
-    ctx.strokeStyle = pal.hi;
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
+    // Outer glow makes the movable things pop away from the matte walls
+    // instantly — and a block with nowhere to go does not get one. It still
+    // slides, it still blocks, and it reads as scenery rather than as cargo.
+    if (!inert) {
+      ctx.shadowColor = pal.glow;
+      ctx.shadowBlur = cell * 0.3;
+      ctx.globalAlpha = 0.55;
+      roundRect(ctx, x, y, w, h, rad);
+      ctx.strokeStyle = pal.hi;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+    }
 
     // Gloss
     ctx.save();
     roundRect(ctx, x, y, w, h, rad);
     ctx.clip();
     var gl = ctx.createLinearGradient(x, y, x, y + h * 0.55);
-    gl.addColorStop(0, 'rgba(255,255,255,0.42)');
+    gl.addColorStop(0, 'rgba(255,255,255,' + (inert ? 0.16 : 0.42) + ')');
     gl.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = gl;
     ctx.fillRect(x, y, w, h * 0.55);
     ctx.restore();
 
-    // The dot that matches the ring on the goal which will take this block.
+    // The dot that matches the ring on the goal which will take this block —
+    // hollow when no goal anywhere will.
     glyph(ctx, x + w / 2, y + h / 2, cell * 0.15, pal.shape);
-    ctx.fillStyle = 'rgba(6,10,26,0.5)';
-    ctx.fill();
+    if (inert) {
+      ctx.strokeStyle = 'rgba(6,10,26,0.55)';
+      ctx.lineWidth = Math.max(1.4, cell * 0.04);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = 'rgba(6,10,26,0.5)';
+      ctx.fill();
+    }
     ctx.restore();
   };
+
+  /**
+   * Drain a hex colour toward the board's slate, for a block with no home.
+   *
+   * Toward a DARK slate rather than a pale one, which was the first attempt and
+   * was backwards: washing a colour out makes it lighter, and a lighter block on
+   * a dark board reads as more important, not less. Furniture has to recede.
+   */
+  function mix(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    var k = 0.72;
+    r = Math.round(r * (1 - k) + 0x39 * k);
+    g = Math.round(g * (1 - k) + 0x40 * k);
+    b = Math.round(b * (1 - k) + 0x62 * k);
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
 
   Renderer.prototype.drawEffects = function (ctx, dt) {
     var busy = false;

@@ -96,6 +96,13 @@ body::before {
   font-weight: 700;
 }
 
+.name-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
 #stage-name {
   font-size: 16px;
   font-weight: 800;
@@ -105,6 +112,23 @@ body::before {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* What "done" means on this board. Four win conditions share one set of
+   physics, and which one is in play has to be readable without opening a menu —
+   otherwise the difficulty moves off the board and into a sentence. */
+.obj {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: var(--cyan);
+  border: 1px solid rgba(46, 211, 242, 0.4);
+  background: rgba(46, 211, 242, 0.09);
+}
+.obj:empty { display: none; }
 
 .counters { display: flex; gap: 12px; flex: 0 0 auto; }
 
@@ -262,6 +286,7 @@ body::before {
   text-shadow: 0 0 26px rgba(46, 211, 242, 0.45);
 }
 .ov-title.perfect { color: var(--amber); text-shadow: 0 0 26px rgba(255, 180, 61, 0.45); }
+.ov-title.over { color: var(--danger); text-shadow: 0 0 26px rgba(255, 95, 109, 0.45); }
 
 .ov-stats { display: flex; justify-content: center; gap: 22px; margin-bottom: 12px; }
 .ov-stat { display: flex; flex-direction: column; gap: 2px; }
@@ -351,33 +376,6 @@ body::before {
 #btn-sound.off .wave { opacity: 0; }
 #btn-sound.off .cross { opacity: 1; }
 #btn-sound.off { color: var(--ink-faint); }
-
-/* A dead board is worth saying out loud — quietly, once, on the button that
-   fixes it. */
-#btn-undo.urgent {
-  color: var(--amber);
-  border-color: rgba(255, 180, 61, 0.55);
-  background: rgba(255, 180, 61, 0.1);
-  animation: nudge 2.4s ease-in-out infinite;
-}
-@keyframes nudge {
-  0%, 88%, 100% { transform: none; }
-  92%           { transform: translateX(-2px); }
-  96%           { transform: translateX(2px); }
-}
-.badge {
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  color: var(--amber);
-  white-space: nowrap;
-  pointer-events: none;
-}
-#btn-undo:not(.urgent) .badge { display: none; }
 
 /* ── stage menu ───────────────────────────────────────────────────────────── */
 
@@ -537,7 +535,6 @@ button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #hint.swipe-demo::after,
-  #btn-undo.urgent { animation: none; }
+  #hint.swipe-demo::after { animation: none; }
   .ov-card { animation: none; }
 }

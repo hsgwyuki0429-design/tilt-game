@@ -9,10 +9,14 @@ it well is in the game even if it makes things complicated.
 
 Everything below is **measured, not asserted**. The generator (`tools/lib/generate.js`)
 enumerates the entire design space for a given budget — every arrangement of walls, goals,
-hazards, pins and blocks, up to rotation, reflection and colour relabelling — and the
-measurement library (`tools/lib/design.js`) scores each one. So when this document says a
-rule is weak, that is a number from a sweep of tens of thousands of boards, not taste. The
-tables state their sample sizes and you can reproduce any of them with `tools/forge.js`.
+hazards and blocks, up to rotation, reflection and colour relabelling — and the measurement
+library (`tools/lib/design.js`) scores each one. So when this document says a rule is weak,
+that is a number from a sweep of tens of thousands of boards, not taste. The tables state
+their sample sizes and you can reproduce any of them with `tools/forge.js`.
+
+Two rules that were in earlier versions of this document are gone, and the sections that
+killed them are still here (§7). A document that only records what survived is a sales
+brochure.
 
 ---
 
@@ -29,8 +33,9 @@ is.
 There is one further rule that is not negotiable, because the entire current design rests
 on it:
 
-> **A block is collected only if it comes to a complete stop on a goal.** Sliding over a
-> goal does nothing at all.
+> **Nothing resolves mid-slide.** Everything a cell does to a block, it does when the board
+> comes to rest, and only then. A block is collected only if it comes to a complete stop on
+> a goal; a block is destroyed only if it is left standing on a hazard.
 
 This is the single most consequential decision in the game, so it gets its own analysis
 below (§3.3). Its main effect on every other rule is this: **the scarce resource in TILT is
@@ -42,17 +47,19 @@ not distance, it is things that stop blocks.** Read every rule below through tha
 
 | Category | In the game | Considered, not in |
 |---|---|---|
-| **A · Movement** | gravity; slide-until-blocked; block-on-block collision; the settle→resolve→settle loop | momentum, ice, variable speed |
-| **B · Terrain** | wall `#`; **pin `+`** | one-way gates, teleports, breakable walls, moving walls |
-| **C · Goals** | collect every block, at rest, colour-matched | "collect only red", form a shape, fill a region, leave one behind, touch same colours |
-| **D · Block shape** | one cell, always | 2×1, 1×2, 2×2 |
-| **E · Colour** | two colours, **two blocks per colour maximum**; colour-matched goals | three+ colours, colour mixing, colour change |
-| **F · Failure** | hazard `x` | instant-fail cells, forbidden regions, fail-on-touch |
+| **A · Movement** | gravity; slide-until-blocked; block-on-block collision; the settle→resolve→settle loop | momentum, ice, variable speed, ~~pins~~ (§7.1) |
+| **B · Terrain** | wall `#`; hazard `x` | one-way gates, teleports, breakable walls, moving walls, ~~pin `+`~~ (§7.1) |
+| **C · Win condition** | **ALL IN**, **SELECT**, **MATCH**, **FORM** | fill a region, leave exactly one behind, reach a move count |
+| **D · Block shape** | one cell, always | 2×1, 1×2, 2×2 (§7.2) |
+| **E · Colour** | three colours, **two blocks per colour maximum**; colour-matched goals | colour mixing, colour change |
+| **F · Failure** | hazard `x` — and stopping on one ends the run | fail-on-touch, forbidden regions |
 | **G · State change** | collection frees a cell and the board re-settles | blocks that transform, goals that move, switches |
 | **H · Limits** | none | move limits, time limits, direction locks |
 
-Five terrain/element rules ship. Everything in the right-hand column was considered and is
-argued about below — most of them lose, and §7 says exactly why for each.
+Row C is the substantial change since the first draft of this document, which rejected
+alternative win conditions on the grounds that they "move the difficulty off the board and
+into the briefing". That argument was wrong, and §5 says exactly how the measurement
+disproved it.
 
 ---
 
@@ -79,7 +86,7 @@ consequence is where the entire game lives.
 
 **Rule.** A block cannot enter a wall cell.
 
-**What the player thinks about.** Where things *stop*. Under the stop-on-goal rule, a wall is
+**What the player thinks about.** Where things *stop*. Under the stop-at-rest rule, a wall is
 not primarily an obstacle — it is the free backstop that makes a nearby goal collectable at
 all. The player learns to read a goal by looking at the cell *behind* it.
 
@@ -109,11 +116,11 @@ right edge past the goal, and the stage is unsolvable.
 
 ---
 
-### 3.3 GOAL `o` — collected only at rest  ★★★★★ CORE
+### 3.3 RESOLVED AT REST — the decision the game is built on  ★★★★★ CORE
 
 **Rule.** When the board comes to rest, a block standing on a goal it fits is collected. The
 cell frees, gravity has not gone away, and the board settles again — which is where chains
-come from.
+come from. The same timing governs the hazard.
 
 **What the player thinks about.** This rule replaces "steer the block to the hole" with
 **"arrange for the block to be stopped on the hole"**, which is a completely different
@@ -146,83 +153,10 @@ is the whole rule set in three cells.
 
 ---
 
-### 3.4 PIN `+` — the place you may stand  ★★★★☆ BASIC
+### 3.4 HAZARD `x` — the mirror of a goal  ★★★★☆ ADVANCED
 
-**Rule.** A block that rolls onto a pin stops there for the rest of that tilt. Next tilt it
-is completely free. Nothing else happens to it.
-
-**Why it exists — the completion argument.** The pin was not added because the game needed
-more. It was added because the other four cells leave exactly one case empty:
-
-| cell | may enter? | may pass through? | what happens at rest |
-|---|---|---|---|
-| floor | yes | yes | nothing |
-| wall `#` | **no** | — | — |
-| **pin `+`** | yes | **no** | **nothing** |
-| hazard `x` | yes | yes | destroyed |
-| goal `o` | yes | yes | collected |
-
-Floor, wall, hazard and goal cover three of the four combinations of "can you enter" and
-"can you pass". The pin is the fourth. It is a completion of a matrix, not an addition to a
-list.
-
-**What the player thinks about.** *Where can I leave something?* Without pins, every block
-ends flush against a wall, an edge or another block — the board's resting positions are
-entirely dictated by its terrain. A pin is the only cell where a block can be left standing
-in open ground, which means it is the only backstop the player gets to *position*.
-
-**Measured — and the caveat is the interesting part.**
-
-| 4×3, two blocks | viable boards | max par | avg blindness | avg flow | clarity |
-|---|---|---|---|---|---|
-| walls only (2 walls) | 300+ | 9 | 0.71 | 2.6 | 9.5 |
-| **pin only (no walls)** | **20** | **4** | **0.00** | **1.0** | 7.3 |
-| wall × pin | 300+ | 9 | 0.73 | **4.3** | 7.3 |
-| wall × wall (3 walls, control) | 300+ | 8 | 0.80 | 3.4 | 9.5 |
-
-Read that carefully. **A pin on its own is nearly dead** — twenty viable boards in the entire
-space, average blindness zero, average flow 1.0. It does not raise the par ceiling either
-(9 → 9). What it does is raise **flow from 2.6 to 4.3**, and the control row is what makes
-that meaningful: simply adding a *third wall* only reaches 3.4. So the pin is doing
-something a wall cannot, and it is doing it as a **multiplier on walls, never as a
-headliner**.
-
-At 3×3 the effect is starker: walls alone yield 12 viable boards, a pin alone yields 4, and
-wall+pin yields **71**. The pin's real contribution is that it makes small boards viable at
-all.
-
-**Good use.** A pin far from any goal, where the point is to park the *other* block on it as
-a backstop. Or a pin used twice in one solution, from two different directions — the
-one-tilt hold is what lets a block turn a corner in open ground.
-
-**Bad use.** A pin adjacent to a goal. It steals the block instead of backing it up (see the
-trap below), which is a fine puzzle once but reads as a bug if it is the only thing pins ever
-do.
-
-**The trap only a pin can set:**
-
-```
- @ o +      R: the block crosses the goal and is caught on the peg — one cell late.
-```
-A wall behind a goal is a backstop. A **pin** behind a goal is a *better hole than the goal
-is*. This is genuinely surprising the first time and completely fair the second.
-
-**Mini-stage (3×3):**
-
-```
- @ @ +      R: the leading block parks on the peg; the second stops against it.
- . . .      Now the second block is standing in open ground, where nothing could
- o . .      have held it — and it is the backstop the goal on row 3 needs.
-```
-
-**Thinking type.** Spatial reasoning · staging · dependency · resource management.
-
----
-
-### 3.5 HAZARD `x` — the mirror of a goal  ★★★★☆ ADVANCED
-
-**Rule.** A block left standing on a hazard when the board settles is lost, and the board can
-never be cleared. Sliding straight across one is completely safe.
+**Rule.** A block left standing on a hazard when the board settles is destroyed, **and the
+run ends there**. Sliding straight across one is completely safe.
 
 **Why this version and not "touch it and die".** The obvious hazard is a wall that lies about
 being a wall: it only ever asks the player to route around a region, which walls already do
@@ -230,11 +164,17 @@ better. This version asks the game's central question — *where does this block
 answers it in the opposite direction to a goal. Both resolve at rest and only at rest. That
 symmetry is the whole design: one rule, two signs.
 
+**Why it ends the run rather than merely spoiling the board.** Losing a block already made
+the stage unwinnable — the only question was whether the game said so. The earlier version
+put a DEAD END badge on the undo button and left the player to notice it, which asks them to
+read a label, understand it, and then perform the only move available. A game-over card that
+names the rule is shorter, clearer, and costs the same one tap.
+
 **What the player thinks about.** Not "avoid that square" but **"what is on the far side of
 that square?"** A hazard is crossable, so it is a piece of route you use deliberately; the
 puzzle is arranging for something to catch you past it.
 
-**Measured — hazards cannot stand alone either, and more severely than pins:**
+**Measured — hazards cannot stand alone:**
 
 | 4×3, two blocks | viable boards | max par | avg flow | silent jams |
 |---|---|---|---|---|
@@ -244,8 +184,8 @@ puzzle is arranging for something to catch you past it.
 
 **Zero.** Not "few" — a hazard with no walls anywhere produces no board that passes the
 quality gates at all, because without walls there is nothing to make the crossing meaningful.
-Paired with walls it is the strongest single device in the game: it raises the par ceiling
-from 9 to 11 and flow from 2.6 to 4.3, at a cost of 3% silently-unwinnable positions.
+Paired with walls it is the strongest single terrain device: it raises the par ceiling from 9
+to 11 and flow from 2.6 to 4.3, at a cost of 3% silently-unwinnable positions.
 
 **Good use.** A hazard directly between a block and the only backstop, so the route *must* go
 across it and the puzzle is what stops you after.
@@ -258,44 +198,50 @@ scores worse than a wall because it also creates dead ends.
 ```
  @ x o      R: the block crosses the hazard and is stopped on the goal by the
  . . .         right edge.  COLLECT.  Crossing was never the danger.
- . . .      Move the goal one cell left and the same tilt kills the block instead.
+ . . .      Move the goal one cell left and the same tilt ends the run instead.
 ```
 
 **Thinking type.** Risk management · prediction · route planning.
 
 ---
 
-### 3.6 COLOUR `A`/`a`, `B`/`b` — the hole that is a floor  ★★★★★ ADVANCED
+### 3.5 COLOUR `A`/`a`, `B`/`b`, `C`/`c` — the hole that is a floor  ★★★★★ ADVANCED
 
 **Rule.** A goal collects a block only when the colours match. `o` takes anything; a plain
 `@` fits only `o`. **At most two blocks of any one colour, anywhere in the game.**
 
 **What the player thinks about.** A goal is a hole for one block and an ordinary floor tile
-for the other. Since collection now requires stopping, a wrong-coloured block can come to
-rest *right in the socket* and simply sit there — not collected, still a wall, still in the
-way. And being in the way is the most valuable thing an uncollected block can do.
+for the other. Since collection requires stopping, a wrong-coloured block can come to rest
+*right in the socket* and simply sit there — not collected, still a wall, still in the way.
+And being in the way is the most valuable thing an uncollected block can do.
 
 So the thought becomes: **"which of these do I want to keep?"** Collecting in the wrong order
 does not waste moves, it destroys the backstop you were going to need.
 
-**Measured — colour is the strongest rule in the game and it does not want company:**
+**Measured — colour is the strongest terrain rule and it does not want company:**
 
 | 4×3 | viable | max par | avg blindness | avg flow | silent jams | clarity |
 |---|---|---|---|---|---|---|
 | colour alone, 3 blocks (AAB) | 300+ | 12 | 0.93 | 7.2 | 6% | 6.9 |
 | **colour alone, 4 blocks (AABB)** | 300+ | **16** | **1.17** | **10.5** | 4% | 6.3 |
-| pin × colour | 300+ | 11 | 0.93 | 6.7 | 7% | 4.6 |
 | hazard × colour | 300+ | 11 | 0.77 | 6.7 | 11% | 4.6 |
 
-**Colour alone beats both colour pairings on every single axis** — longer solutions, more
+**Colour alone beats colour + hazard on every single axis** — longer solutions, more
 blindness, more flow, fewer silent dead ends, and far better clarity. This is the strongest
 evidence in the document for the "one device at a time" rule, and it was not a preference: it
 is what the sweep says.
 
 **Why the two-per-colour cap.** Three identical blocks on a small board is not depth, it is
 bookkeeping — the player tracks a crowd rather than a relationship. The cap costs nothing:
-the longest well-formed board in the entire project is four blocks under the cap (AABB) at
-par 16, longer than anything the uncapped search ever produced under the base rules.
+under it, SELECT with three colours reaches **par 58 on twelve cells**, deeper than anything
+the uncapped search ever produced.
+
+**Why a third colour and not a fourth.** Two colours is enough for ALL IN — the third does
+nothing there but multiply bookkeeping, exactly as the first draft of this document said. But
+the sweep says something different about the win conditions that came after: MATCH at 4×3
+tops out at par 12 with two colours and **par 29 with three**, and SELECT goes from 23 to 58.
+The third colour is not more of the same rule; it is what turns "the pair and the obstacle"
+into "the pair, the obstacle, and the thing that moves the obstacle".
 
 **Good use.** A board where one colour's goal is only reachable by using the *other* colour's
 block as a backstop, so the correct order is forced and the wrong order is silent.
@@ -316,33 +262,342 @@ interact, you have shipped two easy stages in one screen.
 
 ---
 
-## 4. Compatibility table
+## 4. The four win conditions
 
-Measured at 4×3 with two blocks (or three for colour rows), same quality gates throughout,
-300-board samples.
+The physics are identical in all four. What changes is what "done" means, and each one turns
+the same rules into a different question.
+
+### 4.1 ALL IN — collect every block  ★★★★★ CORE
+
+**Rule.** Clear when every block has been collected.
+
+**What the player thinks about.** "How do I get all of them home?" — and, because of §3.3,
+mostly: "which of these am I allowed to spend, and in what order?"
+
+**Why it is the default.** It is the only win condition that is legible from the picture
+alone. Nothing has to be said. Every other row in this section costs the player a phrase in
+the HUD, and has to earn that phrase.
+
+**Measured ceiling.** 4×3, four blocks under the two-per-colour cap: **par 16**.
+
+---
+
+### 4.2 SELECT — only the marked blocks  ★★★★★ ADVANCED
+
+**Rule.** Clear when every block whose colour has a goal somewhere has been collected. A
+block whose colour has no socket anywhere can never leave the board.
+
+**What the player thinks about.** **"You cannot move one block. You move the world, and
+everything answers."** The route for the cargo is usually obvious within seconds; the puzzle
+is entirely in the side effects of taking it.
+
+**Why it is the strongest rule in the game.** It creates something no other rule in TILT can:
+a **permanent** backstop. Under ALL IN every block is spent eventually, so every brake is
+temporary by definition. A block with no socket is the only thing in the game guaranteed to
+still be there at the end — and it is still fully mobile, so it is a wall the player carries
+around with them.
+
+**Measured — SELECT is deeper than ALL IN at every size:**
+
+| 4×3, walls 1–2 | candidate boards | max par | best blindness |
+|---|---|---|---|
+| ALL IN, AABB (baseline) | 300+ | 16 | 3 @ par 12 |
+| SELECT, AAB → goal `a` | 27,694 | 19 | 3 @ par 18 |
+| SELECT, AABB → goal `a` | 105,350 | 23 | 3 @ par 21 |
+| **SELECT, AABBCC → goals `a`,`b`** | 11,623 *(par ≥ 26 only)* | **58** | **3 @ par 57** |
+
+Note the last row is filtered at par ≥ 26 and still returns eleven thousand boards. This is
+not a rule that occasionally produces a long board; the long boards are the bulk of the
+space.
+
+**Good use.** A board where the cargo is one tilt from home in the opening frame, and that
+tilt stays illegal for another eight moves because of what is standing where.
+
+**Bad use.** Furniture that never touches the cargo's route. Then it is ALL IN with
+decoration, and the player has been made to read a phrase for nothing.
+
+**The over-constraint result.** Giving three colours *three* goal colours instead of two
+collapses the space: **zero** boards at par ≥ 50, where two goal colours reach 58. More
+constraint is not more depth — past a point it is less, because the furniture that made the
+board deep has been turned into cargo.
+
+**And adding a hazard costs length too.** The same SELECT space with one hazard added:
+7,476 terrains, 6,479 boards at par ≥ 28, **ceiling 48**. Deep enough for the extreme chapter
+to use once, and measurably shallower than SELECT on its own — which is the compatibility
+result of §6 showing up one more time, in the one place the campaign spends it anyway.
+
+**Mini-stage (3×3):**
+
+```
+ a # A      C has no socket anywhere: it can never leave, and it is the only
+ . . .      thing on this board that will still be there at the end.
+ . C .      The puzzle is getting A stopped on 'a' — which needs C behind it.
+```
+
+**Thinking type.** Interference avoidance · side-effect reasoning · dependency · ordering.
+
+---
+
+### 4.3 MATCH — bring the same things together  ★★★★☆ ADVANCED
+
+**Rule.** No goals at all. Clear when every colour that has more than one block has all of
+them orthogonally touching, at the same time.
+
+**What the player thinks about.** **"How do I make these two meet?"** The board stops being
+about a destination and becomes about a *relationship* — and the two things you are trying to
+join are driven by the same gravity, so most of the work is separating them first.
+
+**Why it is interesting.** It is the only win condition where nothing is ever banked. A pair
+you closed three moves ago is still on the board being pushed around by every subsequent
+tilt, so the winning position is one where all of them are together *simultaneously*. That
+turns the last tilt into a real constraint rather than a formality.
+
+**Measured — MATCH does not exist in one colour:**
+
+| board | candidates | max par | best blindness |
+|---|---|---|---|
+| 3×3, `@@` (one colour) | **0** | — | — |
+| 3×3, AABB | 614 | 8 | 3 @ par 4 |
+| 4×3, `@@` (one colour) | 60 | 4 | 2 @ par 3 |
+| 4×3, AABB | 10,154 | 12 | 3 @ par 9 |
+| 4×4, AABB | 3,170 | 10 | 3 @ par 8 |
+| 5×3, AABB | 9,654 | 18 | 3 @ par 17 |
+| **4×3, AABBCC** | 160,314 | **29** | **3 @ par 29** |
+
+**Zero at 3×3 with one colour.** Two blocks on nine cells under one gravity are adjacent
+almost immediately, whatever the walls do — there is no puzzle to have. MATCH is the one rule
+in the game that is *born* needing another rule, and the third colour more than doubles its
+ceiling because the second pair is the only tool for separating the first.
+
+**Good use.** A board where the tilt that closes one pair opens another, so the order is the
+entire question.
+
+**Bad use.** Two pairs that never share a row or column. Then it is two trivial boards, and
+the player solves them one at a time in either order.
+
+**Mini-stage (3×3):**
+
+```
+ # A B      Every tilt moves both A's and both B's. The tilt that brings the
+ B . #      A's together drives the B's apart, and vice versa — so the answer
+ . A .      is the one that does neither, first.
+```
+
+**Thinking type.** Relationship reasoning · ordering · simultaneity · reverse reasoning.
+
+---
+
+### 4.4 FORM — build the named shape  ★★★★☆ ADVANCED
+
+**Rule.** The goal characters mark **cells to be standing on**, not holes. Nothing is ever
+collected. Clear when every marked cell is occupied by a block it accepts, all at once.
+
+**What the player thinks about.** **"How do I satisfy all of these at the same time?"** Where
+ALL IN drains the board one block at a time, FORM has to land every constraint
+simultaneously — and every block placed correctly is a new wall in the way of the next one.
+
+**Why it is interesting.** It is the only pairing in the game where two rules make *one*
+question instead of two. On a coloured FORM board, "which cells" and "which blocks" are the
+same sentence, so the shape is a picture rather than a count. It is also the only win
+condition where the answer is fully visible from the first frame and that changes nothing —
+which is a good demonstration that the difficulty in TILT was never about knowing where to
+go.
+
+**Measured:**
+
+| 4×3, walls 1–2 | candidates | max par | best blindness |
+|---|---|---|---|
+| `@@` → 2 targets | 10,188 | 11 | 3 @ par 7 |
+| `@@C` → 3 targets | 25,833 | 10 | 3 @ par 8 |
+| AAB → 3 targets | 91,860 | 22 | 3 @ par 19 |
+| **AABBC → 4 targets** | 95,554 *(par ≥ 24 only)* | **60** | **3 @ par 59** |
+| AABBCC → 5 targets | — | **0 at par ≥ 40** | — |
+
+The same over-constraint cliff as SELECT, and in the same place: four targets out of five
+blocks is the deepest space in the entire game; five targets out of six kills it. The block
+that is *not* part of the shape is what makes the shape hard to build.
+
+**Good use.** A shape whose second cell can only be held by the block already standing on the
+first.
+
+**Bad use.** A shape in a corner. Corners hold themselves, and the "everything at once"
+constraint never bites.
+
+**Mini-stage (3×3):**
+
+```
+ o o #      Both marks are in the top row with a wall past them, so one tilt
+ @ . .      up-and-right would do it — except the two blocks arrive in the
+ . . @      wrong order and the second one has nothing to stop it.
+```
+
+**Thinking type.** Constraint satisfaction · simultaneity · spatial reasoning · ordering.
+
+---
+
+## 5. What the win conditions disproved
+
+The first version of this document rejected every alternative win condition in one paragraph:
+
+> *Each moves the difficulty off the board and into the briefing: the player stops looking at
+> nine cells and starts re-reading a sentence.*
+
+That argument was reasonable and it was wrong, in a way worth recording because the mistake
+is a general one.
+
+**What was wrong.** The claim assumed the briefing cost is paid *per board*. It is not — it
+is paid once, on the first board of the chapter, and only if the rule cannot be shown. All
+three of the new win conditions can be shown:
+
+- **SELECT** draws a block with no socket dimmed and hollow. "This one is not cargo" is a
+  visual fact about the board, not a sentence.
+- **MATCH** has no goals on it at all. A board with two red blocks, two blue blocks and no
+  holes has exactly one plausible objective, and slamming two of a colour together on tilt
+  one confirms it.
+- **FORM** draws its marks as brackets on the floor rather than sunken sockets, and the
+  bracket goes hollow when the cell is satisfied. The difference from a goal is visible
+  before it is explained.
+
+**What it cost to find out.** One HUD chip, three words long, on 15 boards out of 40.
+
+**What it bought.** The three deepest spaces in the game. ALL IN's ceiling under the
+two-per-colour cap is par 16 in the sweep, 15 after the deletion test. SELECT reaches 58 and
+FORM reaches 60 — on the same twelve cells, with the same physics, and with blindness 3
+available at the top of both ranges. What actually shipped is par 26 for the SELECT chapter,
+24 for FORM, 22 for MATCH, and 35 to 57 for the five extreme boards built out of them. The
+rejected category was, measurably, where the game was.
+
+**The general lesson.** "It moves difficulty into the briefing" is a claim about *how a rule
+is presented*, and it was being used as a claim about *what a rule is*. Those are different
+questions, and only one of them was tested.
+
+---
+
+## 6. Compatibility table
+
+Measured at 4×3, same quality gates throughout.
 
 | A | B | Verdict | Why |
 |---|---|---|---|
 | wall | goal | ◎ | A wall behind a goal is what makes it collectable. This pairing *is* the base game. |
-| wall | pin | ◎ | Flow 2.6 → 4.3, where a third wall only reaches 3.4. The pin adds resting places the wall cannot. |
-| wall | hazard | ◎ | Par ceiling 9 → 11, flow 2.6 → 4.3. The strongest single-device pairing. |
+| wall | hazard | ◎ | Par ceiling 9 → 11, flow 2.6 → 4.3. The strongest terrain pairing. |
 | wall | colour | ◎ | Colour needs walls for the same reason everything does: something has to stop things. |
 | block | goal | ◎ | The block-as-backstop is the signature move of the whole rule set. |
-| pin | goal | ○ | Sharp trap (the pin steals the block) but a one-joke pairing if overused. |
-| pin | — (alone) | ✕ | 20 viable boards, blindness 0.00, flow 1.0. Nearly dead without walls. |
 | hazard | — (alone) | ✕✕ | **Zero** viable boards. Meaningless without walls. |
-| pin | hazard | △ | Works (par 10) but clarity 5.1: two at-rest rules at once and the player is reading rules. |
-| pin | colour | ✕ | Strictly worse than colour alone on every axis. Par 12→11, flow 7.2→6.7, clarity 6.9→4.6. |
-| hazard | colour | ✕ | Strictly worse than colour alone on every axis, and jams 6%→11%. |
-| colour | — (alone) | ◎◎ | Par 16, flow 10.5, the best boards in the game. |
+| hazard | colour | ✕ | Strictly worse than colour alone on every axis, and jams 6% → 11%. |
+| colour | — (alone) | ◎◎ | Par 16 under ALL IN, and the precondition for everything in §4. |
+| colour | MATCH | ◎◎ | **Required.** One colour produces zero viable MATCH boards; three produce 160,314. |
+| colour | SELECT | ◎◎ | **Required.** SELECT *is* "some colours have sockets and some do not". |
+| colour | FORM | ◎ | Optional and strong: it turns a count into a picture, and lifts the ceiling 22 → 60. |
+| hazard | SELECT | ✕ | Par ceiling 48 where SELECT alone reaches 58, over a space five times larger. The combination is shorter *and* less clear. |
+| SELECT | 3 goal colours | ✕ | Zero boards at par ≥ 50. Turning the furniture into cargo removes what made it deep. |
+| FORM | 5 targets of 6 | ✕ | Zero boards at par ≥ 40. Same cliff, same cause. |
 
-**The rule that falls out of this table:** every device pairs well with *walls* and badly
-with *other devices*. So the campaign ships **one device per board, never two**, and the
-audit fails the build if that is ever violated.
+**The rule that falls out of this table**, and it changed since the first draft: terrain
+devices pair well with *walls* and badly with *each other*, exactly as before — but win
+conditions pair with **colour** and badly with *terrain devices*. So the campaign ships one
+device per board through chapter 7, and spends the result deliberately in chapter 8 (§9).
+
+There is a second, sharper pattern. Every ✕ in the bottom three rows is the **same mistake**:
+adding constraint to a space that was deep *because* it had slack. SELECT is deep because
+some blocks are furniture; make them all cargo and it dies. FORM is deep because one block is
+spare; make every block load-bearing and it dies. **The free piece is the puzzle.**
 
 ---
 
-## 5. Thinking-type table
+## 7. What is not in the game, and why
+
+### 7.1 The pin `+`  ★★☆☆☆ — REMOVED after shipping
+
+A cell a block may enter, may not pass, and is perfectly safe on: the only place in TILT a
+block could be parked in open ground. It had a five-stage chapter. It is gone.
+
+**The argument for it** was a matrix-completion argument, and it was elegant:
+
+| cell | may enter | may pass | at rest |
+|---|---|---|---|
+| floor | yes | yes | nothing |
+| wall | **no** | no | — |
+| goal | yes | yes | **collected** |
+| hazard | yes | yes | **destroyed** |
+| **pin** | yes | **no** | **nothing** |
+
+Four of the five combinations of "can you enter / can you pass / what happens at rest" were
+occupied and the pin was the fifth. That is a real observation and it is not a reason.
+
+**What the measurement said.** At 4×3 with two blocks: a pin alone produces **20 viable
+boards with average blindness 0.00** — every one of them solved by the first tilt a hurrying
+player would try. Paired with walls it produced longer boards (flow 2.6 → 4.3 where a third
+wall reaches 3.4) and *still* never produced a board that was hard to see. It made boards
+bigger without making them harder, which is precisely the failure mode this whole project
+exists to avoid.
+
+**What it cost.** The pin was the only rule in the game that broke the idempotence of a
+repeated tilt — it held a block for exactly one tilt, so "right, right" was a legitimate
+two-move plan. That is defensible in isolation, and it forced the audit's strongest physics
+invariant to be weakened from *"the second identical tilt does nothing"* to *"repeating a
+direction converges"*. A rule that buys length, buys no insight, and costs an invariant is
+not a close call.
+
+*Would be reconsidered if:* a board were found where a pin creates blindness that walls
+cannot. 20 boards were checked; none did.
+
+### 7.2 Big blocks (2×1, 2×2)  ★☆☆☆☆ — rejected twice
+
+A 2×1 block needs two free cells instead of one. Every question it asks — will it fit, will
+it stop here — the player is already asking about single blocks. It costs a large new rule
+surface (what happens when half of it is over a goal? over a hazard? blocked?) and returns
+the same kind of thought. **More rule, same thinking.**
+
+It was explicitly permitted for the extreme chapter, on the grounds that par 30+ might not be
+reachable without it. It was not needed: SELECT with three colours reaches par 58 in the
+sweep and 57 after the deletion test, on twelve cells, with single-cell blocks.
+
+*Would be reconsidered if:* a size gave a block a genuinely different relationship to
+gravity, rather than a bigger footprint.
+
+### 7.3 More blocks  ★☆☆☆☆ — measured and rejected
+
+Not a rule so much as the obvious next knob, and it is worth recording because it does the
+opposite of what everyone expects. The two-per-colour cap plus three colours plus the plain
+`@` allows eight blocks. Sampled search over 4×4 and 5×3 boards with eight blocks:
+
+| blocks | board | longest solution seen at all |
+|---|---|---|
+| 6 | 4×3 | **58** |
+| 6 | 5×3 (sampled) | 50 |
+| 6 | 4×4 (sampled) | 51 |
+| **8** | 4×4 / 5×3 (sampled) | **23** |
+
+Eight blocks on sixteen cells is not a deeper puzzle, it is a jammed one. Half the board
+cannot move, most tilts do nothing, the reachable state space collapses, and the longest
+thing in it is shorter than a good 3×3 colour board. **More material makes boards shorter**,
+which is the two-per-colour cap arriving at the same answer from the other direction.
+
+### 7.4 Move limits / time limits  ★☆☆☆☆ — rejected, and actively harmful
+Undo is free and exploration is the intended way to play. A move limit converts "try it and
+see" into "be careful", which is exactly the wrong instinct for a game whose whole pleasure
+is discovering what a tilt does. Par already exists as a target with no penalty attached.
+
+### 7.5 Direction locks ("you may not tilt left")  ★★☆☆☆ — not adopted
+Genuinely changes the search and is cheap to implement, but the rule lives *outside* the
+board — nothing you can see explains it, so it fails the "read the board, not the manual"
+standard the rest of the design holds to.
+
+### 7.6 A fourth colour  ★★☆☆☆ — not adopted
+Three earns its place (§3.5). A fourth would have to show the same thing again: a space it
+opens that three cannot reach. Nothing in the sweeps suggests one, and clarity is already the
+weakest axis on the deepest boards.
+
+### 7.7 One-way cells, teleports, breakable walls, moving walls  ★★☆☆☆ — not adopted
+All are implementable and all are legible. They are excluded on a budget argument rather than
+a quality one: the terrain matrix in §7.1 is *complete* once the pin is struck from it, and
+each of these adds a row to a table that currently explains itself in one glance. If one of them replaced an existing rule
+rather than joining it, it would deserve a fresh measurement.
+
+---
+
+## 8. Thinking-type table
 
 Which kind of thought each rule actually forces, as opposed to which it sounds like it should.
 
@@ -350,19 +605,26 @@ Which kind of thought each rule actually forces, as opposed to which it sounds l
 |---|---|---|---|---|---|---|---|---|
 | gravity | ●●● | ○ | ●● | ●●● | ○ | ○ | ● | ●● |
 | wall | ●● | ○ | ●●● | ●● | ● | ○ | ○ | ●● |
-| goal (at rest) | ●●● | ●● | ●● | ●● | ●●● | ○ | ●●● | ●●● |
-| pin | ●● | ●● | ●●● | ● | ●● | ○ | ●● | ●● |
+| resolved at rest | ●●● | ●● | ●● | ●● | ●●● | ○ | ●●● | ●●● |
 | hazard | ●●● | ●● | ●● | ●● | ● | ●●● | ● | ●●● |
 | colour | ●● | ●●● | ● | ●● | ●●● | ○ | ●●● | ●●● |
+| **SELECT** | ●● | ●●● | ●● | ●●● | ●●● | ○ | ●●● | ●●● |
+| **MATCH** | ●●● | ●●● | ●● | ●●● | ●●● | ○ | ●● | ●●● |
+| **FORM** | ●●● | ●●● | ●●● | ●● | ●● | ○ | ●●● | ●● |
 
-The two rules that generate **insight** rather than mere difficulty are the hazard and
-colour, and they do it the same way: both make the obvious move visibly attractive and
-actually wrong. That is what `blindness` measures, and it is why those two chapters have the
-highest surprise scores in the campaign.
+The rules that generate **insight** rather than mere difficulty all do it the same way: they
+make the obvious move visibly attractive and actually wrong. That is what `blindness`
+measures, and it is why those chapters carry the highest surprise scores in the campaign.
+
+FORM is the one row with a lower insight mark than its neighbours, and the reason is
+structural rather than a flaw: on a FORM board the target is drawn on the floor, so there is
+nothing to *realise* about what you are trying to do. Its difficulty is all execution
+ordering. That is a legitimate kind of puzzle and it is why FORM is a chapter rather than the
+finale.
 
 ---
 
-## 6. Teaching order
+## 9. Teaching order
 
 No rule is ever explained in more than one short line. Each arrives in a board where doing
 the wrong thing is cheap, obvious, and instructive.
@@ -373,60 +635,19 @@ the wrong thing is cheap, obvious, and instructive.
 | 2 OVER | **goals are not targets** | The obvious tilt sends the block visibly *past* the socket. The player does this wrong exactly once. |
 | 3 BRAKE | walls as backstops | Only one of four directions has anything behind the goal. Answers the board before it. |
 | 4 STACK | blocks as backstops | Required by measurement to contain a collection where a block was the brake. |
-| 11 PEG | pin | The peg simply interrupts a slide the player was going to make anyway. |
-| 16 CROSS | hazard | The solution goes *across* it. Stopping on it shatters the block where you can see why, and undo is one tap. |
-| 21 SORT | colour | Watch a block come to rest in a socket and not be taken. |
+| 11 CROSS | hazard | The solution goes *across* it. Stopping on it ends the run where you can see exactly why. |
+| 16 SORT | colour | Watch a block come to rest in a socket and not be taken. |
+| 21 MEET | **MATCH** | No holes on the board at all, and the first tilt slams two of a colour together. |
+| 26 ONLY | **SELECT** | One block lit, one block dimmed and hollow. The dim one visibly has nowhere to go. |
+| 31 PLACE | **FORM** | Two brackets on the floor, two blocks, one tilt that fills both. |
 
 **The principle:** a rule is introduced by a board where the rule is the only thing that
-happens, and where being wrong costs one tap of undo. Nothing is introduced in a board that
-is also hard.
+happens, and where being wrong costs one tap. Nothing is introduced in a board that is also
+hard.
 
 ---
 
-## 7. What is not in the game, and why
-
-Each of these was tested against the question in the title of this document. None could
-answer it.
-
-### Big blocks (2×1, 2×2)  ★☆☆☆☆ — rejected
-A 2×1 block needs two free cells instead of one. Every question it asks — will it fit, will
-it stop here — the player is already asking about single blocks. It costs a large new rule
-surface (what happens when half of it is over a goal? over a hazard? blocked?) and returns
-the same kind of thought. **More rule, same thinking.**
-*Would be reconsidered if:* a size gave a block a genuinely different relationship to
-gravity, rather than a bigger footprint.
-
-### Alternate win conditions  ★☆☆☆☆ — rejected
-"Collect only the red ones", "form a shape", "fill this region", "leave one behind", "make
-same colours touch". Each moves the difficulty off the board and into the briefing: the
-player stops looking at nine cells and starts re-reading a sentence. TILT's win condition is
-visible in the picture — every block gone — and stays that way.
-*Note:* "collect only the red ones" is already expressible as colour, without a briefing.
-
-### Move limits / time limits  ★☆☆☆☆ — rejected, and actively harmful
-Undo is free and exploration is the intended way to play. A move limit converts "try it and
-see" into "be careful", which is exactly the wrong instinct for a game whose whole pleasure
-is discovering what a tilt does. Par already exists as a target with no penalty attached.
-
-### Direction locks ("you may not tilt left")  ★★☆☆☆ — not adopted
-Genuinely changes the search and is cheap to implement, but the rule lives *outside* the
-board — nothing you can see explains it, so it fails the "read the board, not the manual"
-standard the rest of the design holds to.
-
-### Three or more colours  ★★☆☆☆ — not adopted
-Not a new rule, just more of an existing one. It multiplies bookkeeping without adding a new
-question, and clarity is already the weakest axis on colour boards (6.3 at two colours).
-The two-per-colour cap plus two colours already reaches par 16.
-
-### One-way cells, teleports, breakable walls, moving walls  ★★☆☆☆ — not adopted
-All are implementable and all are legible. They are excluded on a budget argument rather than
-a quality one: the terrain matrix in §3.4 is *complete*, and each of these adds a fifth
-column to a table that currently explains itself in one glance. If one of them replaced an
-existing rule rather than joining it, it would deserve a fresh measurement.
-
----
-
-## 8. Adoption priority, and when to use each
+## 10. Adoption priority, and when to use each
 
 Strength is not permission. The strongest rules are the ones most capable of ruining a board
 by being used where they are not needed.
@@ -434,38 +655,72 @@ by being used where they are not needed.
 | Rule | Strength | Tier | Use it when | Do **not** use it when |
 |---|---|---|---|---|
 | gravity | ★★★★★ | CORE | always | — |
-| goal at rest | ★★★★★ | CORE | always | — |
+| resolved at rest | ★★★★★ | CORE | always | — |
 | wall | ★★★★★ | CORE | always; it is the only element that works alone | you were going to put it somewhere nothing reaches |
+| ALL IN | ★★★★★ | CORE | the objective should need no words at all | — |
 | colour | ★★★★★ | ADVANCED | the puzzle is about *which block to keep* | the two colours never interact |
-| pin | ★★★★☆ | BASIC | the board needs a resting place its terrain cannot provide | there are no walls; it is dead on its own |
+| SELECT | ★★★★★ | ADVANCED | the puzzle is a route whose side effects are the problem | the furniture never touches the cargo's route |
+| MATCH | ★★★★☆ | ADVANCED | two colours minimum, and the pairs must share rows or columns | one pair can be solved without touching the other |
+| FORM | ★★★★☆ | ADVANCED | at least one block is spare, and the shape is not in a corner | every block is part of the shape |
 | hazard | ★★★★☆ | ADVANCED | the route must cross something and the puzzle is what catches you | there are no walls; it produces nothing |
+| pin | ★★☆☆☆ | REMOVED | never — see §7.1 | — |
 | big blocks | ★☆☆☆☆ | — | never, on current evidence | — |
-| alternate win | ★☆☆☆☆ | — | never | — |
 | move/time limits | ★☆☆☆☆ | — | never | — |
 
-**The single most important line in this document:** *every device is worthless without
-walls, and worse than useless with another device.* Pin alone: 20 boards. Hazard alone: zero
-boards. Colour with a pin or a hazard: worse than colour by itself on every axis measured.
+**The two most important lines in this document:**
+
+1. *Every terrain device is worthless without walls, and worse than useless with another
+   terrain device.* Hazard alone: zero boards. Colour with a hazard: worse than colour by
+   itself on every axis measured.
+2. *Every win condition is worthless without colour, and its depth comes from the piece that
+   is NOT constrained.* MATCH with one colour: zero boards. SELECT with everything as cargo:
+   zero boards past par 50. FORM with every block in the shape: zero boards past par 40.
 
 ---
 
-## 9. Cognitive load
+## 11. Cognitive load, and the one place it is spent
 
 | Combination | Load | Where it belongs |
 |---|---|---|
 | gravity + wall | low | chapters 1–2 |
-| gravity + wall + pin | medium | chapter 3 |
-| gravity + wall + hazard | medium | chapter 4 |
-| gravity + wall + colour | medium-high | chapter 5 |
-| any two devices | **high, and measurably worse** | nowhere |
+| gravity + wall + hazard | medium | chapter 3 |
+| gravity + wall + colour | medium-high | chapter 4 |
+| gravity + wall + colour + MATCH / SELECT / FORM | medium-high | chapters 5–7 |
+| any two devices at once | **high, and measurably worse** | **chapter 8, and only there** |
 
-High load is not automatically bad. What is bad is load that does not buy thinking, and the
-compatibility table shows exactly where that line falls: the second device always costs more
-clarity than it returns in depth.
+High load is not automatically bad. What is bad is load that does not buy thinking, and §6
+shows exactly where that line falls: the second device always costs more clarity than it
+returns in depth.
+
+Chapter 8 breaks that rule on purpose, and it is worth being precise about why that is not a
+contradiction. The measurement says a combined board is *harder to read and less fair than
+the better of its two rules alone*. That is a decisive argument in a chapter whose job is to
+teach a rule. It is a much weaker argument at stage 39, addressed to a player who has
+finished thirty-eight boards and has the whole vocabulary. The result was never "never do
+this" — it was "never do this while someone is still learning".
+
+Chapter 8 relaxes exactly two things: devices may combine, and `unlock` is no longer required
+to be small. Everything else still holds, and two gates are enforced *harder* than anywhere
+else in the game, because they are what separates a long puzzle from a long chore:
+
+| Gate | Value | Why |
+|---|---|---|
+| `insights` | ≥ 6 | moves on the line where instinct is wrong. A forty-tilt board with two decisions in it is thirty-eight tilts of admin. |
+| `guided` | ≥ 42% | and at least that much of it plays itself. A board where every move is its own fight is a corridor, however long. |
+
+What shipped, measured: par **35 · 42 · 49 · 48 · 57**, with 16 to 29 moves of genuine
+decision on each and the rest momentum. Four of the five have blindness 3 — the correct
+opening is the very last one instinct would try — which is the same signature the three-tilt
+boards in chapter 1 are selected for. Length was added; nothing was given up for it.
+
+The one thing that is genuinely worse at this end of the game is jams: stage 39 is unwinnable
+from 32% of its positions and stage 40 from 28%, against 0% almost everywhere else. That is
+what a board this dense costs, and it is exactly the cost the automatic rewind was built to
+absorb — a jam is now an interruption of one tilt rather than a run quietly ending.
 
 ---
 
-## 10. The target state
+## 12. The target state
 
 Everything above serves one end:
 
@@ -477,7 +732,7 @@ the board again — never because they re-read a rule.
 
 And then:
 
-> **"あっ！そういうことか！"**
+> **「あっ！そういうことか！」**
 
 That moment has a measurement, and it is the one the whole project is built on: `unlock` —
 how many correct moves the board costs before it starts playing itself. Zero means there was
@@ -486,5 +741,6 @@ there was exactly one thing to see, seeing it was the whole puzzle, and everythi
 was the reward.
 
 Every rule in this document is judged, finally, on whether it can produce a board with
-`unlock` of one or two and a long tail after it. That is the only reason any of them are
-here.
+`unlock` of one or two and a long tail after it — with one deliberate exception at the very
+end of the game, which is judged on `insights` and `guided` instead, and which had to argue
+for that exemption rather than assume it.

@@ -220,16 +220,21 @@ async function swipe(page, x, y, dx, dy) {
   ok('restart returns to the initial state', afterRestart.key === start);
   ok('restart clears history and counter', afterRestart.hist === 0 && afterRestart.moves === 0);
 
-  // ── the two devices, in the real game ─────────────────────────────────────
-  // The logic for both is proved exhaustively by tools/audit.js. What can only
-  // be checked here is that the PLAYER is told what happened: that a destroyed
-  // block is announced, that the dock offers the way back, and that a goal
-  // which refuses a block looks different from one that takes it.
+  // ── the devices, in the real game ─────────────────────────────────────────
+  // The logic for all of them is proved exhaustively by tools/audit.js. What can
+  // only be checked here is that the PLAYER is told: that a destroyed block ends
+  // the run and says why, that a jammed board takes itself back, that a goal
+  // which refuses a block looks different from one that takes it, and that a
+  // board whose definition of "done" is not the usual one says so on screen.
   console.log('\n\u001b[1mDEVICES\u001b[0m');
   var vocabulary = await page.evaluate(function () {
-    var LEGAL = '.#x+o@abAB';
-    var allowed = ['id', 'name', 'par', 'idea', 'purpose', 'note', 'hint', 'board'];
-    var bad = [], both = [], firstHaz = null, firstCol = null, firstPin = null, untaught = [];
+    var LEGAL = '.#xo@abcABC';
+    var allowed = ['id', 'name', 'par', 'win', 'idea', 'purpose', 'note', 'hint', 'board'];
+    var CHAPTERS = window.TiltStages.CHAPTERS || [];
+    var extreme = function (id) {
+      return CHAPTERS.some(function (c) { return c.extreme && id >= c.from && id <= c.to; });
+    };
+    var bad = [], both = [], untaught = [], first = {};
     window.TiltStages.STAGES.forEach(function (d) {
       Object.keys(d).forEach(function (k) {
         if (allowed.indexOf(k) < 0) bad.push(d.id + ':field ' + k);
@@ -238,23 +243,50 @@ async function swipe(page, x, y, dx, dy) {
         for (var i = 0; i < row.length; i++) if (LEGAL.indexOf(row[i]) < 0) bad.push(d.id + ':char ' + row[i]);
       });
       var st = window.TiltEngine.compile(d);
-      var devices = (st.rules.hazard ? 1 : 0) + (st.rules.colour ? 1 : 0) + (st.rules.pin ? 1 : 0);
-      if (devices > 1) both.push(d.id);
-      if (st.rules.hazard && firstHaz === null) { firstHaz = d.id; if (!d.hint) untaught.push('hazard@' + d.id); }
-      if (st.rules.colour && firstCol === null) { firstCol = d.id; if (!d.hint) untaught.push('colour@' + d.id); }
-      if (st.rules.pin && firstPin === null) { firstPin = d.id; if (!d.hint) untaught.push('pin@' + d.id); }
+      // Colour is the substrate of MATCH, SELECT and FORM rather than a second
+      // rule stacked on them, so it only counts as a device of its own on an
+      // ALL IN board. See tools/lib/design.js devicesOf().
+      var used = [];
+      if (st.rules.hazard) used.push('hazard');
+      if (st.rules.colour) used.push('colour');
+      if (st.win !== 'allin') used.push(st.win);
+      var devices = (st.rules.hazard ? 1 : 0) + (st.win !== 'allin' ? 1 : 0) +
+                    (st.rules.colour && st.win === 'allin' ? 1 : 0);
+      if (devices > 1 && !extreme(d.id)) both.push(d.id);
+      used.forEach(function (what) {
+        if (first[what] !== undefined) return;
+        first[what] = d.id;
+        if (!d.hint) untaught.push(what + '@' + d.id);
+      });
     });
-    return {
-      bad: bad.slice(0, 5), badCount: bad.length, both: both,
-      firstHaz: firstHaz, firstCol: firstCol, firstPin: firstPin, untaught: untaught
-    };
+    return { bad: bad.slice(0, 5), badCount: bad.length, both: both, first: first, untaught: untaught };
   });
   ok('every stage uses only the documented board characters', vocabulary.badCount === 0,
     vocabulary.bad.join(' '));
-  ok('no stage puts two new rules on screen at once', vocabulary.both.length === 0,
-    'both on stages ' + vocabulary.both.join(','));
+  ok('no stage outside the last chapter puts two new rules on screen at once',
+    vocabulary.both.length === 0, 'both on stages ' + vocabulary.both.join(','));
   ok('each device is introduced by a stage that explains it',
     vocabulary.untaught.length === 0, vocabulary.untaught.join(' '));
+
+  // Every alternative win condition names itself in the HUD. Without this the
+  // difficulty moves off the board and into a sentence nobody read.
+  var objectives = await page.evaluate(async function () {
+    var g = window.game, S = window.TiltStages.STAGES, out = [];
+    g.save.data.unlocked = 99;
+    for (var i = 0; i < S.length; i++) {
+      var win = window.TiltEngine.compile(S[i]).win;
+      if (win === 'allin') continue;
+      g.loadStage(i);
+      var label = (document.getElementById('objective') || {}).textContent || '';
+      out.push({ id: S[i].id, win: win, label: label });
+    }
+    return out;
+  });
+  var unlabelled = objectives.filter(function (o) { return !o.label; });
+  ok('every board with an unusual win condition says so in the HUD  (' +
+    objectives.length + ' stages)',
+    objectives.length > 0 && unlabelled.length === 0,
+    unlabelled.map(function (o) { return o.id + ':' + o.win; }).join(' '));
 
   // Destroy a block on purpose and watch what the game does about it.
   var killed = await page.evaluate(function () {
@@ -267,7 +299,7 @@ async function swipe(page, x, y, dx, dy) {
       // Find any reachable position with a tilt that costs a block.
       var states = E.reachable(g.stage, null, 2000);
       for (var i = 0; i < states.length; i++) {
-        if (E.isTerminal(states[i])) continue;
+        if (E.isTerminal(g.stage, states[i])) continue;
         for (var d = 0; d < 4; d++) {
           var r = E.simulate(g.stage, states[i], E.DIRS[d], { frames: false });
           if (!r.moved || (r.state.lost || 0) <= (states[i].lost || 0)) continue;
@@ -287,35 +319,39 @@ async function swipe(page, x, y, dx, dy) {
     await page.waitForFunction(function () { return window.game.phase !== 'busy'; }, null, { timeout: 6000 });
     await page.waitForTimeout(200);
     var after = await page.evaluate(function () {
+      var ov = document.getElementById('overlay');
       return {
         lost: window.game.state.lost,
-        deadEnd: window.game.deadEnd,
-        urgent: document.getElementById('btn-undo').classList.contains('urgent'),
-        undoUsable: !document.getElementById('btn-undo').disabled,
-        toast: (document.getElementById('toast') || {}).textContent || '',
-        toastShown: (document.getElementById('toast') || { classList: { contains: function () { return false; } } })
-          .classList.contains('show')
+        phase: window.game.phase,
+        overlay: ov.className,
+        title: (ov.querySelector('.ov-title') || {}).textContent || '',
+        body: (ov.querySelector('.ov-note') || {}).textContent || '',
+        actions: Array.prototype.map.call(ov.querySelectorAll('[data-act]'), function (b) {
+          return b.getAttribute('data-act');
+        })
       };
     });
     ok('stopping on a hazard destroys the block  (stage ' + killed.stage + ', tilt ' + killed.dir + ')',
       after.lost > 0, 'lost=' + after.lost);
-    ok('the game says so', after.toastShown && after.toast.length > 0, 'toast="' + after.toast + '"');
-    ok('and flags the board as unwinnable', after.deadEnd === true && after.urgent === true,
-      JSON.stringify(after));
-    ok('with undo right there to take it back', after.undoUsable === true);
+    ok('and ends the run there and then', after.phase === 'over' &&
+      /show/.test(after.overlay) && /over/.test(after.overlay), JSON.stringify(after));
+    ok('the game says which rule ended it', after.title.length > 0 && after.body.length > 0,
+      after.title + ' / ' + after.body);
+    ok('with both ways out offered', after.actions.indexOf('restart') >= 0 &&
+      after.actions.indexOf('undo') >= 0, after.actions.join(','));
 
     await page.click('#btn-undo');
     await page.waitForTimeout(180);
     var recovered = await page.evaluate(function () {
       return {
         lost: window.game.state.lost,
-        deadEnd: window.game.deadEnd,
-        urgent: document.getElementById('btn-undo').classList.contains('urgent')
+        phase: window.game.phase,
+        overlay: document.getElementById('overlay').className
       };
     });
     ok('undo brings the destroyed block back', recovered.lost === 0, 'lost=' + recovered.lost);
-    ok('and clears the dead-end warning', recovered.deadEnd === false && recovered.urgent === false,
-      JSON.stringify(recovered));
+    ok('and puts the board back in play', recovered.phase === 'play' &&
+      !/show/.test(recovered.overlay), JSON.stringify(recovered));
     if (SHOTS) await page.screenshot({ path: path.join(SHOT_DIR, 'hazard.png') });
   } else {
     ok('a hazard stage exists to test', false, 'no stage in the campaign uses a hazard');
@@ -529,48 +565,66 @@ async function swipe(page, x, y, dx, dy) {
     JSON.stringify(afterRetry));
   ok('and takes the overlay down', afterRetry.overlay === false && afterRetry.phase === 'play');
 
-  // ── dead end detection ─────────────────────────────────────────────────────
-  // With nothing on the board able to destroy a block, a genuinely stuck
-  // position is rare — most stages have none at all. So this looks across the
-  // campaign for one, and checks whichever answer it gets: if a stuck position
-  // exists the dock must flag it, and if none does the detector must not be
-  // crying wolf on ordinary positions.
-  console.log('\n\u001b[1mDEAD END DETECTION\u001b[0m');
-  var deadFound = await page.evaluate(function () {
+  // ── dead ends take themselves back ─────────────────────────────────────────
+  // The game no longer labels a jammed board and hopes the player reads it. It
+  // undoes the move that jammed it and says so. That is only safe because every
+  // position is checked the moment it is reached — so the position one step back
+  // is always winnable — and this is where that is verified against the real
+  // shell rather than against the theory.
+  console.log('\n\u001b[1mDEAD ENDS\u001b[0m');
+  var jammed = await page.evaluate(function () {
     var g = window.game, E = window.TiltEngine, S = window.TiltStages.STAGES;
-    for (var idx = 0; idx < S.length; idx += 2) {
+    g.save.data.unlocked = 99;
+    for (var idx = 0; idx < S.length; idx++) {
       g.loadStage(idx);
       var states = E.reachable(g.stage, null, 3000);
-      for (var i = 0; i < states.length; i++) {
-        if (E.isClear(states[i])) continue;
-        if (!E.solve(g.stage, states[i], 20000).solvable) {
-          g.state = states[i];
-          g.history.push(E.initialState(g.stage));
-          g.checkDeadEnd();
-          return {
-            found: true, stage: S[idx].id, dead: g.deadEnd,
-            urgent: document.getElementById('btn-undo').classList.contains('urgent')
-          };
-        }
+      for (var i = 1; i < states.length; i++) {
+        if (E.isTerminal(g.stage, states[i])) continue;
+        if (E.solve(g.stage, states[i], 20000).solvable) continue;
+        // Reproduce what the shell would be holding: the jammed position, with
+        // the position before it on the history stack.
+        var safe = E.initialState(g.stage);
+        g.state = E.cloneState(states[i]);
+        g.history = [safe];
+        g.renderer.showState(g.state);
+        var key = E.makeStateKey(g.stage);
+        var rewound = g.rewindIfStuck();
+        return {
+          found: true, stage: S[idx].id, rewound: rewound,
+          landed: key(g.state) === key(safe),
+          history: g.history.length,
+          phase: g.phase,
+          toast: (document.getElementById('toast') || {}).textContent || '',
+          solvableNow: E.solve(g.stage, g.state, 20000).solvable
+        };
       }
     }
-    // No stage sampled can be jammed. Confirm the detector stays quiet.
-    g.loadStage(0);
-    g.checkDeadEnd();
-    return {
-      found: false, dead: g.deadEnd,
-      urgent: document.getElementById('btn-undo').classList.contains('urgent')
-    };
+    return { found: false };
   });
-  if (deadFound.found) {
-    ok('unsolvable positions are detected  (stage ' + deadFound.stage + ')', deadFound.dead === true,
-      JSON.stringify(deadFound));
-    ok('undo button flags the dead end', deadFound.urgent === true);
+
+  if (jammed.found) {
+    ok('a jammed board undoes the move that jammed it  (stage ' + jammed.stage + ')',
+      jammed.rewound === true && jammed.landed === true, JSON.stringify(jammed));
+    ok('and lands somewhere that can still be won', jammed.solvableNow === true);
+    ok('and says what it did', jammed.toast.length > 0, 'toast="' + jammed.toast + '"');
+    ok('and leaves the board in play', jammed.phase === 'play' && jammed.history === 0,
+      JSON.stringify(jammed));
   } else {
-    ok('no sampled stage can be jammed at all', true, 'nothing here can destroy a block');
-    ok('the detector does not cry wolf on a solvable board',
-      deadFound.dead === false && deadFound.urgent === false, JSON.stringify(deadFound));
+    ok('no sampled stage can be jammed at all', true, 'nothing reachable is unwinnable');
   }
+
+  // …and it must not fire on an ordinary position. A rewind the player did not
+  // earn is worse than no rewind at all: it takes moves away for no reason.
+  var quiet = await page.evaluate(function () {
+    var g = window.game;
+    g.loadStage(0);
+    var E = window.TiltEngine;
+    var before = E.makeStateKey(g.stage)(g.state);
+    g.history = [E.initialState(g.stage)];
+    return { rewound: g.rewindIfStuck(), same: E.makeStateKey(g.stage)(g.state) === before };
+  });
+  ok('a solvable board is never rewound', quiet.rewound === false && quiet.same === true,
+    JSON.stringify(quiet));
 
   // ── layout across viewports ────────────────────────────────────────────────
   console.log('\n\u001b[1mLAYOUT\u001b[0m');
