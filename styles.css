@@ -1378,3 +1378,185 @@ body::before {
   .reference-panels, .design-strip { display: none; }
   .sheet { max-width: none; }
 }
+
+/* ── 17 · PLAYABLE ICE DIORAMA SHELL ────────────────────────────────────── */
+/*
+ * The former wide "design sheet" remains in the markup as accessible reference
+ * copy, but the actual product surface is a focused phone game at every width.
+ * Existing semantic wrappers remain intact; only the editorial reference
+ * panels are hidden on the playable surface.
+ */
+html, body {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  min-height: 100%;
+  overflow: hidden;
+  background: #EDF8FC;
+}
+
+body::before {
+  background:
+    radial-gradient(90% 55% at 8% -5%, rgba(255,255,255,.98) 0%, rgba(255,255,255,0) 66%),
+    radial-gradient(72% 46% at 92% 24%, rgba(199,235,250,.48) 0%, rgba(199,235,250,0) 72%),
+    radial-gradient(82% 58% at 48% 108%, rgba(190,224,244,.52) 0%, rgba(190,224,244,0) 68%),
+    linear-gradient(180deg, #F8FCFF 0%, #ECF8FC 54%, #E4F2F8 100%);
+}
+
+/* Tiny static snow grains: enough atmosphere to establish scale, never enough
+   contrast to compete with the board. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .46;
+  background-image:
+    radial-gradient(circle at 9% 19%, rgba(255,255,255,.92) 0 1.2px, transparent 1.8px),
+    radial-gradient(circle at 83% 13%, rgba(255,255,255,.88) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 71% 43%, rgba(255,255,255,.74) 0 1.1px, transparent 1.7px),
+    radial-gradient(circle at 19% 64%, rgba(255,255,255,.82) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 91% 78%, rgba(255,255,255,.76) 0 1.3px, transparent 1.9px);
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: 520px;
+  height: 100%;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0 auto;
+  padding: max(8px, var(--safe-t)) max(10px, var(--safe-r)) max(8px, var(--safe-b)) max(10px, var(--safe-l));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: linear-gradient(180deg, rgba(250,253,255,.46), rgba(233,247,252,.30));
+  box-shadow: 0 0 0 1px rgba(91,139,171,.10), 0 0 72px rgba(45,91,132,.10);
+}
+
+.showcase-head {
+  display: block;
+  min-width: 0;
+  margin: 0;
+}
+.play-layout {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+}
+.game-shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.brand-block,
+.tile-guide,
+.reference-panels,
+.design-strip { display: none !important; }
+
+#hud {
+  grid-row: auto;
+  min-height: 66px;
+  margin: 0 2px;
+  padding: 7px 10px;
+  gap: 10px;
+  border: 1px solid rgba(82,137,171,.18);
+  border-radius: 18px;
+  background: rgba(255,255,255,.57);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.86), 0 7px 22px rgba(37,82,119,.055);
+  backdrop-filter: blur(18px) saturate(1.14);
+  -webkit-backdrop-filter: blur(18px) saturate(1.14);
+}
+
+.hud-btn {
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  border-radius: 15px;
+  color: #315A72;
+  background: rgba(224,241,248,.72);
+  box-shadow: inset 0 0 0 1px rgba(75,129,163,.12), inset 0 1px 0 rgba(255,255,255,.92);
+}
+.hud-btn .ic { width: 21px; height: 21px; }
+.hud-kicker { color: #5A7182; font-size: 10px; letter-spacing: .07em; }
+.hud-name { color: #102D3F; font-size: 17px; letter-spacing: .075em; }
+.hud-moves { color: #102D3F; font-size: 26px; }
+.hud-par { color: #667D8D; font-size: 10px; }
+
+#board-area {
+  grid-row: 1;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  aspect-ratio: auto;
+  isolation: isolate;
+  touch-action: none;
+}
+#board-area::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: 15% 5% 10%;
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(199,239,250,.48) 0%, rgba(199,239,250,.14) 48%, transparent 74%);
+  filter: blur(13px);
+}
+#board { z-index: 1; }
+#toast, #overlay { z-index: 4; }
+
+.coach {
+  grid-row: 2;
+  width: calc(100% - 8px);
+  min-height: 42px;
+  margin: -2px auto 3px;
+  padding: 6px 11px;
+  border: 1px solid rgba(82,137,171,.13);
+  border-radius: 14px;
+  background: rgba(255,255,255,.38);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.coach-obj, .coach-hint { font-size: 11px; }
+
+#dock {
+  grid-row: 3;
+  min-height: 58px;
+  padding: 3px 4px 5px;
+  gap: 8px;
+}
+.dock-btn {
+  min-height: 50px;
+  border-radius: 15px;
+  border: 0;
+  background: rgba(255,255,255,.62);
+  box-shadow: inset 0 0 0 1px rgba(82,137,171,.17), inset 0 1px 0 rgba(255,255,255,.90),
+              0 5px 18px rgba(38,79,112,.055);
+  font-size: 13px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.dock-btn.quiet { background: rgba(238,248,252,.42); }
+
+#launch { background: linear-gradient(180deg, #F8FCFF, #E9F6FB); }
+
+@media (max-height: 620px) {
+  #app { padding-top: max(4px, var(--safe-t)); padding-bottom: max(4px, var(--safe-b)); }
+  #hud { min-height: 54px; padding-block: 4px; }
+  .hud-btn { width: 44px; height: 44px; }
+  .coach { min-height: 36px; padding-block: 4px; }
+  #dock { min-height: 50px; padding-bottom: 2px; }
+  .dock-btn { min-height: 44px; }
+}
+
+@media (min-width: 700px) {
+  #app { padding-inline: 18px; }
+}

@@ -13,12 +13,28 @@ The campaign contains five 5×5 levels and one consistent objective:
 - Penguins can stop each other, but touching never clears a level.
 - Swipe, keyboard, and optional device-tilt controls keep the same movement behaviour.
 
-The responsive desktop composition mirrors the ice-world visual direction: a dominant 5×5 tray enclosed by a 7×7 snow-wall ring, a compact stage HUD, a tile guide, and supporting reference panels. On phones those supporting panels fold away so the board and controls stay touch-first.
+The Canvas renderer keeps those rules on the original 2D grid, then projects the
+world through a fixed orthographic 2.5D camera. Textured ice cubes, snow walls,
+cracked tops, aurora goals, and cube penguins share one depth-sorted painter
+queue. The same focused game shell scales from iPhone portrait to desktop.
 
 Run the logic tests with:
 
 ```sh
 npm test
+```
+
+Run the projection, six-face texture, depth-order, and 3×3–5×5 responsive
+contracts with:
+
+```sh
+npm run test:render
+```
+
+Run the complete browser campaign and interaction harness with:
+
+```sh
+npm run qa
 ```
 
 Serve the game locally with:
@@ -27,5 +43,6 @@ Serve the game locally with:
 npm run serve
 ```
 
-The runtime is dependency-free. The test suite uses the same deterministic engine and breadth-first solver as the browser game.
+The runtime is dependency-free. Browser QA uses Playwright only as a development
+dependency; game rules still come from the deterministic engine and solver.
 
