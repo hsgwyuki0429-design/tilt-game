@@ -50,26 +50,26 @@
   var THEME = {
     // The tray is the grey; the cells are the white. Inverting that — white tray,
     // grey cells — makes the board read as a hole rather than as a surface.
-    trayFill:   '#E9ECF5',
-    trayEdge:   'rgba(60, 70, 120, 0.16)',
-    floor:      '#FFFFFF',
-    floorEdge:  'rgba(60, 70, 120, 0.085)',
+    trayFill:   '#D9EDF5',
+    trayEdge:   'rgba(32, 92, 126, 0.22)',
+    floor:      '#DFF7FC',
+    floorEdge:  'rgba(58, 139, 174, 0.25)',
 
     // Masonry. Mid-dark, flat, and the ONLY grey object on the board — every
     // other solid thing carries a hue, so "is that a wall?" is answerable
     // without reading a shape. 3.8:1 against the white floor.
-    wallHi:     '#8B94AF',
-    wallLo:     '#7C86A3',
+    wallHi:     '#F8FDFF',
+    wallLo:     '#78B8D2',
     wallEdge:   'rgba(255, 255, 255, 0.34)',   // the lit top edge, now light
-    wallSeam:   'rgba(34, 42, 74, 0.32)',
+    wallSeam:   'rgba(38, 112, 148, 0.30)',
 
     // A pit in a white floor: paler than the paper is wrong, so the well is a
     // tinted recess with the shadow falling IN from the top.
-    hazFill:    '#F8E1E5',
-    hazFillLo:  '#EFCAD1',
-    hazStripe:  'rgba(195, 37, 58, 0.34)',
-    hazShade:   'rgba(120, 20, 34, 0.22)',
-    hazEdge:    'rgba(195, 37, 58, 0.60)',
+    hazFill:    '#BDECF6',
+    hazFillLo:  '#79C5DC',
+    hazStripe:  'rgba(16, 76, 118, 0.82)',
+    hazShade:   'rgba(9, 54, 91, 0.28)',
+    hazEdge:    'rgba(15, 91, 132, 0.72)',
 
     socketWell: 'rgba(60, 70, 120, 0.11)',
     socketShade: 'rgba(38, 48, 92, 0.26)',
@@ -84,8 +84,8 @@
     cueGlow:    'rgba(90, 110, 170, 0.35)',
     clearRing:  'rgba(6, 113, 143, 0.6)',
     rebuffRing: 'rgba(60, 70, 120, 0.3)',
-    lost:       '#C3253A',
-    lostRing:   'rgba(195, 37, 58, 0.85)',
+    lost:       '#2E8DB4',
+    lostRing:   'rgba(20, 92, 134, 0.85)',
     // On a light ground a thing recedes by moving TOWARD the paper, so an
     // uncollectable block drains to a pale tint — and gets an outline, because a
     // pale shape on white with no edge is not a shape.
@@ -309,10 +309,18 @@
           drawHazard(g, px, py, cell);
         } else {
           roundRect(g, px + inset, py + inset, cell - inset * 2, cell - inset * 2, cell * 0.13);
-          g.fillStyle = THEME.floor;
+          var ice = g.createLinearGradient(px, py, px + cell, py + cell);
+          ice.addColorStop(0, '#F4FDFF'); ice.addColorStop(0.48, THEME.floor); ice.addColorStop(1, '#BFE8F3');
+          g.fillStyle = ice;
           g.fill();
           g.strokeStyle = THEME.floorEdge;
           g.lineWidth = 1;
+          g.stroke();
+          g.strokeStyle = 'rgba(255,255,255,0.58)';
+          g.lineWidth = Math.max(1, cell * 0.012);
+          g.beginPath();
+          g.moveTo(px + cell * 0.18, py + cell * 0.34);
+          g.quadraticCurveTo(px + cell * 0.46, py + cell * 0.22, px + cell * 0.78, py + cell * 0.31);
           g.stroke();
         }
       }
@@ -330,8 +338,11 @@
    * kinds of thing — which is the only property of this drawing that matters.
    */
   function drawWall(g, px, py, cell, st, gx, gy) {
-    var x = px, y = py, s = cell;
-    var r = cell * 0.06;
+    var lift = cell * 0.10, x = px + cell * 0.025, y = py - lift, s = cell * 0.95;
+    var r = cell * 0.10;
+
+    g.save();
+    g.shadowColor = 'rgba(20,70,105,0.24)'; g.shadowBlur = cell * 0.12; g.shadowOffsetY = cell * 0.1;
 
     roundRect(g, x, y, s, s, r);
     var grad = g.createLinearGradient(x, y, x, y + s);
@@ -339,6 +350,7 @@
     grad.addColorStop(1, THEME.wallLo);
     g.fillStyle = grad;
     g.fill();
+    g.shadowBlur = 0; g.shadowOffsetY = 0;
 
     // A hairline along the top and left only — the same single light source the
     // whole board uses, and far too subtle to read as gloss.
@@ -359,6 +371,14 @@
     if (isWall(st, gx + 1, gy)) { g.moveTo(x + s, y + s * 0.12); g.lineTo(x + s, y + s * 0.88); }
     if (isWall(st, gx, gy + 1)) { g.moveTo(x + s * 0.12, y + s); g.lineTo(x + s * 0.88, y + s); }
     g.stroke();
+    g.restore();
+    // A soft, irregular snow cap makes the obstruction taller than the penguin.
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    g.beginPath();
+    g.moveTo(x + r, y + cell * 0.14);
+    g.quadraticCurveTo(x + s * 0.28, y + cell * 0.20, x + s * 0.48, y + cell * 0.12);
+    g.quadraticCurveTo(x + s * 0.72, y + cell * 0.04, x + s - r, y + cell * 0.13);
+    g.lineTo(x + s - r, y); g.lineTo(x + r, y); g.closePath(); g.fill();
     g.restore();
   }
 
@@ -389,19 +409,19 @@
     g.fillStyle = grad;
     g.fill();
 
-    // Diagonal hazard stripes — the meaning is carried by the PATTERN, so the
-    // cell still says "do not be caught here" with the colour taken away.
+    // A deep radial fracture: still traversable ice, but unmistakably unsafe to stop on.
     g.save();
     roundRect(g, x, y, s, s, r);
     g.clip();
     g.strokeStyle = THEME.hazStripe;
-    g.lineWidth = Math.max(1.5, cell * 0.05);
-    for (var k = -1; k < 4; k++) {
-      g.beginPath();
-      g.moveTo(x + k * s * 0.38, y + s);
-      g.lineTo(x + k * s * 0.38 + s, y);
-      g.stroke();
+    g.lineWidth = Math.max(1.6, cell * 0.035); g.lineCap = 'round'; g.lineJoin = 'round';
+    var cx = x + s * 0.51, cy = y + s * 0.53;
+    var cracks = [[.08,.18,.30,.38],[.86,.10,.67,.34],[.94,.63,.69,.57],[.76,.94,.61,.70],[.24,.92,.39,.68],[.04,.60,.32,.55]];
+    for (var k = 0; k < cracks.length; k++) {
+      var c = cracks[k]; g.beginPath(); g.moveTo(cx, cy);
+      g.lineTo(x+s*c[2], y+s*c[3]); g.lineTo(x+s*c[0], y+s*c[1]); g.stroke();
     }
+    g.fillStyle = 'rgba(16,72,110,0.30)'; g.beginPath(); g.ellipse(cx, cy, s*.14, s*.10, -.2, 0, Math.PI*2); g.fill();
     // Inner shadow along the top, so the cell reads as below the floor.
     var sh = g.createLinearGradient(x, y, x, y + s * 0.5);
     sh.addColorStop(0, THEME.hazShade);
@@ -808,53 +828,35 @@
           continue;
         }
 
-        ctx.globalAlpha = 0.85;
-        /*
-         * The socket well.
-         *
-         * On a black board a hole draws itself: anything darker than the floor is
-         * already a hole. On a white one it does not — a pale ring on white is a
-         * picture frame, not a socket — so the recess has to be built. A tinted
-         * floor, and then an inner shadow falling IN from the top edge, which is
-         * the only cue that separates "sunk into the surface" from "printed on
-         * it" under a light from above.
-         */
-        var wx = r.x + pad, wy = r.y + pad, ws = r.s - pad * 2;
-        roundRect(ctx, wx, wy, ws, ws, r.s * 0.2);
-        ctx.fillStyle = THEME.socketWell;
-        ctx.fill();
-        ctx.save();
-        roundRect(ctx, wx, wy, ws, ws, r.s * 0.2);
-        ctx.clip();
-        var well = ctx.createLinearGradient(wx, wy, wx, wy + ws * 0.55);
-        well.addColorStop(0, THEME.socketShade);
-        well.addColorStop(1, 'rgba(38,48,92,0)');
-        ctx.fillStyle = well;
-        ctx.fillRect(wx, wy, ws, ws * 0.55);
+        drawAurora(ctx, r, pal, pulse, flash, this.time);
         ctx.restore();
-
-        ctx.shadowColor = pal.socketGlow;
-        ctx.shadowBlur = r.s * (0.12 + pulse * 0.10 + flash * 0.6);
-        ctx.strokeStyle = pal.socket;
-        ctx.lineWidth = Math.max(1.8, r.s * (0.055 + flash * 0.04));
-        ctx.globalAlpha = 0.55 + pulse * 0.25 + flash * 0.45;
-        roundRect(ctx, wx, wy, ws, ws, r.s * 0.2);
-        ctx.stroke();
-
-        // The ring the block's dot is shaped to drop into — same shape, same
-        // colour, so which socket takes which block is never in doubt.
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = 0.35 + pulse * 0.2 + flash * 0.5;
-        glyph(ctx, cx, cy, r.s * 0.15, pal.shape);
-        ctx.strokeStyle = pal.socket;
-        ctx.lineWidth = Math.max(1.4, r.s * 0.045);
-        ctx.stroke();
-        ctx.restore();
-
         if (graze > 0) { ctx.save(); this.drawGraze(ctx, r, graze); ctx.restore(); }
+        continue;
+
       }
     }
   };
+
+  function drawAurora(g, r, pal, pulse, flash, time) {
+    var cx = r.x + r.s / 2, cy = r.y + r.s / 2;
+    var glow = g.createRadialGradient(cx, cy, r.s*.03, cx, cy, r.s*.39);
+    glow.addColorStop(0, 'rgba(244,222,255,' + (.44 + flash*.35) + ')');
+    glow.addColorStop(.38, 'rgba(70,225,235,' + (.30 + pulse*.16) + ')');
+    glow.addColorStop(.72, 'rgba(82,108,218,.22)'); glow.addColorStop(1, 'rgba(82,108,218,0)');
+    g.fillStyle = glow; g.beginPath(); g.arc(cx, cy, r.s*.42, 0, Math.PI*2); g.fill();
+    g.save(); g.translate(cx, cy); g.rotate((time || 0) / 5200);
+    g.lineCap = 'round';
+    var colours = ['rgba(72,222,230,.72)','rgba(111,108,225,.62)','rgba(231,137,222,.42)'];
+    for (var i=0;i<3;i++) {
+      g.strokeStyle = colours[i]; g.lineWidth = r.s*(.025+i*.008); g.shadowColor=colours[i]; g.shadowBlur=r.s*.09;
+      g.beginPath(); g.arc(0,0,r.s*(.15+i*.075),-.4+i*.7,Math.PI*1.28+i*.5); g.stroke();
+    }
+    g.rotate(-(time || 0) / 2700);
+    for (i=0;i<4;i++) { var a=i*Math.PI/2+.4; g.fillStyle='rgba(240,255,255,.72)'; g.beginPath(); g.arc(Math.cos(a)*r.s*.31,Math.sin(a)*r.s*.31,r.s*.018,0,Math.PI*2); g.fill(); }
+    g.restore();
+    // The small chest-shaped sign preserves colour/shape matching without recolouring the penguin.
+    g.globalAlpha=.72; g.strokeStyle=pal.socket; g.lineWidth=Math.max(1.3,r.s*.025); glyph(g,cx,cy,r.s*.09,pal.shape); g.stroke();
+  }
 
   /** "It went straight through." A grey ring opening outward, and nothing else. */
   Renderer.prototype.drawGraze = function (ctx, r, p) {
@@ -939,94 +941,38 @@
   };
 
   Renderer.prototype.drawBlock = function (ctx, pos, squash, colour, inert) {
-    var pal = paletteOf(colour);
-    var cell = this.cell;
-    var inset = Math.max(2, cell * 0.075);
-
-    var x = this.ox + pos[0] * cell + inset;
-    var y = this.oy + pos[1] * cell + inset;
-    var w = cell - inset * 2;
-    var h = cell - inset * 2;
-
-    // Impact squash: compress along the axis of travel, bulge across it.
+    var pal = paletteOf(colour), cell = this.cell, inset = Math.max(2, cell * 0.09);
+    var x = this.ox + pos[0] * cell + inset, y = this.oy + pos[1] * cell + inset;
+    var w = cell - inset * 2, h = cell - inset * 2;
     if (squash && squash.amount > 0.001) {
-      var s = squash.amount * 0.12;
-      var dw = w * s * (squash.horiz ? -1 : 0.6);
-      var dh = h * s * (squash.horiz ? 0.6 : -1);
-      x -= dw / 2; w += dw;
-      y -= dh / 2; h += dh;
+      var q=squash.amount*.1, dw=w*q*(squash.horiz?-1:.55), dh=h*q*(squash.horiz?.55:-1);
+      x-=dw/2; y-=dh/2; w+=dw; h+=dh;
     }
-
-    var rad = cell * 0.26;   // markedly rounder than a wall's 6%
+    var rad=cell*.25;
     ctx.save();
-
-    // Every block casts a shadow, inert ones included — that is what says it is
-    // an OBJECT resting on the tray rather than part of the tray. It is the one
-    // property a wall must never borrow, and on a light board it is the ONLY
-    // thing that says "above" at all.
-    ctx.shadowColor = THEME.blockShade;
-    ctx.shadowBlur = cell * 0.16;
-    ctx.shadowOffsetY = cell * 0.055;
-    roundRect(ctx, x, y, w, h, rad);
-    var grad = ctx.createLinearGradient(x, y, x, y + h);
-    if (inert) {
-      grad.addColorStop(0, pale(pal.hi));
-      grad.addColorStop(0.42, pale(pal.mid));
-      grad.addColorStop(1, pale(pal.lo));
-    } else {
-      grad.addColorStop(0, pal.hi);
-      grad.addColorStop(0.42, pal.mid);
-      grad.addColorStop(1, pal.lo);
-    }
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-
-    /*
-     * The rim, and why it is the opposite of what the dark board did.
-     *
-     * On black, cargo got an outer GLOW and furniture got none: light meant
-     * "this one matters". On white a glow is nothing at all — it is white on
-     * white — so the job passes to a crisp rim, and the emphasis flips with it.
-     *
-     * A cargo block is a solid saturated shape and needs only a hairline of its
-     * own dark end to sit off the paper. An inert block has drained almost to
-     * the paper, so the rim is now the thing DOING the drawing: without it a
-     * pale tile on a white floor is not a shape at all. Same two states, same
-     * meaning — filled is cargo, outlined is furniture — argued from the
-     * background out rather than carried over from a theme that had none.
-     */
-    roundRect(ctx, x, y, w, h, rad);
-    ctx.strokeStyle = inert ? drainEdge(pal.mid) : pal.rim;
-    ctx.lineWidth = inert ? Math.max(1.4, cell * 0.022) : Math.max(1, cell * 0.014);
-    ctx.stroke();
-
-    // Gloss. Much lighter than on the dark board: a white sheen over a pale tile
-    // is invisible, and over a saturated one it only has to suggest a curve.
-    ctx.save();
-    roundRect(ctx, x, y, w, h, rad);
-    ctx.clip();
-    var gl = ctx.createLinearGradient(x, y, x, y + h * 0.55);
-    gl.addColorStop(0, 'rgba(255,255,255,' + (inert ? 0.30 : 0.26) + ')');
-    gl.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gl;
-    ctx.fillRect(x, y, w, h * 0.55);
-    ctx.restore();
-
-    // The dot that matches the ring on the goal which will take this block —
-    // hollow and dashed when no goal anywhere will.
-    glyph(ctx, x + w / 2, y + h / 2, cell * 0.15, pal.shape);
-    if (inert) {
-      ctx.strokeStyle = drainEdge(pal.mid);
-      ctx.lineWidth = Math.max(1.4, cell * 0.04);
-      ctx.setLineDash([cell * 0.055, cell * 0.045]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    } else {
-      ctx.fillStyle = THEME.glyphInk;
-      ctx.fill();
-    }
+    // Feet remain visible below the cube, grounding the piece without implying walking.
+    ctx.fillStyle='#E6A72B';
+    roundRect(ctx,x+w*.16,y+h*.88,w*.25,h*.13,cell*.05); ctx.fill();
+    roundRect(ctx,x+w*.59,y+h*.88,w*.25,h*.13,cell*.05); ctx.fill();
+    ctx.shadowColor=THEME.blockShade; ctx.shadowBlur=cell*.18; ctx.shadowOffsetY=cell*.07;
+    roundRect(ctx,x,y,w,h,rad);
+    var body=ctx.createLinearGradient(x,y,x+w,y+h);
+    body.addColorStop(0,inert?'#607786':'#243947'); body.addColorStop(.5,inert?'#405766':'#102633'); body.addColorStop(1,'#071722');
+    ctx.fillStyle=body; ctx.fill(); ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+    // The white face and belly are one quiet pear-shaped panel.
+    ctx.fillStyle=inert?'#D8E7EA':'#F7FCFC';
+    ctx.beginPath(); ctx.ellipse(x+w*.5,y+h*.57,w*.31,h*.36,0,0,Math.PI*2); ctx.fill();
+    // Eyes and tiny warm beak.
+    ctx.fillStyle='#07131B';
+    ctx.beginPath(); ctx.arc(x+w*.39,y+h*.36,cell*.028,0,Math.PI*2); ctx.arc(x+w*.61,y+h*.36,cell*.028,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#F2A62A'; ctx.beginPath(); ctx.moveTo(x+w*.5,y+h*.43); ctx.lineTo(x+w*.41,y+h*.50); ctx.lineTo(x+w*.59,y+h*.50); ctx.closePath(); ctx.fill();
+    // Colour identity lives in a restrained scarf and matching chest mark.
+    ctx.strokeStyle=pal.mid; ctx.lineWidth=cell*.055; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x+w*.22,y+h*.28); ctx.quadraticCurveTo(x+w*.5,y+h*.34,x+w*.78,y+h*.28); ctx.stroke();
+    glyph(ctx,x+w*.5,y+h*.68,cell*.075,pal.shape); ctx.fillStyle=pal.mid; inert?ctx.stroke():ctx.fill();
+    // A narrow highlight gives the rounded cube its polished ice-world finish.
+    ctx.strokeStyle='rgba(255,255,255,.24)'; ctx.lineWidth=Math.max(1,cell*.014);
+    ctx.beginPath(); ctx.arc(x+w*.5,y+h*.45,w*.45,Math.PI*1.08,Math.PI*1.72); ctx.stroke();
     ctx.restore();
   };
 
