@@ -73,8 +73,8 @@
     rewound:    { ja: '手づまり。1手もどしました', en: 'Dead end — that move was taken back' },
     restarted:  { ja: '最初にもどしました', en: 'Stage restarted' },
     gameOver:   { ja: 'ここで終わり', en: 'Run ended' },
-    overBody:   { ja: '危険マスの上で止まったブロックは壊れます。1手もどせば続けられます。',
-                  en: 'A block was left standing on a hazard. One undo puts it back.' },
+    overBody:   { ja: 'ヒビ氷の上で止まると氷が割れます。1手もどせば続けられます。',
+                  en: 'The ice cracked under a stopped penguin. One undo puts it back.' },
     allClear:   { ja: '全ステージ制覇', en: 'Every stage solved' },
     allBody:    { ja: '%nステージすべてクリアしました。', en: 'All %n stages, done.' },
     progress:   { ja: 'クリア済み', en: 'solved' },
@@ -92,7 +92,7 @@
     // What "done" means. Every board gets a line, including the plain one: a
     // caption that appears on some stages and not others is a caption the player
     // has to keep checking for, and it sits in space the board never wanted.
-    winAllin:   { ja: 'それぞれ同じ色のゴールへ運ぶ', en: 'Bring each block to its matching goal' },
+    winAllin:   { ja: 'それぞれ同じ色のオーロラへ運ぶ', en: 'Bring each penguin to its matching aurora' },
 
     // Settings
     sound:      { ja: 'サウンド', en: 'Sound' },
@@ -113,14 +113,14 @@
 
     // How to play — the complete rule set, one line at a time.
     r1h: { ja: '重力を向ける', en: 'You aim gravity' },
-    r1p: { ja: 'ブロックは直接動かせません。指をはらった向きへ盤面ごと重力が向き、すべてのブロックが同時に動きます。',
-          en: 'You never move a block. Swipe, and the whole world falls that way — every block at once.' },
+    r1p: { ja: 'ペンギンは直接動かせません。指をはらった向きへ盤面ごと重力が向き、すべてのペンギンが同時に滑ります。',
+          en: 'You never move a penguin directly. Swipe, and the whole world falls that way — every penguin at once.' },
     r2h: { ja: '色を合わせる', en: 'Match each colour' },
-    r2p: { ja: '各ブロックには同じ色・形のゴールが1つあります。そのゴールの上で止まると回収されます。',
-          en: 'Every block has one matching goal. It is collected when it stops on that goal.' },
+    r2p: { ja: '各ペンギンには同じ色・形のオーロラが1つあります。その渦の上で止まると回収されます。',
+          en: 'Every penguin has one matching aurora. It is collected when it stops on that vortex.' },
     r3h: { ja: 'くっついてもクリアではない', en: 'Touching is not a win' },
-    r3p: { ja: 'ブロック同士が触れても消えません。互いを止める、動かせる壁として使えます。',
-          en: 'Blocks do not clear when they touch. They can stop each other like movable walls.' },
+    r3p: { ja: 'ペンギン同士が触れても消えません。互いを止める、動かせる壁として使えます。',
+          en: 'Penguins do not clear when they touch. They can stop each other like movable walls.' },
     r5:  { ja: '手数に制限はありません。いつでも何手でも戻せます。まず試してみるのが正しい遊び方です。',
           en: 'There is no move limit and undo is free. Trying something to see what it does is how this game is meant to be played.' }
   };
@@ -317,7 +317,11 @@
     // The only cue the game shows unprompted, and only until it has been
     // answered once in the player's life: there is no way to guess "swipe" from
     // a still picture, and nothing else on this screen is going to say it.
-    this.renderer.gesture = (this.index === 0 && !this.save.data.everMoved);
+    // The wide layout already explains the interaction beside the board. Keep
+    // the animated finger cue for compact touch layouts, where that guide is
+    // intentionally folded away.
+    this.renderer.gesture = (this.index === 0 && !this.save.data.everMoved &&
+      (!window.matchMedia || window.matchMedia('(max-width: 620px)').matches));
     this.renderer.gestureDir = this.demoDirection();
     this.renderer.gestureT = 0;
 

@@ -163,6 +163,7 @@
   // legibility — the blocks are already five times the minimum target — and
   // starts costing composition, so the board is capped and centred instead.
   var MAX_CELL = 112;
+  var WALL_RING = 1;
 
   // How much room, in cells, the gravity chevron needs on each side of the grid.
   // Derived from the drawing below, not guessed: the aimed chevron sits
@@ -251,17 +252,17 @@
     // taken what it wants. Sizing the cell first and hoping the arrow fits is
     // how it ends up drawn off the edge of the canvas on a four-wide board,
     // which is exactly where the player most needs to see which way is down.
-    var margin = Math.max(10, Math.min(w, h) * 0.03);
+    var margin = Math.max(6, Math.min(w, h) * 0.018);
     var cell = Math.floor(Math.min(
-      (w - margin * 2) / (this.stage.w + GUTTER * 2),
-      (h - margin * 2) / (this.stage.h + GUTTER * 2)
+      (w - margin * 2) / (this.stage.w + WALL_RING * 2 + 0.34),
+      (h - margin * 2) / (this.stage.h + WALL_RING * 2 + 0.42)
     ));
     this.cell = Math.max(24, Math.min(MAX_CELL, cell));
     var bw = this.cell * this.stage.w, bh = this.cell * this.stage.h;
     this.ox = Math.round((w - bw) / 2);
     // Optically centred rather than mathematically: a board sitting dead centre
     // in a tall box reads as low, because the eye weights the top.
-    this.oy = Math.round((h - bh) / 2 - Math.min(10, (h - bh) * 0.04));
+    this.oy = Math.round((h - bh) / 2 + this.cell * 0.035);
     this.buildTerrain();
   };
 
@@ -276,7 +277,7 @@
     if (!st) return;
     var cell = this.cell, dpr = this.dpr;
     var bw = cell * st.w, bh = cell * st.h;
-    var pad = Math.ceil(cell * 0.5);
+    var pad = Math.ceil(cell * 1.58);
     var cvs = document.createElement('canvas');
     cvs.width = Math.ceil((bw + pad * 2) * dpr);
     cvs.height = Math.ceil((bh + pad * 2) * dpr);
@@ -290,8 +291,20 @@
     // The tray. One recessed plate with a hairline lip: it gives the board a
     // physical edge, which is what makes "the block stopped at the wall of the
     // world" a thing you can see rather than a thing you deduce.
+    g.save();
+    g.shadowColor = 'rgba(39,81,139,0.24)';
+    g.shadowBlur = cell * 0.44;
+    g.shadowOffsetY = cell * 0.28;
+    roundRect(g, -cell - lip, -cell - lip, bw + cell * 2 + lip * 2, bh + cell * 2 + lip * 2, r + cell * .22);
+    g.fillStyle = 'rgba(122,184,231,0.24)';
+    g.fill();
+    g.restore();
+
     roundRect(g, -lip, -lip, bw + lip * 2, bh + lip * 2, r + lip * 0.8);
-    g.fillStyle = THEME.trayFill;
+    var tray = g.createLinearGradient(0, -lip, 0, bh + lip);
+    tray.addColorStop(0, '#DDF2FF');
+    tray.addColorStop(1, '#A9D2EF');
+    g.fillStyle = tray;
     g.fill();
     g.strokeStyle = THEME.trayEdge;
     g.lineWidth = 1;
@@ -303,30 +316,103 @@
         var px = x * cell, py = y * cell;
         var inset = Math.max(1.5, cell * 0.035);
 
-        if (st.terrain[i] === E.WALL) {
-          drawWall(g, px, py, cell, st, x, y);
-        } else if (st.terrain[i] === E.HAZARD) {
-          drawHazard(g, px, py, cell);
-        } else {
-          roundRect(g, px + inset, py + inset, cell - inset * 2, cell - inset * 2, cell * 0.13);
-          var ice = g.createLinearGradient(px, py, px + cell, py + cell);
-          ice.addColorStop(0, '#F4FDFF'); ice.addColorStop(0.48, THEME.floor); ice.addColorStop(1, '#BFE8F3');
-          g.fillStyle = ice;
-          g.fill();
-          g.strokeStyle = THEME.floorEdge;
-          g.lineWidth = 1;
-          g.stroke();
-          g.strokeStyle = 'rgba(255,255,255,0.58)';
-          g.lineWidth = Math.max(1, cell * 0.012);
-          g.beginPath();
-          g.moveTo(px + cell * 0.18, py + cell * 0.34);
-          g.quadraticCurveTo(px + cell * 0.46, py + cell * 0.22, px + cell * 0.78, py + cell * 0.31);
-          g.stroke();
-        }
+        if (st.terrain[i] === E.WALL) drawWall(g, px, py, cell, st, x, y);
+        else if (st.terrain[i] === E.HAZARD) drawHazard(g, px, py, cell);
+        else drawIceTile(g, px, py, cell);
       }
     }
-    this.terrainCache = { canvas: cvs, pad: pad };
+
+    // A full ring of snow blocks is visual architecture, not terrain. The
+    // engine still sees only the playable 5×5 floor, while the player sees the
+    // deep 7×7 ice tray from the reference artwork.
+    var ring = makeRingStage(st.w, st.h);
+    for (var ry = 0; ry < ring.h; ry++) {
+      for (var rx = 0; rx < ring.w; rx++) {
+        if (!isWall(ring, rx, ry)) continue;
+        drawWall(g, (rx - 1) * cell, (ry - 1) * cell, cell, ring, rx, ry);
+      }
+    }
+    this.terrainCache = { canvas: cvs, pad: pad, ring: ring };
   };
+
+  Renderer.prototype.drawFrontWall = function (ctx) {
+    if (!this.terrainCache || !this.terrainCache.ring) return;
+    var ring = this.terrainCache.ring;
+    var row = ring.h - 1;
+    for (var rx = 0; rx < ring.w; rx++) {
+      drawWall(ctx,
+        this.ox + (rx - 1) * this.cell,
+        this.oy + (row - 1) * this.cell,
+        this.cell, ring, rx, row);
+    }
+  };
+
+  function drawIceTile(g, px, py, cell) {
+    var inset = Math.max(1.4, cell * 0.032);
+    var x = px + inset, y = py + inset, s = cell - inset * 2;
+    var r = cell * 0.125;
+
+    g.save();
+    g.shadowColor = 'rgba(48,104,169,0.16)';
+    g.shadowBlur = cell * .08;
+    g.shadowOffsetY = cell * .035;
+    roundRect(g, x, y, s, s, r);
+    var ice = g.createLinearGradient(x, y, x + s, y + s);
+    ice.addColorStop(0, '#FBFEFF');
+    ice.addColorStop(.34, '#DDEFFF');
+    ice.addColorStop(.72, '#C7E4FA');
+    ice.addColorStop(1, '#A9D1EF');
+    g.fillStyle = ice;
+    g.fill();
+    g.shadowBlur = 0; g.shadowOffsetY = 0;
+
+    roundRect(g, x, y, s, s, r);
+    g.clip();
+    var facets = [
+      [.04,.18,.38,.05,.27,.38], [.38,.05,.70,.12,.52,.42], [.70,.12,.98,.04,.86,.42],
+      [.04,.18,.27,.38,.02,.62], [.27,.38,.52,.42,.38,.72], [.52,.42,.86,.42,.70,.75],
+      [.02,.62,.38,.72,.18,.98], [.38,.72,.70,.75,.55,.99], [.70,.75,.98,.55,.96,.98]
+    ];
+    for (var f = 0; f < facets.length; f++) {
+      var p = facets[f];
+      g.beginPath();
+      g.moveTo(x+s*p[0], y+s*p[1]);
+      g.lineTo(x+s*p[2], y+s*p[3]);
+      g.lineTo(x+s*p[4], y+s*p[5]);
+      g.closePath();
+      g.fillStyle = f % 3 === 0 ? 'rgba(255,255,255,.20)' : f % 3 === 1 ? 'rgba(104,179,229,.08)' : 'rgba(255,255,255,.12)';
+      g.fill();
+    }
+    g.strokeStyle = 'rgba(255,255,255,.42)';
+    g.lineWidth = Math.max(.7, cell * .008);
+    g.beginPath();
+    g.moveTo(x+s*.04,y+s*.18); g.lineTo(x+s*.27,y+s*.38); g.lineTo(x+s*.52,y+s*.42); g.lineTo(x+s*.86,y+s*.42);
+    g.moveTo(x+s*.27,y+s*.38); g.lineTo(x+s*.38,y+s*.72); g.lineTo(x+s*.70,y+s*.75);
+    g.moveTo(x+s*.52,y+s*.42); g.lineTo(x+s*.70,y+s*.12);
+    g.stroke();
+    g.restore();
+
+    roundRect(g, x, y, s, s, r);
+    g.strokeStyle = 'rgba(91,154,207,.38)';
+    g.lineWidth = Math.max(1, cell * .013);
+    g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.88)';
+    g.lineWidth = Math.max(1, cell * .018);
+    g.beginPath();
+    g.moveTo(x+r*.8, y+1); g.lineTo(x+s-r*.7, y+1);
+    g.stroke();
+  }
+
+  function makeRingStage(w, h) {
+    var rw = w + 2, rh = h + 2;
+    var terrain = new Uint8Array(rw * rh);
+    for (var y = 0; y < rh; y++) {
+      for (var x = 0; x < rw; x++) {
+        if (x === 0 || y === 0 || x === rw - 1 || y === rh - 1) terrain[y * rw + x] = E.WALL;
+      }
+    }
+    return { w: rw, h: rh, terrain: terrain };
+  }
 
   /**
    * A wall is masonry, and masonry is not an object.
@@ -338,47 +424,73 @@
    * kinds of thing — which is the only property of this drawing that matters.
    */
   function drawWall(g, px, py, cell, st, gx, gy) {
-    var lift = cell * 0.10, x = px + cell * 0.025, y = py - lift, s = cell * 0.95;
-    var r = cell * 0.10;
+    var lift = cell * 0.15, x = px + cell * 0.035, y = py - lift, s = cell * 0.93;
+    var r = cell * 0.14;
 
     g.save();
-    g.shadowColor = 'rgba(20,70,105,0.24)'; g.shadowBlur = cell * 0.12; g.shadowOffsetY = cell * 0.1;
+    g.shadowColor = 'rgba(26,75,133,0.30)'; g.shadowBlur = cell * 0.17; g.shadowOffsetY = cell * 0.13;
 
     roundRect(g, x, y, s, s, r);
-    var grad = g.createLinearGradient(x, y, x, y + s);
-    grad.addColorStop(0, THEME.wallHi);
-    grad.addColorStop(1, THEME.wallLo);
+    var grad = g.createLinearGradient(x, y, x + s, y + s);
+    grad.addColorStop(0, '#BFE4FF');
+    grad.addColorStop(.44, '#77BBEE');
+    grad.addColorStop(1, '#2F7FC8');
     g.fillStyle = grad;
     g.fill();
     g.shadowBlur = 0; g.shadowOffsetY = 0;
 
-    // A hairline along the top and left only — the same single light source the
-    // whole board uses, and far too subtle to read as gloss.
     g.save();
     roundRect(g, x, y, s, s, r);
     g.clip();
-    g.strokeStyle = THEME.wallEdge;
-    g.lineWidth = 1;
+    // Broad crystalline facets in the blue wall body.
+    var wallFacets = [
+      [0,.42,.37,.35,.20,.72], [.37,.35,.74,.43,.53,.76], [.74,.43,1,.28,.91,.75],
+      [0,.76,.20,.72,.08,1], [.20,.72,.53,.76,.37,1], [.53,.76,.91,.75,.72,1]
+    ];
+    for (var wf = 0; wf < wallFacets.length; wf++) {
+      var fp = wallFacets[wf];
+      g.beginPath();
+      g.moveTo(x+s*fp[0], y+s*fp[1]);
+      g.lineTo(x+s*fp[2], y+s*fp[3]);
+      g.lineTo(x+s*fp[4], y+s*fp[5]);
+      g.closePath();
+      g.fillStyle = wf % 2 ? 'rgba(14,91,169,.10)' : 'rgba(255,255,255,.12)';
+      g.fill();
+    }
+    g.strokeStyle = 'rgba(255,255,255,.27)';
+    g.lineWidth = Math.max(.8, cell*.01);
     g.beginPath();
-    g.moveTo(x + 0.5, y + s); g.lineTo(x + 0.5, y + 0.5); g.lineTo(x + s, y + 0.5);
+    g.moveTo(x+s*.03,y+s*.45); g.lineTo(x+s*.37,y+s*.35); g.lineTo(x+s*.53,y+s*.76); g.lineTo(x+s*.91,y+s*.75);
+    g.moveTo(x+s*.37,y+s*.35); g.lineTo(x+s*.74,y+s*.43);
     g.stroke();
 
-    // Seams where two walls meet, so a run of them reads as one built mass with
-    // courses in it rather than as a row of loose bricks.
     g.strokeStyle = THEME.wallSeam;
-    g.lineWidth = Math.max(1, cell * 0.02);
+    g.lineWidth = Math.max(.8, cell * 0.014);
     g.beginPath();
-    if (isWall(st, gx + 1, gy)) { g.moveTo(x + s, y + s * 0.12); g.lineTo(x + s, y + s * 0.88); }
-    if (isWall(st, gx, gy + 1)) { g.moveTo(x + s * 0.12, y + s); g.lineTo(x + s * 0.88, y + s); }
+    if (isWall(st, gx + 1, gy)) { g.moveTo(x + s, y + s * 0.16); g.lineTo(x + s, y + s * 0.90); }
+    if (isWall(st, gx, gy + 1)) { g.moveTo(x + s * 0.13, y + s); g.lineTo(x + s * 0.87, y + s); }
     g.stroke();
     g.restore();
-    // A soft, irregular snow cap makes the obstruction taller than the penguin.
-    g.fillStyle = 'rgba(255,255,255,0.92)';
+
+    // The thick pillow of snow is the wall's defining silhouette. Its uneven
+    // lower edge creates the same soft overhang as the supplied 3D blocks.
     g.beginPath();
-    g.moveTo(x + r, y + cell * 0.14);
-    g.quadraticCurveTo(x + s * 0.28, y + cell * 0.20, x + s * 0.48, y + cell * 0.12);
-    g.quadraticCurveTo(x + s * 0.72, y + cell * 0.04, x + s - r, y + cell * 0.13);
-    g.lineTo(x + s - r, y); g.lineTo(x + r, y); g.closePath(); g.fill();
+    g.moveTo(x+r*.55, y);
+    g.quadraticCurveTo(x+s*.22,y-cell*.05,x+s*.40,y+cell*.005);
+    g.quadraticCurveTo(x+s*.58,y-cell*.065,x+s-r*.45,y+cell*.015);
+    g.quadraticCurveTo(x+s+cell*.015,y+s*.20,x+s*.93,y+s*.33);
+    g.quadraticCurveTo(x+s*.80,y+s*.43,x+s*.65,y+s*.36);
+    g.quadraticCurveTo(x+s*.50,y+s*.47,x+s*.35,y+s*.37);
+    g.quadraticCurveTo(x+s*.18,y+s*.46,x+s*.03,y+s*.32);
+    g.quadraticCurveTo(x-cell*.02,y+s*.17,x+r*.55,y);
+    g.closePath();
+    var snow = g.createLinearGradient(x,y,x,y+s*.48);
+    snow.addColorStop(0,'#FFFFFF'); snow.addColorStop(.55,'#F4F9FF'); snow.addColorStop(1,'#D4E5F8');
+    g.fillStyle=snow; g.fill();
+    g.strokeStyle='rgba(255,255,255,.86)'; g.lineWidth=Math.max(1,cell*.016);
+    g.beginPath(); g.moveTo(x+r*.7,y+cell*.025); g.quadraticCurveTo(x+s*.45,y-cell*.025,x+s-r*.6,y+cell*.035); g.stroke();
+    g.strokeStyle='rgba(55,113,176,.20)'; g.lineWidth=Math.max(.8,cell*.012);
+    g.beginPath(); g.moveTo(x+s*.04,y+s*.32); g.quadraticCurveTo(x+s*.20,y+s*.46,x+s*.35,y+s*.37); g.quadraticCurveTo(x+s*.5,y+s*.47,x+s*.65,y+s*.36); g.quadraticCurveTo(x+s*.82,y+s*.44,x+s*.94,y+s*.31); g.stroke();
     g.restore();
   }
 
@@ -400,40 +512,33 @@
     var inset = Math.max(1.5, cell * 0.035);
     var x = px + inset, y = py + inset, s = cell - inset * 2;
     var r = cell * 0.13;
-
-    roundRect(g, x, y, s, s, r);
-    var grad = g.createLinearGradient(x, y, x, y + s);
-    grad.addColorStop(0, THEME.hazFillLo);
-    grad.addColorStop(0.5, THEME.hazFill);
-    grad.addColorStop(1, THEME.hazFill);
-    g.fillStyle = grad;
-    g.fill();
+    drawIceTile(g, px, py, cell);
 
     // A deep radial fracture: still traversable ice, but unmistakably unsafe to stop on.
     g.save();
     roundRect(g, x, y, s, s, r);
     g.clip();
-    g.strokeStyle = THEME.hazStripe;
-    g.lineWidth = Math.max(1.6, cell * 0.035); g.lineCap = 'round'; g.lineJoin = 'round';
-    var cx = x + s * 0.51, cy = y + s * 0.53;
+    var cx = x + s * 0.52, cy = y + s * 0.52;
+    var core = g.createRadialGradient(cx,cy,0,cx,cy,s*.35);
+    core.addColorStop(0,'rgba(19,209,255,.95)'); core.addColorStop(.18,'rgba(41,156,232,.55)'); core.addColorStop(1,'rgba(41,156,232,0)');
+    g.fillStyle=core; g.fillRect(x,y,s,s);
     var cracks = [[.08,.18,.30,.38],[.86,.10,.67,.34],[.94,.63,.69,.57],[.76,.94,.61,.70],[.24,.92,.39,.68],[.04,.60,.32,.55]];
+    g.lineCap = 'round'; g.lineJoin = 'round';
     for (var k = 0; k < cracks.length; k++) {
-      var c = cracks[k]; g.beginPath(); g.moveTo(cx, cy);
-      g.lineTo(x+s*c[2], y+s*c[3]); g.lineTo(x+s*c[0], y+s*c[1]); g.stroke();
+      var c = cracks[k];
+      g.strokeStyle='rgba(35,221,255,.88)'; g.lineWidth=Math.max(4,cell*.075); g.shadowColor='#38DFFF'; g.shadowBlur=cell*.12;
+      g.beginPath(); g.moveTo(cx,cy); g.lineTo(x+s*c[2],y+s*c[3]); g.lineTo(x+s*c[0],y+s*c[1]); g.stroke();
+      g.shadowBlur=0; g.strokeStyle='#1C69B3'; g.lineWidth=Math.max(1.5,cell*.027);
+      g.beginPath(); g.moveTo(cx,cy); g.lineTo(x+s*c[2],y+s*c[3]); g.lineTo(x+s*c[0],y+s*c[1]); g.stroke();
+      if (k % 2 === 0) {
+        g.beginPath(); g.moveTo(x+s*c[2],y+s*c[3]);
+        g.lineTo(x+s*(c[2]+((k === 0) ? .12 : -.08)),y+s*(c[3]+.08)); g.stroke();
+      }
     }
-    g.fillStyle = 'rgba(16,72,110,0.30)'; g.beginPath(); g.ellipse(cx, cy, s*.14, s*.10, -.2, 0, Math.PI*2); g.fill();
-    // Inner shadow along the top, so the cell reads as below the floor.
-    var sh = g.createLinearGradient(x, y, x, y + s * 0.5);
-    sh.addColorStop(0, THEME.hazShade);
-    sh.addColorStop(1, 'rgba(120,20,34,0)');
-    g.fillStyle = sh;
-    g.fillRect(x, y, s, s * 0.5);
+    g.fillStyle='#1A67AA'; g.beginPath(); g.moveTo(cx-s*.12,cy-s*.04); g.lineTo(cx+s*.02,cy-s*.15); g.lineTo(cx+s*.15,cy); g.lineTo(cx+s*.05,cy+s*.13); g.lineTo(cx-s*.14,cy+s*.07); g.closePath(); g.fill();
+    g.fillStyle='rgba(230,250,255,.74)';
+    [[.18,.70,.09],[.76,.76,.08],[.77,.26,.055]].forEach(function(q){g.beginPath();g.moveTo(x+s*q[0],y+s*q[1]);g.lineTo(x+s*(q[0]+q[2]),y+s*(q[1]-.06));g.lineTo(x+s*(q[0]+q[2]*1.2),y+s*(q[1]+q[2]));g.closePath();g.fill();});
     g.restore();
-
-    roundRect(g, x, y, s, s, r);
-    g.strokeStyle = THEME.hazEdge;
-    g.lineWidth = 1.2;
-    g.stroke();
   }
 
   // -- animation --------------------------------------------------------------
@@ -706,6 +811,7 @@
     this.drawGoals(ctx);
     this.drawBlocks(ctx, elapsed);
     if (this.drawEffects(ctx, dt)) busy = true;
+    this.drawFrontWall(ctx);
     if (this.gesture) { this.drawGesture(ctx, dt); busy = !this.reduceMotion || busy; }
 
     ctx.restore();
@@ -839,23 +945,43 @@
 
   function drawAurora(g, r, pal, pulse, flash, time) {
     var cx = r.x + r.s / 2, cy = r.y + r.s / 2;
-    var glow = g.createRadialGradient(cx, cy, r.s*.03, cx, cy, r.s*.39);
-    glow.addColorStop(0, 'rgba(244,222,255,' + (.44 + flash*.35) + ')');
-    glow.addColorStop(.38, 'rgba(70,225,235,' + (.30 + pulse*.16) + ')');
-    glow.addColorStop(.72, 'rgba(82,108,218,.22)'); glow.addColorStop(1, 'rgba(82,108,218,0)');
-    g.fillStyle = glow; g.beginPath(); g.arc(cx, cy, r.s*.42, 0, Math.PI*2); g.fill();
-    g.save(); g.translate(cx, cy); g.rotate((time || 0) / 5200);
+    g.save();
+    roundRect(g,r.x+r.s*.055,r.y+r.s*.055,r.s*.89,r.s*.89,r.s*.12);
+    g.clip();
+
+    // Faint vertical aurora curtains lift the spiral from the ice without
+    // turning the goal into a solid object.
+    var beam = g.createLinearGradient(0,r.y,0,r.y+r.s);
+    beam.addColorStop(0,'rgba(157,132,255,0)'); beam.addColorStop(.2,'rgba(124,234,255,.18)'); beam.addColorStop(.72,'rgba(202,151,255,.05)'); beam.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=beam;
+    for(var bi=0;bi<5;bi++){var bx=r.x+r.s*(.12+bi*.19);g.fillRect(bx,r.y+r.s*.06,r.s*(bi%2?.08:.045),r.s*.76);}
+
+    var glow = g.createRadialGradient(cx, cy, r.s*.015, cx, cy, r.s*.48);
+    glow.addColorStop(0, 'rgba(255,255,255,' + (.96 + flash*.04) + ')');
+    glow.addColorStop(.12, 'rgba(95,244,255,.92)');
+    glow.addColorStop(.38, 'rgba(85,218,244,' + (.42 + pulse*.20) + ')');
+    glow.addColorStop(.68, 'rgba(142,105,238,.34)');
+    glow.addColorStop(1, 'rgba(230,143,239,0)');
+    g.fillStyle = glow; g.fillRect(r.x,r.y,r.s,r.s);
+
+    g.translate(cx, cy); g.rotate((time || 0) / 6200);
     g.lineCap = 'round';
-    var colours = ['rgba(72,222,230,.72)','rgba(111,108,225,.62)','rgba(231,137,222,.42)'];
-    for (var i=0;i<3;i++) {
-      g.strokeStyle = colours[i]; g.lineWidth = r.s*(.025+i*.008); g.shadowColor=colours[i]; g.shadowBlur=r.s*.09;
-      g.beginPath(); g.arc(0,0,r.s*(.15+i*.075),-.4+i*.7,Math.PI*1.28+i*.5); g.stroke();
+    var colours = ['rgba(80,240,248,.92)','rgba(104,115,241,.78)','rgba(235,153,244,.64)','rgba(244,252,255,.86)'];
+    for (var i=0;i<4;i++) {
+      g.strokeStyle=colours[i]; g.lineWidth=r.s*(.028+i*.006);
+      g.shadowColor=colours[i]; g.shadowBlur=r.s*(.08+i*.012);
+      g.beginPath();
+      g.ellipse(0,0,r.s*(.12+i*.072),r.s*(.075+i*.047),-.22,-.65+i*.55,Math.PI*1.32+i*.48);
+      g.stroke();
     }
-    g.rotate(-(time || 0) / 2700);
-    for (i=0;i<4;i++) { var a=i*Math.PI/2+.4; g.fillStyle='rgba(240,255,255,.72)'; g.beginPath(); g.arc(Math.cos(a)*r.s*.31,Math.sin(a)*r.s*.31,r.s*.018,0,Math.PI*2); g.fill(); }
+    g.shadowBlur=0;
+    for(i=0;i<7;i++){var a=i*Math.PI*2/7+.33;var rr=r.s*(.24+(i%3)*.055);g.fillStyle=i%2?'rgba(255,255,255,.92)':'rgba(101,244,255,.88)';g.beginPath();g.arc(Math.cos(a)*rr,Math.sin(a)*rr,r.s*(i%2?.012:.018),0,Math.PI*2);g.fill();}
     g.restore();
-    // The small chest-shaped sign preserves colour/shape matching without recolouring the penguin.
-    g.globalAlpha=.72; g.strokeStyle=pal.socket; g.lineWidth=Math.max(1.3,r.s*.025); glyph(g,cx,cy,r.s*.09,pal.shape); g.stroke();
+
+    // Matching remains visible as a tiny corner rune instead of a scarf across
+    // the penguin's face, preserving the puzzle rule without disturbing the art.
+    g.globalAlpha=.46; g.strokeStyle=pal.socket; g.lineWidth=Math.max(1.1,r.s*.018);
+    glyph(g,r.x+r.s*.79,r.y+r.s*.77,r.s*.045,pal.shape); g.stroke();
   }
 
   /** "It went straight through." A grey ring opening outward, and nothing else. */
@@ -941,38 +1067,53 @@
   };
 
   Renderer.prototype.drawBlock = function (ctx, pos, squash, colour, inert) {
-    var pal = paletteOf(colour), cell = this.cell, inset = Math.max(2, cell * 0.09);
+    var pal = paletteOf(colour), cell = this.cell, inset = Math.max(2, cell * 0.095);
     var x = this.ox + pos[0] * cell + inset, y = this.oy + pos[1] * cell + inset;
     var w = cell - inset * 2, h = cell - inset * 2;
     if (squash && squash.amount > 0.001) {
       var q=squash.amount*.1, dw=w*q*(squash.horiz?-1:.55), dh=h*q*(squash.horiz?.55:-1);
       x-=dw/2; y-=dh/2; w+=dw; h+=dh;
     }
-    var rad=cell*.25;
+    var rad=cell*.22;
     ctx.save();
-    // Feet remain visible below the cube, grounding the piece without implying walking.
-    ctx.fillStyle='#E6A72B';
-    roundRect(ctx,x+w*.16,y+h*.88,w*.25,h*.13,cell*.05); ctx.fill();
-    roundRect(ctx,x+w*.59,y+h*.88,w*.25,h*.13,cell*.05); ctx.fill();
-    ctx.shadowColor=THEME.blockShade; ctx.shadowBlur=cell*.18; ctx.shadowOffsetY=cell*.07;
+    // Contact shadow and small three-toed feet anchor the floating glossy cube.
+    ctx.fillStyle='rgba(28,67,112,.22)'; ctx.beginPath(); ctx.ellipse(x+w*.5,y+h*.94,w*.39,h*.11,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#E3A52B'; ctx.lineWidth=Math.max(2,cell*.035); ctx.lineCap='round';
+    [.24,.72].forEach(function(fx){ctx.beginPath();ctx.moveTo(x+w*fx,y+h*.86);ctx.lineTo(x+w*(fx-.07),y+h*.97);ctx.moveTo(x+w*fx,y+h*.88);ctx.lineTo(x+w*(fx+.01),y+h*.99);ctx.moveTo(x+w*fx,y+h*.88);ctx.lineTo(x+w*(fx+.08),y+h*.96);ctx.stroke();});
+
+    ctx.shadowColor='rgba(19,48,93,.34)'; ctx.shadowBlur=cell*.19; ctx.shadowOffsetY=cell*.09;
     roundRect(ctx,x,y,w,h,rad);
     var body=ctx.createLinearGradient(x,y,x+w,y+h);
-    body.addColorStop(0,inert?'#607786':'#243947'); body.addColorStop(.5,inert?'#405766':'#102633'); body.addColorStop(1,'#071722');
+    body.addColorStop(0,inert?'#607786':'#32445A'); body.addColorStop(.28,inert?'#405766':'#1E2D43'); body.addColorStop(.7,inert?'#283C4A':'#101B2D'); body.addColorStop(1,'#07101F');
     ctx.fillStyle=body; ctx.fill(); ctx.shadowBlur=0; ctx.shadowOffsetY=0;
-    // The white face and belly are one quiet pear-shaped panel.
-    ctx.fillStyle=inert?'#D8E7EA':'#F7FCFC';
-    ctx.beginPath(); ctx.ellipse(x+w*.5,y+h*.57,w*.31,h*.36,0,0,Math.PI*2); ctx.fill();
-    // Eyes and tiny warm beak.
+
+    // A cool highlight across the top plane gives the body its toy-like cube volume.
+    ctx.save(); roundRect(ctx,x,y,w,h,rad); ctx.clip();
+    var gloss=ctx.createLinearGradient(x,y,x,y+h*.48); gloss.addColorStop(0,'rgba(255,255,255,.22)'); gloss.addColorStop(.45,'rgba(255,255,255,.04)'); gloss.addColorStop(1,'rgba(255,255,255,0)'); ctx.fillStyle=gloss; ctx.fillRect(x,y,w,h*.56);
+    ctx.fillStyle='rgba(2,10,22,.14)'; ctx.beginPath();ctx.moveTo(x+w*.72,y);ctx.lineTo(x+w,y+h*.22);ctx.lineTo(x+w,y+h);ctx.lineTo(x+w*.82,y+h*.86);ctx.closePath();ctx.fill();
+    ctx.restore();
+
+    // The face patch is a rounded pear, wide around the eyes and narrow below.
+    ctx.fillStyle=inert?'#D8E7EA':'#F7FBFF';
+    ctx.beginPath();
+    ctx.moveTo(x+w*.23,y+h*.45);
+    ctx.bezierCurveTo(x+w*.23,y+h*.27,x+w*.40,y+h*.25,x+w*.50,y+h*.36);
+    ctx.bezierCurveTo(x+w*.60,y+h*.25,x+w*.77,y+h*.27,x+w*.77,y+h*.45);
+    ctx.bezierCurveTo(x+w*.78,y+h*.73,x+w*.67,y+h*.88,x+w*.50,y+h*.88);
+    ctx.bezierCurveTo(x+w*.33,y+h*.88,x+w*.22,y+h*.73,x+w*.23,y+h*.45);
+    ctx.fill();
+
+    // Bead eyes with pin highlights and the tiny warm triangular beak.
     ctx.fillStyle='#07131B';
-    ctx.beginPath(); ctx.arc(x+w*.39,y+h*.36,cell*.028,0,Math.PI*2); ctx.arc(x+w*.61,y+h*.36,cell*.028,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#F2A62A'; ctx.beginPath(); ctx.moveTo(x+w*.5,y+h*.43); ctx.lineTo(x+w*.41,y+h*.50); ctx.lineTo(x+w*.59,y+h*.50); ctx.closePath(); ctx.fill();
-    // Colour identity lives in a restrained scarf and matching chest mark.
-    ctx.strokeStyle=pal.mid; ctx.lineWidth=cell*.055; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(x+w*.22,y+h*.28); ctx.quadraticCurveTo(x+w*.5,y+h*.34,x+w*.78,y+h*.28); ctx.stroke();
-    glyph(ctx,x+w*.5,y+h*.68,cell*.075,pal.shape); ctx.fillStyle=pal.mid; inert?ctx.stroke():ctx.fill();
-    // A narrow highlight gives the rounded cube its polished ice-world finish.
-    ctx.strokeStyle='rgba(255,255,255,.24)'; ctx.lineWidth=Math.max(1,cell*.014);
-    ctx.beginPath(); ctx.arc(x+w*.5,y+h*.45,w*.45,Math.PI*1.08,Math.PI*1.72); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x+w*.39,y+h*.48,cell*.033,0,Math.PI*2); ctx.arc(x+w*.61,y+h*.48,cell*.033,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.9)';ctx.beginPath();ctx.arc(x+w*.38,y+h*.465,cell*.010,0,Math.PI*2);ctx.arc(x+w*.60,y+h*.465,cell*.010,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#F1B434'; ctx.beginPath(); ctx.moveTo(x+w*.5,y+h*.56); ctx.lineTo(x+w*.41,y+h*.61); ctx.lineTo(x+w*.59,y+h*.61); ctx.closePath(); ctx.fill();
+
+    // A tiny side badge carries colour/shape identity without changing the
+    // reference penguin's black-and-white silhouette.
+    ctx.globalAlpha=.78; ctx.fillStyle=pal.mid; glyph(ctx,x+w*.77,y+h*.75,cell*.040,pal.shape); ctx.fill(); ctx.globalAlpha=1;
+    ctx.strokeStyle='rgba(255,255,255,.26)'; ctx.lineWidth=Math.max(1,cell*.014);
+    ctx.beginPath(); ctx.arc(x+w*.48,y+h*.42,w*.47,Math.PI*1.09,Math.PI*1.70); ctx.stroke();
     ctx.restore();
   };
 

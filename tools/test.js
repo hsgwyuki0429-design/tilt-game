@@ -9,6 +9,9 @@ assert.strictEqual(STAGES.length, 5, 'campaign must contain five stages');
 STAGES.forEach(function (def, index) {
   var stage = E.compile(def);
   assert.strictEqual(def.id, index + 1, 'stage ids must be sequential');
+  assert.strictEqual(stage.w, 5, 'ice campaign boards are five cells wide');
+  assert.strictEqual(stage.h, 5, 'ice campaign boards are five cells tall');
+  assert.strictEqual(stage.rules.hazard, true, 'every stage teaches or reinforces cracked ice');
   assert(stage.blocks.length >= 1 && stage.blocks.length <= 2, 'stage has at most two blocks');
   assert.strictEqual(stage.goalCells.length, stage.blocks.length, 'one goal per block');
 
@@ -40,5 +43,12 @@ assert.throws(function () {
   E.compile({ id: 'missing-goal', board: ['AB', 'a.'] });
 }, /one goal per block/, 'every block must have a goal');
 
-console.log('ok - five stages and the two-block matching-goal rules are valid');
+// Cracked ice may be crossed, but ending a move on it breaks the penguin's run.
+var hazard = E.compile({ id: 'hazard', board: ['a.', '.A', '.x'] });
+var broken = E.simulate(hazard, E.initialState(hazard), 'D', { frames: false });
+assert.strictEqual(hazard.rules.hazard, true, 'x must compile as cracked ice');
+assert.strictEqual(broken.broken, true, 'stopping on cracked ice must end the run');
+assert.strictEqual(broken.state.lost, 1, 'the stopped penguin must be marked lost');
+
+console.log('ok - five ice stages, matching goals, and cracked-ice rules are valid');
 
