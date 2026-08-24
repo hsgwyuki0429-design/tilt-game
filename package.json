@@ -8,7 +8,7 @@
     "probe": "node tools/probe.js",
     "forge": "node tools/forge.js",
     "qa": "node tools/qa.js",
-    "test": "node tools/audit.js && node tools/qa.js",
+    "test": "node tools/test.js",
     "serve": "node tools/serve.js",
     "campaign": "node tools/campaign.js"
   },
@@ -16,3 +16,4 @@
     "playwright": "^1.49.0"
   }
 }
+
