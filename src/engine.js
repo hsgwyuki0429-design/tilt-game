@@ -102,6 +102,7 @@
         ch = rows[y][x];
         if (ch === '.') { /* floor */ }
         else if (ch === '#') { terrain[i] = WALL; }
+        else if (ch === 'x') { terrain[i] = HAZARD; }
         else if (GOAL_CHARS[ch] !== undefined) { goal[i] = 1; goalColour[i] = GOAL_CHARS[ch]; }
         else if (BLOCK_CHARS[ch] !== undefined) { blocks.push([x, y, BLOCK_CHARS[ch]]); }
         else fail(def, 'unknown board character "' + ch + '" at ' + x + ',' + y);
@@ -149,6 +150,9 @@
     }
 
     var usesHazard = false;
+    for (i = 0; i < terrain.length; i++) {
+      if (terrain[i] === HAZARD) { usesHazard = true; break; }
+    }
     var seen = {};
     for (i = 0; i < colour.length; i++) seen[colour[i]] = true;
     for (i = 0; i < goalCells.length; i++) seen[goalColour[goalCells[i]]] = true;

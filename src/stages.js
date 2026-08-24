@@ -1,6 +1,6 @@
 'use strict';
 /*
- * TILT — five-stage campaign.
+ * TILT — five-stage ice campaign.
  *
  * Every board uses the same rule set:
  *   - one or two movable blocks (never more)
@@ -16,52 +16,64 @@
   var CHAPTERS = [
     {
       number: 1,
-      name: 'TWO PATHS',
-      ja: 'ふたつの道',
+      name: 'GRAVITY',
+      ja: '重力',
       from: 1,
       to: 5,
-      note: 'Up to two blocks, with one matching goal each. Move the world with a swipe and bring every colour home.'
+      note: 'Tilt the ice world. Glide each penguin onto its aurora while avoiding cracked ice.'
     }
   ];
 
   var STAGES = [
     {
       id: 1, name: 'HOME', par: 1,
-      idea: 'A swipe changes gravity and moves every block.',
-      hint: { ja: 'スワイプした方向へブロックが動く', en: 'Swipe to move the block with gravity.' },
-      board: ['a..',
-              '...',
-              'A..']
+      idea: 'A swipe changes gravity and makes the penguin glide.',
+      hint: { ja: 'スワイプした方向へペンギンが滑る', en: 'Swipe to make the penguin glide with gravity.' },
+      board: ['.....',
+              '.....',
+              '.#...',
+              '..A.a',
+              '..x..']
     },
     {
-      id: 2, name: 'TURN', par: 3,
-      idea: 'A block only disappears on the goal with the same colour.',
-      hint: { ja: 'ブロックと同じ色・形のゴールだけが対応する', en: 'Only the matching colour and shape accepts a block.' },
-      board: ['abB',
-              'A..',
-              '#..']
+      id: 2, name: 'GLIDE', par: 3,
+      idea: 'Every penguin shares the same gravity.',
+      hint: { ja: 'すべてのペンギンが同じ方向へ滑る', en: 'Every penguin glides in the same direction.' },
+      board: ['b....',
+              '...xa',
+              '.....',
+              '.x.#B',
+              '..A..']
     },
     {
-      id: 3, name: 'BRAKE', par: 4,
-      idea: 'Touching blocks are useful as brakes, but touching never clears the stage.',
-      hint: { ja: 'ブロック同士が触れてもクリアではない。止める壁として使える', en: 'Touching is not a win. Use the other block as a brake.' },
-      board: ['abB',
-              'A..',
-              '..#']
+      id: 3, name: 'CRACK', par: 4,
+      idea: 'Cracked ice is safe to cross, but unsafe to stop on.',
+      hint: { ja: 'ヒビ氷は通過できる。止まると氷が割れる', en: 'Cross cracked ice, but do not stop on it.' },
+      board: ['.....',
+              'A..#x',
+              '.....',
+              '...Ba',
+              'bx...']
     },
     {
-      id: 4, name: 'CROSS', par: 6,
-      idea: 'The two routes share one gravity, so order matters.',
-      board: ['#a..',
-              '.A.#',
-              '.b.B']
+      id: 4, name: 'AURORA', par: 5,
+      idea: 'Passing over an aurora is not enough; the penguin must stop there.',
+      hint: { ja: 'オーロラ渦の上にちょうど止める', en: 'Come to rest exactly on the aurora.' },
+      board: ['#B.b.',
+              'a....',
+              '....x',
+              '...A.',
+              '..x..']
     },
     {
-      id: 5, name: 'TWO PATHS', par: 8,
-      idea: 'The final board asks you to plan both routes together.',
-      board: ['aA#.',
-              'B.#b',
-              '....']
+      id: 5, name: 'AWAY', par: 7,
+      idea: 'Use the wall, the other penguin and both safe routes together.',
+      hint: { ja: '壁ともう一羽をストッパーにして最短7手を目指す', en: 'Use the wall and the other penguin as brakes. Best: 7.' },
+      board: ['.....',
+              '.....',
+              'b...a',
+              '.xA.#',
+              'B..x.']
     }
   ];
 

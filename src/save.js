@@ -10,11 +10,13 @@
  */
 (function (root) {
 
-  var KEY = 'tilt.save.v1';
+  // The ice-world campaign replaces the original compact boards, so progress
+  // from that campaign must not be shown as a best score on these new stages.
+  var KEY = 'tilt.save.ice.v2';
 
   function defaults() {
     return {
-      version: 1,
+      version: 2,
       cleared: {},        // stageId -> best move count
       unlocked: 1,        // highest stage the player may enter
       sound: true,

@@ -85,54 +85,125 @@
 
 
 <!-- ══ GAME ═══════════════════════════════════════════════════════════════════
-     Three rows and nothing else: a status line, the board, two actions. Every
-     pixel not spent on those belongs to the board. -->
+     The desktop composition follows the supplied ice-world design sheet: a
+     compact editorial header, a dominant square board, a tile guide and quiet
+     supporting panels. On phones the reference panels fold away and the same
+     markup becomes a focused, touch-first game. -->
 <div id="app">
+  <div class="showcase-head">
+    <section class="brand-block" aria-labelledby="brand-title">
+      <h1 id="brand-title"><em>TILT</em> パズルゲーム</h1>
+      <p class="brand-tagline">氷の世界 × 重力操作 × 立方体ペンギン</p>
+      <div class="brand-concept">
+        <strong>デザインコンセプト</strong>
+        <span>盤面を傾けて重力を操り、ペンギンをオーロラへ導く。見た目だけでルールが伝わる、透明感のある3D氷上パズル。</span>
+      </div>
+    </section>
 
-  <header id="hud">
-    <button id="btn-menu" class="hud-btn" type="button" data-t-aria="stages" aria-label="Stages">
-      <svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg>
-    </button>
+    <header id="hud" aria-label="Stage status">
+      <button id="btn-menu" class="hud-btn" type="button" data-t-aria="stages" aria-label="Stages">
+        <svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg>
+      </button>
 
-    <div class="hud-title">
-      <span id="stage-label" class="hud-kicker">STAGE 1</span>
-      <span id="stage-name" class="hud-name">DROP</span>
-    </div>
+      <div class="hud-title">
+        <span id="stage-label" class="hud-kicker">STAGE 1 · GRAVITY</span>
+        <span id="stage-name" class="hud-name">HOME</span>
+      </div>
 
-    <div class="hud-count">
-      <span id="moves" class="hud-moves">0</span>
-      <span class="hud-par"><span data-t="parShort">PAR</span> <b id="par">2</b></span>
-    </div>
-  </header>
+      <div class="hud-count">
+        <span id="moves" class="hud-moves">0</span>
+        <span class="hud-par"><span data-t="parShort">PAR</span> <b id="par">1</b></span>
+      </div>
+    </header>
+  </div>
 
-  <main id="board-area">
-    <canvas id="board"></canvas>
-    <div id="toast" role="status" aria-live="polite"></div>
-    <div id="overlay" class="overlay" role="dialog" aria-modal="true"></div>
-  </main>
+  <div class="play-layout">
+    <section class="game-shell" aria-label="TILT game board">
+      <main id="board-area">
+        <canvas id="board"></canvas>
+        <div id="toast" role="status" aria-live="polite"></div>
+        <div id="overlay" class="overlay" role="dialog" aria-modal="true"></div>
+      </main>
 
-  <!-- The objective, permanently. It sits below the board in space the board was
-       never going to use, so it costs nothing and never has to be dismissed —
-       which is the whole reason the old six-second hint was the wrong shape. -->
-  <button id="coach" class="coach" type="button" data-t-aria="showRules" aria-label="How to play">
-    <svg class="coach-ic ic" aria-hidden="true"><use href="#i-target"/></svg>
-    <span class="coach-text">
-      <span id="objective" class="coach-obj"></span>
-      <span id="coach-hint" class="coach-hint"></span>
-    </span>
-    <svg class="coach-more ic" aria-hidden="true"><use href="#i-help"/></svg>
-  </button>
+      <button id="coach" class="coach" type="button" data-t-aria="showRules" aria-label="How to play">
+        <svg class="coach-ic ic" aria-hidden="true"><use href="#i-target"/></svg>
+        <span class="coach-text">
+          <span id="objective" class="coach-obj"></span>
+          <span id="coach-hint" class="coach-hint"></span>
+        </span>
+        <svg class="coach-more ic" aria-hidden="true"><use href="#i-help"/></svg>
+      </button>
 
-  <footer id="dock">
-    <button id="btn-undo" class="dock-btn wide" type="button" disabled>
-      <svg class="ic" aria-hidden="true"><use href="#i-undo"/></svg>
-      <span class="lbl" data-t="undo">Undo</span>
-    </button>
-    <button id="btn-restart" class="dock-btn quiet" type="button">
-      <svg class="ic" aria-hidden="true"><use href="#i-restart"/></svg>
-      <span class="lbl" data-t="restart">Restart</span>
-    </button>
-  </footer>
+      <footer id="dock">
+        <button id="btn-undo" class="dock-btn wide" type="button" disabled>
+          <svg class="ic" aria-hidden="true"><use href="#i-undo"/></svg>
+          <span class="lbl" data-t="undo">Undo</span>
+        </button>
+        <button id="btn-restart" class="dock-btn quiet" type="button">
+          <svg class="ic" aria-hidden="true"><use href="#i-restart"/></svg>
+          <span class="lbl" data-t="restart">Restart</span>
+        </button>
+      </footer>
+    </section>
+
+    <aside class="tile-guide" aria-labelledby="tile-guide-title">
+      <h2 id="tile-guide-title">タイルの種類</h2>
+      <div class="guide-row">
+        <div class="tile-art ice-art" aria-hidden="true"><i></i></div>
+        <div><h3>つるつるの氷 <small>（通常床）</small></h3><p>滑って動くことができる。<br>特別な効果はない。</p></div>
+      </div>
+      <div class="guide-row">
+        <div class="tile-art crack-art" aria-hidden="true"><i></i><b></b></div>
+        <div><h3>ヒビ氷 <small>（危険マス）</small></h3><p>通過することはできるが、停止すると氷が割れて<strong>失敗。</strong></p></div>
+      </div>
+      <div class="guide-row">
+        <div class="tile-art aurora-art" aria-hidden="true"><i></i></div>
+        <div><h3>オーロラ渦 <small>（ゴール）</small></h3><p>通過することはできるが、ここに停止すると<strong>クリア。</strong></p></div>
+      </div>
+      <div class="guide-row guide-wall">
+        <div class="wall-art" aria-hidden="true"><i></i></div>
+        <div><h3>氷の壁 <small>（ブロック）</small></h3><p>通れない。滑るペンギンを止める。</p></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="reference-panels" aria-label="Game visual guide">
+    <section class="reference-card tile-details">
+      <h2>タイルの詳細イメージ</h2>
+      <div class="detail-grid">
+        <figure><div class="tile-art ice-art"><i></i></div><figcaption><strong>つるつるの氷</strong><span>透明感のある、光を反射する氷。</span></figcaption></figure>
+        <figure><div class="tile-art crack-art"><i></i><b></b></div><figcaption><strong>ヒビ氷（危険マス）</strong><span>中心から放射状に大きく割れた氷。</span></figcaption></figure>
+        <figure><div class="tile-art aurora-art"><i></i></div><figcaption><strong>オーロラ渦（ゴール）</strong><span>氷の表面に浮かぶ神秘的な渦。</span></figcaption></figure>
+      </div>
+    </section>
+
+    <section class="reference-card rule-summary">
+      <h2>ルール（まとめ）</h2>
+      <ul>
+        <li>盤面をスワイプして重力の方向を変える。</li>
+        <li>ペンギンは壁やブロックに当たるまで一直線に滑る。</li>
+        <li>移動終了時に止まったタイルで結果が決まる。</li>
+      </ul>
+      <div class="rule-result fail"><span class="tile-art crack-art"><i></i><b></b></span><p>ヒビ氷に停止<br><strong>→ 失敗</strong></p></div>
+      <div class="rule-result clear"><span class="tile-art aurora-art"><i></i></span><p>オーロラ渦に停止<br><strong>→ クリア！</strong></p></div>
+    </section>
+  </div>
+
+  <div class="design-strip">
+    <section class="reference-card visual-points">
+      <h2>ビジュアルのポイント</h2>
+      <ul><li>立方体ペンギンを主役にした3D表現</li><li>透明な氷と柔らかな雪の質感</li><li>危険とゴールが一目で分かる光の演出</li></ul>
+    </section>
+    <section class="reference-card palette-card">
+      <h2>カラーパレット</h2>
+      <div class="swatches" aria-label="Color palette">
+        <span style="--c:#CDE6FF"><i></i>氷</span><span style="--c:#A9C8E8"><i></i>氷影</span>
+        <span style="--c:#E9F2FF"><i></i>雪</span><span style="--c:#7FB3D9"><i></i>ヒビ</span>
+        <span style="--c:#46E6FF"><i></i>オーロラ</span><span style="--c:#1E1E1E"><i></i>ペンギン</span>
+        <span style="--c:#F5CB71"><i></i>くちばし</span>
+      </div>
+    </section>
+  </div>
 
 </div>
 
