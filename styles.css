@@ -25,7 +25,7 @@
   /* Surfaces. A very light cool grey ground with white lifted above it, so a
      white card has something to sit ON — a white sheet on a white page has no
      edge, and every layer in this interface has to be a layer you can see. */
-  --bg:            #F1F3F9;
+  --bg:            #EDF8FC;
   --bg-raise:      #FFFFFF;
   --bg-sheet:      #F5F6FB;
   --bg-card:       rgba(255, 255, 255, 0.92);
@@ -49,7 +49,7 @@
      These are the DEEP ends of the game's hues rather than the bright ones: a
      colour that sings on black is invisible on white, and the identity lives in
      the hue, not in the brightness. Pressed states go darker, not lighter. */
-  --accent:        #06718F;   /* 5.0:1 */
+  --accent:        #086D91;   /* arctic blue */
   --accent-hi:     #055C76;   /* pressed */
   --accent-ink:    #FFFFFF;   /* on an accent fill — 5.6:1 */
   --amber:         #AF6E08;   /* perfect / past par — large text and glyphs */
@@ -139,7 +139,7 @@ body::before {
   inset: 0;
   background:
     radial-gradient(118% 70% at 50% -12%, #FFFFFF 0%, rgba(255, 255, 255, 0) 64%),
-    radial-gradient(92% 55% at 50% 112%, #E4E7F4 0%, rgba(228, 231, 244, 0) 60%),
+    radial-gradient(92% 55% at 50% 112%, #D8EFF7 0%, rgba(216, 239, 247, 0) 60%),
     var(--bg);
   z-index: -1;
 }
