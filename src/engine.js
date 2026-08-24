@@ -26,47 +26,9 @@
  * arrange for something to be standing one cell beyond — the edge, a wall, or
  * another block you have not collected yet.
  *
- * ---------------------------------------------------------------------------
- * WHAT YOU ARE TRYING TO DO — one win condition per stage
- * ---------------------------------------------------------------------------
- *
- * The verb never changes. What changes is what "done" means, and each of these
- * turns the same physics into a different question:
- *
- *   ALL IN   collect every block.
- *            "How do I get all of them home?"
- *
- *   SELECT   collect every block that HAS a goal. Blocks whose colour has no
- *            socket anywhere can never leave — they are furniture that moves.
- *            "How do I move this one without the others getting in the way?"
- *            The whole difficulty is that you cannot move one block. You move
- *            the world, and everything answers.
- *
- *   MATCH    no goals at all. Blocks of the same colour must end up TOUCHING.
- *            "How do I make these two meet?"
- *            The board stops being about a destination and becomes about a
- *            relationship: two blocks driven by one gravity, which usually have
- *            to be driven apart before they can be brought together.
- *
- *   FORM     goals are targets, not holes. Every marked cell must be occupied
- *            by a block that fits it, all at the same time, and nothing is ever
- *            removed.
- *            "How do I satisfy all of these at once?"
- *            Where ALL IN drains the board one block at a time, FORM has to
- *            land every constraint simultaneously — and every block placed is a
- *            new wall in the way of the next one.
- *
- * ---------------------------------------------------------------------------
- * THE HAZARD — a stage may use it, or not
- * ---------------------------------------------------------------------------
- *
- *   HAZARD 'x'  A block left standing on a hazard when the board settles is
- *               destroyed, and the run is over. Sliding across one is safe.
- *
- * The exact mirror of a goal: both resolve at rest and only at rest, and both
- * ask the one question this game is built on — WHERE DOES THIS BLOCK STOP? A
- * goal is a cell you are trying to be stopped on; a hazard is a cell you may
- * cross and must not be caught on.
+ * Every board has one or two uniquely coloured blocks and exactly one matching
+ * goal for each. A stage clears only when every block has stopped on its goal.
+ * Blocks may stop each other, but contact itself never resolves or clears.
  *
  * ---------------------------------------------------------------------------
  * IDENTICAL BLOCKS ARE IDENTICAL
@@ -88,27 +50,25 @@
 
   var FLOOR = 0, WALL = 1, HAZARD = 2;
 
-  // Colour 0 means "no colour": the plain '@' block and the plain 'o' goal,
-  // which takes anything.
   var ANY = 0;
 
-  var BLOCK_CHARS = { '@': ANY, 'A': 1, 'B': 2, 'C': 3 };
-  var GOAL_CHARS  = { 'o': ANY, 'a': 1, 'b': 2, 'c': 3 };
+  var BLOCK_CHARS = { 'A': 1, 'B': 2 };
+  var GOAL_CHARS  = { 'a': 1, 'b': 2 };
   var COLOUR_NAME = ['any', 'A', 'B', 'C'];
 
-  var WINS = ['allin', 'select', 'match', 'form'];
+  // The campaign has one win condition: both blocks reach their own goals.
+  var WINS = ['allin'];
 
   /** Does a goal of this colour take a block of that colour? */
   function accepts(goalColour, blockColour) {
-    return goalColour === ANY || goalColour === blockColour;
+    return goalColour === blockColour;
   }
 
   // ---------------------------------------------------------------------------
   // Stage compilation
   // ---------------------------------------------------------------------------
   //
-  //     '.'  floor            '#'  wall           'x'  hazard
-  //     'o'  goal, any        '@'  block, any
+  //     '.'  floor            '#'  wall
   //     'a'  goal A           'A'  block A
   //     'b'  goal B           'B'  block B
   //     'c'  goal C           'C'  block C
@@ -142,7 +102,6 @@
         ch = rows[y][x];
         if (ch === '.') { /* floor */ }
         else if (ch === '#') { terrain[i] = WALL; }
-        else if (ch === 'x') { terrain[i] = HAZARD; }
         else if (GOAL_CHARS[ch] !== undefined) { goal[i] = 1; goalColour[i] = GOAL_CHARS[ch]; }
         else if (BLOCK_CHARS[ch] !== undefined) { blocks.push([x, y, BLOCK_CHARS[ch]]); }
         else fail(def, 'unknown board character "' + ch + '" at ' + x + ',' + y);
@@ -155,7 +114,7 @@
     for (i = 0; i < w * h; i++) if (goal[i]) goalCells.push(i);
 
     var colour = blocks.map(function (b) { return b[2]; });
-    var collects = (win === 'allin' || win === 'select');
+    var collects = true;
 
     // Which blocks can ever leave the board? Under ALL IN and SELECT that is
     // the blocks whose colour some goal accepts; under MATCH and FORM nothing
@@ -170,36 +129,26 @@
     var mustCollect = 0;
     for (i = 0; i < collectable.length; i++) mustCollect += collectable[i];
 
-    // ── what each win condition requires of the picture ──────────────────────
-    if (win === 'allin') {
-      if (!goalCells.length) fail(def, 'ALL IN needs at least one goal');
-      for (i = 0; i < blocks.length; i++) {
-        if (!collectable[i]) {
-          fail(def, 'ALL IN, but the ' + COLOUR_NAME[colour[i]] +
-            ' block at ' + blocks[i][0] + ',' + blocks[i][1] + ' has no goal that accepts it');
-        }
-      }
-    } else if (win === 'select') {
-      if (!mustCollect) fail(def, 'SELECT, but no block has a goal that accepts it');
-      if (mustCollect === blocks.length) {
-        fail(def, 'SELECT, but every block is collectable — that is ALL IN');
-      }
-    } else if (win === 'match') {
-      if (goalCells.length) fail(def, 'MATCH boards have no goals');
-      var groups = {};
-      for (i = 0; i < colour.length; i++) groups[colour[i]] = (groups[colour[i]] || 0) + 1;
-      var pairs = 0;
-      for (var gk in groups) if (groups[gk] > 1) pairs++;
-      if (!pairs) fail(def, 'MATCH needs at least two blocks of one colour to bring together');
-    } else if (win === 'form') {
-      if (!goalCells.length) fail(def, 'FORM needs at least one target cell');
-      if (goalCells.length > blocks.length) {
-        fail(def, 'FORM has ' + goalCells.length + ' targets and only ' + blocks.length + ' blocks');
-      }
+    // Every stage is deliberately the same small ruleset: one or two uniquely
+    // coloured blocks, with exactly one matching goal each. Plain or wildcard
+    // pieces are not accepted.
+    if (blocks.length < 1 || blocks.length > 2) fail(def, 'needs one or two movable blocks');
+    if (goalCells.length !== blocks.length) fail(def, 'needs exactly one goal per block');
+    var blockCounts = { 1: 0, 2: 0 };
+    var goalCounts = { 1: 0, 2: 0 };
+    for (i = 0; i < colour.length; i++) blockCounts[colour[i]] = (blockCounts[colour[i]] || 0) + 1;
+    for (i = 0; i < goalCells.length; i++) {
+      var gc = goalColour[goalCells[i]];
+      goalCounts[gc] = (goalCounts[gc] || 0) + 1;
+    }
+    if (blockCounts[1] > 1 || blockCounts[2] > 1 || blockCounts[0] || blockCounts[3]) {
+      fail(def, 'blocks must be unique A/B colours');
+    }
+    if (goalCounts[1] !== blockCounts[1] || goalCounts[2] !== blockCounts[2] || goalCounts[0] || goalCounts[3]) {
+      fail(def, 'each block needs exactly one matching goal');
     }
 
     var usesHazard = false;
-    for (i = 0; i < w * h; i++) if (terrain[i] === HAZARD) usesHazard = true;
     var seen = {};
     for (i = 0; i < colour.length; i++) seen[colour[i]] = true;
     for (i = 0; i < goalCells.length; i++) seen[goalColour[goalCells[i]]] = true;
@@ -295,71 +244,13 @@
   // Winning
   // ---------------------------------------------------------------------------
 
-  /** Are all live blocks of each colour orthogonally connected? (MATCH) */
-  function matched(stage, s) {
-    var byColour = {};
-    var i;
-    for (i = 0; i < s.pos.length; i++) {
-      if (!s.alive[i]) continue;
-      var c = stage.colour[i];
-      (byColour[c] = byColour[c] || []).push(s.pos[i]);
-    }
-    for (var key in byColour) {
-      var group = byColour[key];
-      if (group.length < 2) continue;
-      // Flood-fill from the first, moving only between orthogonal neighbours.
-      var stack = [0], mark = [true];
-      for (i = 1; i < group.length; i++) mark.push(false);
-      while (stack.length) {
-        var at = group[stack.pop()];
-        for (i = 0; i < group.length; i++) {
-          if (mark[i]) continue;
-          var d = Math.abs(group[i][0] - at[0]) + Math.abs(group[i][1] - at[1]);
-          if (d === 1) { mark[i] = true; stack.push(i); }
-        }
-      }
-      for (i = 0; i < group.length; i++) if (!mark[i]) return false;
-    }
-    return true;
-  }
-
-  /** Is every target cell occupied by a block that fits it? (FORM) */
-  function formed(stage, s) {
-    var occ = {};
-    for (var i = 0; i < s.pos.length; i++) {
-      if (s.alive[i]) occ[s.pos[i][1] * stage.w + s.pos[i][0]] = stage.colour[i];
-    }
-    for (var g = 0; g < stage.goalCells.length; g++) {
-      var cell = stage.goalCells[g];
-      var here = occ[cell];
-      if (here === undefined) return false;
-      if (!accepts(stage.goalColour[cell], here)) return false;
-    }
-    return true;
-  }
-
-  /**
-   * A block was destroyed. Under every win condition that ends the run: ALL IN
-   * and SELECT may have lost a block they needed, MATCH and FORM may have lost
-   * one of the pieces the shape is made of. Rather than work out which, the
-   * rule is simply that losing a block is losing.
-   */
+  /** A non-zero lost count is retained for compatibility with saved states. */
   function isBroken(s) { return (s.lost || 0) > 0; }
 
-  /**
-   * Is this position a win?
-   *
-   * Takes the stage, because what "done" means is a property of the stage and
-   * not of the position.
-   */
+  /** A position is clear only after every starting block reached its own goal. */
   function isClear(stage, s) {
     if (isBroken(s)) return false;
-    switch (stage.win) {
-      case 'select': return s.collected >= stage.mustCollect;
-      case 'match':  return matched(stage, s);
-      case 'form':   return formed(stage, s);
-      default:       return s.collected === s.pos.length;
-    }
+    return s.collected === s.pos.length;
   }
 
   function isTerminal(stage, s) { return isClear(stage, s) || isBroken(s); }
@@ -375,9 +266,8 @@
   //            reproduces simultaneous sliding exactly and keeps trains of
   //            blocks correctly spaced.
   //
-  //   RESOLVE  the board is now at rest, so ask what standing still means. On a
-  //            goal it fits (and if this stage collects at all): collected. On
-  //            a hazard: destroyed. Both leave, and both free their cell.
+  //   RESOLVE  the board is now at rest. A block stopped on its matching goal
+  //            is collected and frees its cell.
   //
   // If RESOLVE removed anything, gravity has not gone away, so SETTLE runs
   // again. That loop is the chain reaction — and it is the only way a chain can
@@ -647,8 +537,6 @@
     isClear: isClear,
     isBroken: isBroken,
     isTerminal: isTerminal,
-    matched: matched,
-    formed: formed,
     simulate: simulate,
     step: step,
     solve: solve,
@@ -656,3 +544,4 @@
     graph: graph
   };
 });
+

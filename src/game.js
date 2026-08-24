@@ -76,7 +76,7 @@
     overBody:   { ja: '危険マスの上で止まったブロックは壊れます。1手もどせば続けられます。',
                   en: 'A block was left standing on a hazard. One undo puts it back.' },
     allClear:   { ja: '全ステージ制覇', en: 'Every stage solved' },
-    allBody:    { ja: '40ステージすべてクリアしました。', en: 'All 40 stages, done.' },
+    allBody:    { ja: '%nステージすべてクリアしました。', en: 'All %n stages, done.' },
     progress:   { ja: 'クリア済み', en: 'solved' },
     chapEnd:    { ja: 'チャプタークリア', en: 'Chapter complete' },
     newBest:    { ja: '自己ベスト更新', en: 'New best' },
@@ -92,10 +92,7 @@
     // What "done" means. Every board gets a line, including the plain one: a
     // caption that appears on some stages and not others is a caption the player
     // has to keep checking for, and it sits in space the board never wanted.
-    winAllin:   { ja: 'ブロックを全部あつめる', en: 'Collect every block' },
-    winSelect:  { ja: '光っているブロックだけあつめる', en: 'Collect only the lit blocks' },
-    winMatch:   { ja: '同じ色どうしをくっつける', en: 'Join each colour to its twin' },
-    winForm:    { ja: '印のマスを同時に埋める', en: 'Fill every marked cell at once' },
+    winAllin:   { ja: 'それぞれ同じ色のゴールへ運ぶ', en: 'Bring each block to its matching goal' },
 
     // Settings
     sound:      { ja: 'サウンド', en: 'Sound' },
@@ -114,24 +111,21 @@
     cancel:     { ja: 'キャンセル', en: 'Cancel' },
     stagesFine: { ja: 'TILT · 全%nステージ', en: 'TILT · %n stages' },
 
-    // How to play — four rules, one line each, each next to its own picture.
+    // How to play — the complete rule set, one line at a time.
     r1h: { ja: '重力を向ける', en: 'You aim gravity' },
     r1p: { ja: 'ブロックは直接動かせません。指をはらった向きへ盤面ごと重力が向き、すべてのブロックが同時に動きます。',
           en: 'You never move a block. Swipe, and the whole world falls that way — every block at once.' },
-    r2h: { ja: 'ゴールは的ではない', en: 'A goal is not a target' },
-    r2p: { ja: 'ゴールの上で完全に止まったときだけ回収されます。通り過ぎても何も起きません。',
-          en: 'A block is collected only if it comes to a complete stop on the goal. Sliding across does nothing.' },
-    r3h: { ja: '止めてくれるもの', en: 'What stops you' },
-    r3p: { ja: '盤の端、壁、そしてまだ回収していないブロック。動かせるブレーキはブロックだけです。',
-          en: 'The edge, a wall, or a block you have not collected yet — the only brake you can move.' },
-    r4h: { ja: '斜線のマス', en: 'The hazard' },
-    r4p: { ja: '通り抜けるのは安全です。その上で止まるとブロックが壊れ、そこで終わります。',
-          en: 'Sliding across is safe. Being left standing on one destroys the block and ends the run.' },
+    r2h: { ja: '色を合わせる', en: 'Match each colour' },
+    r2p: { ja: '各ブロックには同じ色・形のゴールが1つあります。そのゴールの上で止まると回収されます。',
+          en: 'Every block has one matching goal. It is collected when it stops on that goal.' },
+    r3h: { ja: 'くっついてもクリアではない', en: 'Touching is not a win' },
+    r3p: { ja: 'ブロック同士が触れても消えません。互いを止める、動かせる壁として使えます。',
+          en: 'Blocks do not clear when they touch. They can stop each other like movable walls.' },
     r5:  { ja: '手数に制限はありません。いつでも何手でも戻せます。まず試してみるのが正しい遊び方です。',
           en: 'There is no move limit and undo is free. Trying something to see what it does is how this game is meant to be played.' }
   };
 
-  var OBJECTIVE = { allin: 'winAllin', select: 'winSelect', match: 'winMatch', form: 'winForm' };
+  var OBJECTIVE = { allin: 'winAllin' };
 
   function t(key) { var v = TXT[key]; return v ? (JA ? v.ja : v.en) : key; }
   function esc(s) {
@@ -840,7 +834,7 @@
     var lines = [];
     lines.push('<div class="ov-mark perfect">' + icon('check') + '</div>');
     lines.push('<h2 class="ov-title perfect">' + esc(t('allClear')) + '</h2>');
-    lines.push('<div class="ov-note">' + esc(t('allBody')) + '</div>');
+    lines.push('<div class="ov-note">' + esc(t('allBody').replace('%n', STAGES.length)) + '</div>');
     lines.push('<div class="ov-stats">' + stat(t('moves'), total) + stat(t('par'), par) + '</div>');
     lines.push('<div class="ov-actions">' +
       '<button class="btn primary" type="button" data-act="menu">' + esc(t('stages')) + '</button></div>');
@@ -1142,7 +1136,7 @@
   // -- how to play ------------------------------------------------------------
 
   /**
-   * Four rules, four pictures, one line each.
+   * Three rules, three pictures, one line each.
    *
    * A player who never opens this should still be able to finish the game — the
    * boards teach every one of these, in the order they are listed, and the
@@ -1154,8 +1148,7 @@
     var rules = [
       ['r1h', 'r1p', F.gravity],
       ['r2h', 'r2p', F.stop],
-      ['r3h', 'r3p', F.brake],
-      ['r4h', 'r4p', F.hazard]
+      ['r3h', 'r3p', F.brake]
     ];
     var html = rules.map(function (r) {
       return '<div class="rule">' +
@@ -1391,3 +1384,4 @@
   else boot();
 
 })(typeof window !== 'undefined' ? window : globalThis);
+
