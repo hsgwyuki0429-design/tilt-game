@@ -72,6 +72,7 @@ function serve() {
       var commandProbe = r.commands.map(function (c) { return { depth: c.depth, layer: c.layer }; });
       var names = ['top', 'bottom', 'north', 'south', 'east', 'west'];
       var materials = ['ice', 'wall-smooth', 'wall-brick', 'cracked', 'goal', 'penguin'];
+      var input = window.game.input;
       var facesReady = materials.every(function (material) {
         return names.every(function (face) {
           var image = r.textureBank.faces[material] && r.textureBank.faces[material][face];
@@ -79,8 +80,10 @@ function serve() {
         });
       });
       return {
-        projection: px.x > p0.x && px.y > p0.y && py.x < p0.x && py.y > p0.y &&
-          pz.x === p0.x && pz.y < p0.y,
+        projection: px.x > p0.x && px.y === p0.y && py.x === p0.x && py.y > p0.y &&
+          pz.x < p0.x && pz.y < p0.y,
+        swipes: input.classify(60, 0, false) === 'R' && input.classify(-60, 0, false) === 'L' &&
+          input.classify(0, 60, false) === 'D' && input.classify(0, -60, false) === 'U',
         faces: names.every(function (name) { return geometry[name] && geometry[name].length === 4; }),
         facesReady: facesReady,
         footprintDepth: commandProbe.every(function (c) { return c.depth === commandProbe[0].depth; }),
@@ -89,7 +92,8 @@ function serve() {
         dpr: r.dpr
       };
     });
-    check('project() uses two ground axes and one upward z axis', architecture.projection);
+    check('grid axes stay parallel to screen axes while z exposes cube sides', architecture.projection);
+    check('four swipe directions map to the same four screen-aligned grid axes', architecture.swipes);
     check('box geometry exposes all six named faces', architecture.faces);
     check('all six material atlases decode to six 256px faces', architecture.facesReady);
     check('depth key uses the shared footprint, not object height', architecture.footprintDepth);

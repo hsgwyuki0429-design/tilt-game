@@ -5,12 +5,15 @@ coordinates, collision, gravity, hazards, or goal resolution.
 
 ## Camera
 
-The fixed orthographic camera projects a world point with the basis below, where
-`S` is the responsive cell scale:
+The fixed orthographic camera keeps the gameplay grid parallel to the display.
+Logical X always points screen-right and logical Y always points screen-down,
+so the four swipe directions exactly match visible penguin movement. Height is
+the only diagonal basis and exposes the south/east cube faces. With responsive
+cell scale `S`:
 
 ```text
-screenX = originX + (x - y) * 0.50S
-screenY = originY + (x + y) * 0.28S - z * 0.34S
+screenX = originX + x * S - z * 0.10S
+screenY = originY + y * S - z * 0.55S
 ```
 
 The top of every floor is `z = 0`. Floors extend downward, while walls and
@@ -20,7 +23,7 @@ floating grid position first and calls `project()` second.
 ## Materials and faces
 
 Every box material exposes `top`, `bottom`, `north`, `south`, `east`, and `west`
-faces. The fixed south-east camera currently draws the visible `top`, `south`,
+faces. The screen-aligned camera currently draws the visible `top`, `south`,
 and `east` faces. Texture atlases are decoded once into 256×256 face canvases;
 procedural fills remain available while they load or if a file is unavailable.
 
@@ -32,7 +35,7 @@ ice, preserving the rule that both are traversable floor blocks—not pits.
 Floor cells, goal effects, walls, penguins, ripples, and particles enter one
 painter queue. Commands sort by the projected Y coordinate of their world-space
 footprint, then by layer and projected X. This allows a foreground wall to cover
-a penguin behind it while retaining deterministic ordering on equal diagonals.
+a penguin behind it while retaining deterministic ordering within equal rows.
 
 ## Performance
 

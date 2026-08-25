@@ -78,13 +78,18 @@
   var TAIL = 48;
   var SQUASH = 150;
   var MAX_CELL = 112;
-  var HALF_X = .50;
-  var HALF_Y = .28;
-  var Z_Y = .34;
+  /* Screen-aligned orthographic basis. Grid X is always screen-right and grid
+     Y is always screen-down, so a swipe and the resulting slide share the same
+     visible direction. Height alone shifts a cube up-left, exposing its south
+     and east faces without rotating the board away from the phone screen. */
+  var GRID_X = 1;
+  var GRID_Y = 1;
+  var Z_X = .10;
+  var Z_Y = .55;
   var FLOOR_DEPTH = .17;
   var WALL_HEIGHT = 1.02;
-  var RING_HEIGHT = .72;
-  var FRONT_RING_HEIGHT = .38;
+  var RING_HEIGHT = .82;
+  var FRONT_RING_HEIGHT = .62;
   var PENGUIN_HEIGHT = 1.22;
   var SCENE_HEIGHT = Math.max(WALL_HEIGHT,RING_HEIGHT,PENGUIN_HEIGHT+.035);
   var FACE_SIZE = 256;
@@ -183,7 +188,7 @@
     this.reduceMotion=false; this.gesture=false; this.gestureDir='L'; this.gestureT=0;
     this.shift={x:0,y:0}; this.nudge=null; this.shake=0;
     this.dpr=1; this.cell=40; this.ox=0; this.oy=0;
-    this.halfW=20; this.halfH=11; this.zScale=14;
+    this.stepX=40; this.stepY=40; this.zShiftX=4; this.zScale=11;
     this.cssW=1; this.cssH=1;
     this.boardBounds={left:0,right:0,top:0,bottom:0};
     this.onEvent=null;
@@ -195,9 +200,10 @@
 
   /* Canonical logical-world projection used by every drawable. */
   Renderer.prototype.project=function(x,y,z){
+    z=z||0;
     return {
-      x:this.ox+(x-y)*this.halfW,
-      y:this.oy+(x+y)*this.halfH-(z||0)*this.zScale
+      x:this.ox+x*this.stepX-z*this.zShiftX,
+      y:this.oy+y*this.stepY-z*this.zScale
     };
   };
   Renderer.prototype.cellRect=function(x,y){
@@ -224,21 +230,23 @@
       this.canvas.width=Math.round(w*dpr); this.canvas.height=Math.round(h*dpr);
     }
     if(!this.stage)return;
-    var st=this.stage,margin=Math.max(7,Math.min(w,h)*.022);
-    var widthUnits=(st.w+st.h+4)*HALF_X+.42;
-    var heightUnits=(st.w+st.h+4)*HALF_Y+(SCENE_HEIGHT+FLOOR_DEPTH)*Z_Y+.42;
+    var st=this.stage,margin=Math.max(7,Math.min(w,h)*.022),pad=.20;
+    var zRange=SCENE_HEIGHT+FLOOR_DEPTH+.12;
+    var widthUnits=st.w+2+zRange*Z_X+pad;
+    var heightUnits=st.h+2+zRange*Z_Y+pad;
     var cell=Math.floor(Math.min(
       (w-margin*2)/widthUnits,(h-margin*2)/heightUnits,
       (w-margin*2)/st.w,(h-margin*2)/st.h,MAX_CELL
     ));
     this.cell=Math.max(24,cell);
-    this.halfW=this.cell*HALF_X; this.halfH=this.cell*HALF_Y; this.zScale=this.cell*Z_Y;
-    var boardW=(st.w+st.h+4)*this.halfW;
-    var boardH=(st.w+st.h+4)*this.halfH+(SCENE_HEIGHT+FLOOR_DEPTH)*this.zScale;
+    this.stepX=this.cell*GRID_X; this.stepY=this.cell*GRID_Y;
+    this.zShiftX=this.cell*Z_X; this.zScale=this.cell*Z_Y;
+    var boardW=widthUnits*this.cell;
+    var boardH=heightUnits*this.cell;
     var left=(w-boardW)/2;
     var top=(h-boardH)/2-Math.min(5,Math.max(0,(h-boardH)*.02));
-    this.ox=left+(st.h+2)*this.halfW;
-    this.oy=top+SCENE_HEIGHT*this.zScale+2*this.halfH;
+    this.ox=left+(1+pad*.5)*this.cell+SCENE_HEIGHT*this.zShiftX;
+    this.oy=top+(1+pad*.5)*this.cell+SCENE_HEIGHT*this.zScale;
     this.boardBounds={left:left,right:left+boardW,top:top,bottom:top+boardH};
     this.buildTerrain();
   };
