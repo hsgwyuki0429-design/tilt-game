@@ -13,10 +13,10 @@ The campaign contains five 5×5 levels and one consistent objective:
 - Penguins can stop each other, but touching never clears a level.
 - Swipe, keyboard, and optional device-tilt controls keep the same movement behaviour.
 
-The Canvas renderer keeps those rules on the original 2D grid, then projects the
-world through a fixed orthographic 2.5D camera. Textured ice cubes, snow walls,
-cracked tops, aurora goals, and cube penguins share one depth-sorted painter
-queue. The same focused game shell scales from iPhone portrait to desktop.
+The Canvas renderer keeps those rules on the original 2D grid and draws a flat,
+top-down board matching the home-screen preview. Supplied pale-blue ice, white
+wall, cracked-ice, aurora, and penguin-face textures remain square and readable.
+The same focused game shell scales from iPhone portrait to desktop.
 
 Run the logic tests with:
 

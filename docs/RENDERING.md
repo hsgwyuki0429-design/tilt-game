@@ -1,58 +1,49 @@
-# Fixed orthographic block rendering
+# Flat top-down tile rendering
 
-`src/engine.js` remains the canonical 2D grid. The renderer does not change
-stage coordinates, collision, gravity, hazards, movement, goals, move counts,
-input, or UI layout. It only projects each grid cell into a fixed block view.
+`src/engine.js` remains the canonical 2D grid. The renderer maps every cell
+directly to a screen-aligned square so the live board matches the home preview.
 
-## Camera
+## View
 
-The camera is a fixed orthographic projection. There is no camera controller,
-rotation, zoom, drag-to-look, or automatic orbit. Logical X stays screen-right
-and logical Y stays screen-down, so all four swipes still match the visible
-penguin movement. Height alone shifts the upper face slightly up-left to expose
-shallow south/east faces:
+There is no perspective, visible side face, camera controller, rotation, zoom,
+or orbit. Logical X stays screen-right and logical Y stays screen-down, so all
+four swipe and tilt directions match the visible penguin movement:
 
 ```text
-screenX = originX + x * S - z * 0.07S
-screenY = originY + y * S - z * 0.50S
+screenX = originX + x * S
+screenY = originY + y * S
 ```
 
-This produces the slightly elevated reference composition without perspective
-foreshortening; blocks in the back row remain the same size as blocks in front.
+Every row and column uses the same scale.
 
 ## Blocks and spacing
 
-Every floor, hazard, goal, wall, and penguin shares that projection and is
-positioned from its existing 2D cell. Faces have soft rounded corners and gaps
-are deliberately small (`0.012S` for floor and `0.018–0.022S` for walls). A
-compact shared shadow grounds the grid; there is no oversized tray or plinth.
+Every floor, hazard, goal, wall, and penguin is a softly rounded top-down tile.
+The board uses a pale blue rounded tray like the home-screen preview.
 
 ## Supplied face assets
 
 The renderer loads the 16 individual 512×512 PNGs in
-`assets/textures/faces/`. Each is mapped directly by semantic role. Cracked ice
-and auroras replace only the top face, while their sides inherit normal ice.
-Orange and purple penguins use their matching supplied top images, and share the
-supplied front, back, left, right, and four-foot bottom images.
+`assets/textures/faces/`. Each visible tile is mapped directly by semantic role.
+The supplied penguin face is the visible top-down penguin tile. Its beak receives
+the matching goal colour at runtime.
 
 Procedural cracks, snow, and penguin art remain only as load-error fallbacks.
-The aurora texture receives a weak emissive pulse plus a small colour/shape ring
-so the A/B matching rule stays readable without repainting the supplied image.
+The aurora texture receives a goal-colour filter and a weak emissive pulse; no
+symbol or badge is placed over the supplied artwork.
 
 ## Lighting and occlusion
 
-The texture artwork supplies most of the light and surface detail. Rendering
-adds only soft per-face shade, subtle contact/ambient occlusion, and a broad
-low-alpha board shadow to avoid white clipping and crushed blacks.
+The texture artwork supplies the light and surface detail. Rendering adds a
+small contact shadow beneath the penguin and a pale blue board tray.
 
-Floor cells, goals, walls, penguins, ripples, and particles enter one painter
-queue. Commands sort by their 2D footprint, then layer and X tie-breaker, so a
-foreground wall can cover a penguin behind it without changing game state.
+Floor cells and goals paint first, then walls and penguins, then particles. This
+keeps moving penguins visible without changing game state.
 
 ## Performance
 
 - Device pixel ratio is capped at 2.
 - Source assets are pre-sized to 512px; no runtime atlas crop occurs.
-- Floor, hazard, goal-base, and wall cubes are cached as seven small sprites.
-- The background cache contains only the compact board shadow.
+- Floor, hazard, goal-base, and wall tiles are cached as seven small sprites.
+- The background cache contains only the rounded board tray.
 - No per-frame canvas allocation or image decode is performed.

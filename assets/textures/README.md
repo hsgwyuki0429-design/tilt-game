@@ -17,8 +17,10 @@ is regenerated and no contact sheet is sliced at runtime.
 - `goal-top.png`: aurora goal top only. Its other faces inherit normal ice.
 - `penguin-front.png`, `penguin-back.png`, `penguin-west.png`,
   `penguin-east.png`, `penguin-bottom.png`: matching penguin cube faces.
-- `penguin-top-orange.png`, `penguin-top-purple.png`: colour-specific penguin
-  tops used for A and B respectively.
+- `penguin-front.png`: visible top-down penguin face. The beak is colour-filtered
+  at runtime to match its destination.
+- `penguin-top-orange.png`, `penguin-top-purple.png`: retained supplied variants;
+  no longer used as the visible face.
 
 The previous `atlas.jpg` files are retained as historical source material, but
 the game no longer preloads, crops, or renders them.

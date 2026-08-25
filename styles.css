@@ -1560,3 +1560,150 @@ body::after {
 @media (min-width: 700px) {
   #app { padding-inline: 18px; }
 }
+
+/* ── HOME ─────────────────────────────────────────────────────────────────── */
+
+.home-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: max(28px, var(--safe-t)) max(20px, var(--safe-r)) max(28px, var(--safe-b)) max(20px, var(--safe-l));
+  background:
+    radial-gradient(circle at 50% 28%, rgba(115, 233, 244, .34), transparent 34%),
+    linear-gradient(165deg, #fbfeff 0%, #e5f5fb 54%, #cce7f1 100%);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity .28s ease, visibility .28s;
+}
+.home-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+.home-aurora {
+  position: absolute;
+  width: min(82vw, 560px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: conic-gradient(from 70deg, rgba(86,224,235,.08), rgba(123,81,225,.12), rgba(255,191,73,.08), rgba(86,224,235,.08));
+  filter: blur(22px);
+  animation: home-drift 12s linear infinite;
+}
+.home-card {
+  position: relative;
+  width: min(100%, 430px);
+  padding: clamp(26px, 6vw, 40px);
+  border: 1px solid rgba(255,255,255,.82);
+  border-radius: 36px;
+  background: rgba(255,255,255,.72);
+  box-shadow: 0 28px 80px rgba(26,83,112,.17), inset 0 1px 0 #fff;
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  text-align: center;
+}
+.home-eyebrow {
+  margin: 0 0 6px;
+  color: #39748c;
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: .16em;
+}
+.home-logo {
+  margin: 0;
+  color: #102d3b;
+  font-size: clamp(58px, 17vw, 86px);
+  font-weight: 900;
+  line-height: .94;
+  letter-spacing: -.075em;
+  text-shadow: 0 2px 0 #fff, 0 10px 26px rgba(33,112,142,.15);
+}
+.home-lead {
+  max-width: 310px;
+  margin: 14px auto 22px;
+  color: #3d5f6e;
+  font-size: 15px;
+  font-weight: 620;
+  line-height: 1.65;
+}
+.home-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  width: min(72vw, 260px);
+  margin: 0 auto 22px;
+  padding: 9px;
+  border: 1px solid rgba(67,132,159,.18);
+  border-radius: 24px;
+  background: rgba(117,181,205,.19);
+  box-shadow: 0 18px 30px rgba(39,103,130,.15);
+  transform: perspective(700px) rotateX(4deg);
+}
+.home-board > i {
+  aspect-ratio: 1;
+  border-radius: 14px;
+  background: url('assets/textures/faces/ice-top.png') center/cover;
+  box-shadow: 0 3px 8px rgba(45,104,128,.12);
+}
+.home-board .home-goal {
+  background-image: linear-gradient(rgba(114,74,232,.38),rgba(114,74,232,.38)),
+    url('assets/textures/faces/goal-top.png');
+  background-blend-mode: color;
+}
+.home-board .home-penguin {
+  position: relative;
+  z-index: 2;
+  background-image: url('assets/textures/faces/penguin-front.png');
+  box-shadow: 0 8px 13px rgba(17,37,48,.28);
+  transform: translateY(-4px);
+}
+.home-progress {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 2px 12px;
+  color: #557381;
+  font-size: 11px;
+  font-weight: 790;
+  letter-spacing: .08em;
+}
+.home-primary, .home-secondary {
+  width: 100%;
+  min-height: 54px;
+  border: 0;
+  border-radius: 17px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 760;
+  cursor: pointer;
+}
+.home-primary {
+  color: #fff;
+  background: linear-gradient(180deg, #1189ad, #086d91);
+  box-shadow: 0 10px 22px rgba(8,109,145,.25), inset 0 1px 0 rgba(255,255,255,.3);
+}
+.home-primary:active { transform: translateY(1px); background: #055c76; }
+.home-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 9px;
+  color: #31596c;
+  background: rgba(42,105,130,.08);
+}
+.home-secondary .ic { width: 19px; height: 19px; }
+body.at-home #app { pointer-events: none; user-select: none; }
+
+@keyframes home-drift { to { transform: rotate(360deg); } }
+
+@media (max-height: 700px) {
+  .home-card { padding: 22px 28px; border-radius: 28px; }
+  .home-logo { font-size: 56px; }
+  .home-lead { margin: 9px auto 13px; }
+  .home-board { width: 190px; margin-bottom: 13px; }
+  .home-primary, .home-secondary { min-height: 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-aurora { animation: none; }
+  .home-screen { transition: none; }
+}

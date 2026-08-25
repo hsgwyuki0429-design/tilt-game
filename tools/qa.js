@@ -108,6 +108,16 @@ async function swipe(page, x, y, dx, dy) {
     var c = document.getElementById('board');
     return c.width > 100 && c.height > 100;
   }));
+  ok('home screen is the first interactive screen', await page.evaluate(function () {
+    var h = document.getElementById('home');
+    return window.game.homeOpen && h && !h.classList.contains('hidden');
+  }));
+
+  if (SHOTS) await page.screenshot({ path: path.join(SHOT_DIR, '00-home.png') });
+  await page.click('#btn-home-play');
+  ok('home start button enters the playable board', await page.evaluate(function () {
+    return !window.game.homeOpen && document.getElementById('home').classList.contains('hidden');
+  }));
 
   var cellSize = await page.evaluate(function () { return window.game.renderer.cell; });
   ok('3×3 cells are large on a phone (>=90px)', cellSize >= 90, 'cell=' + cellSize + 'px');
@@ -738,7 +748,11 @@ async function swipe(page, x, y, dx, dy) {
 
   // ── real touch swipes ──────────────────────────────────────────────────────
   console.log('\n\u001b[1mTOUCH SWIPE\u001b[0m');
-  await page.evaluate(function () { window.game.save.data.unlocked = 99; window.game.loadStage(0); });
+  await page.evaluate(function () {
+    window.game.leaveHome();
+    window.game.save.data.unlocked = 99;
+    window.game.loadStage(0);
+  });
   await page.waitForTimeout(180);
   var box = await page.locator('#board-area').boundingBox();
   var cx = box.x + box.width / 2, cy = box.y + box.height / 2;
@@ -805,8 +819,8 @@ async function swipe(page, x, y, dx, dy) {
 
     var fire = function (beta, gamma) { input.onOrientation({ beta: beta, gamma: gamma }); };
 
-    // Neutral is beta 50, gamma 0. The final pose selects the direction; the
-    // intermediate pose lets this test prove motion itself never commits.
+    // Neutral is beta 50, gamma 0. Intermediate readings below the threshold
+    // may arrive in any pattern; the first tilted pose must fire immediately.
     var aim = function (d, amount) {
       var POSE = {
         R: [50, amount], L: [50, -amount],
@@ -826,60 +840,56 @@ async function swipe(page, x, y, dx, dy) {
     fire(50, 4);
     var deadzoneQuiet = accepted() === 0;
 
-    aim(firstDir, 18);              // movement starts and direction is visible
-    var aimedRight = g.renderer.aimDir === firstDir;
-    await sleep(28);
-    aim(firstDir, 30);              // still moving: settle timer restarts
-    await sleep(38);
-    var quietWhileMoving = accepted() === 0;
-    await sleep(62);                // no further event: final pose is now still
-    var committed = accepted() === 1;
+    aim(firstDir, 5);
+    aim(firstDir, 8);
+    var pathQuiet = accepted() === 0;
+    aim(firstDir, 12);
+    var committedImmediately = accepted() === 1 && emitted[0] === firstDir;
 
     // Still held over: must not fire again until the device returns to centre.
     aim(firstDir, 30);
-    await sleep(100);
     var noRepeatWhileHeld = accepted() === 1;
 
-    fire(50, 0);                    // back to neutral re-arms
-    var rearmed = input.tilt.armed === true;
-
-    // Use the other axis so screen-space direction mapping is also covered.
+    // Use the other axis without visiting neutral. A changed direction is a
+    // new command, while holding that new direction still emits only once.
     var secondDir = 'D';
     var vertical = true;
 
-    await sleep(120);
-    aim(secondDir, 18);
-    var aimedDown = g.renderer.aimDir === secondDir;
-    await sleep(28);
-    aim(secondDir, 30);
-    await sleep(100);
-    var firesAgain = accepted() === 2;
+    aim(secondDir, 12);
+    var switchedWithoutCentre = accepted() === 2 && emitted[1] === secondDir;
+    aim(secondDir, 24);
+    var secondHeldQuiet = accepted() === 2;
+
+    fire(50, 0);                    // neutral still re-arms the current direction
+    var rearmed = input.tilt.armed === true;
+    aim(firstDir, 12);
+    var firesAgain = accepted() === 3 && emitted[2] === firstDir;
 
     input.disableTilt();
     input.on.commit = realCommit;
     return {
       neutralCaptured: neutralCaptured,
       deadzoneQuiet: deadzoneQuiet,
-      aimedRight: aimedRight,
-      quietWhileMoving: quietWhileMoving,
-      committed: committed,
+      pathQuiet: pathQuiet,
+      committedImmediately: committedImmediately,
       noRepeatWhileHeld: noRepeatWhileHeld,
+      switchedWithoutCentre: switchedWithoutCentre,
+      secondHeldQuiet: secondHeldQuiet,
       rearmed: rearmed,
       firesAgain: firesAgain,
-      aimedDown: aimedDown,
       firstDir: firstDir, secondDir: secondDir, vertical: vertical
     };
   });
   ok('tilt captures a neutral pose on enable', tiltResult.neutralCaptured);
   ok('small tilts inside the deadzone do nothing', tiltResult.deadzoneQuiet);
-  ok('tilt shows the aimed direction before committing  (' + tiltResult.firstDir + ')',
-    tiltResult.aimedRight);
-  ok('moving the phone does not emit a tilt', tiltResult.quietWhileMoving);
-  ok('the final settled pose commits without another sensor event', tiltResult.committed);
+  ok('any movement path below the threshold stays quiet', tiltResult.pathQuiet);
+  ok('the first clearly tilted pose emits its direction immediately', tiltResult.committedImmediately);
   ok('holding the tilt does not machine-gun moves', tiltResult.noRepeatWhileHeld);
+  ok('a different tilt direction fires without returning to centre', tiltResult.switchedWithoutCentre);
+  ok('the new held direction also emits only once', tiltResult.secondHeldQuiet);
   ok('returning to centre re-arms the tilt', tiltResult.rearmed);
   ok('a re-armed tilt accepts the next move  (' + tiltResult.secondDir + ')', tiltResult.firesAgain);
-  ok('both tilt axes map to the direction asked for', tiltResult.aimedDown,
+  ok('both tilt axes map to the direction asked for', tiltResult.vertical,
     'second direction was ' + tiltResult.secondDir);
 
   console.log('\n\u001b[1mCONSOLE\u001b[0m');

@@ -66,6 +66,13 @@
     restart:    { ja: '最初から', en: 'Restart' },
     stages:     { ja: 'ステージ', en: 'Stages' },
     settings:   { ja: '設定', en: 'Settings' },
+    home:       { ja: 'ホーム', en: 'Home' },
+    homeEyebrow:{ ja: '氷上グラビティパズル', en: 'An ice gravity puzzle' },
+    homeLead:   { ja: 'スマホを傾けて、ペンギンを同じ色のオーロラへ。',
+                  en: 'Tilt your phone and guide each penguin to its matching aurora.' },
+    homeStart:  { ja: 'ゲームをはじめる', en: 'Start game' },
+    homeContinue:{ ja: 'つづきから', en: 'Continue' },
+    homeSelect: { ja: 'ステージを選ぶ', en: 'Choose a stage' },
     close:      { ja: '閉じる', en: 'Close' },
     back:       { ja: 'もどる', en: 'Back' },
     howto:      { ja: 'あそびかた', en: 'How to play' },
@@ -179,9 +186,15 @@
     this.animLen = 1;
     this.restorePoint = null;   // what an undoable restart would put back
     this.sheets = [];           // presentation stack, topmost last
+    this.homeOpen = true;
 
     this.dom = {
       app: document.getElementById('app'),
+      home: document.getElementById('home'),
+      homeStage: document.getElementById('home-stage'),
+      homeRecord: document.getElementById('home-record'),
+      btnHomePlay: document.getElementById('btn-home-play'),
+      btnHomeStages: document.getElementById('btn-home-stages'),
       stageLabel: document.getElementById('stage-label'),
       stageName: document.getElementById('stage-name'),
       objective: document.getElementById('objective'),
@@ -201,6 +214,7 @@
       btnUndo: document.getElementById('btn-undo'),
       btnRestart: document.getElementById('btn-restart'),
       btnMenu: document.getElementById('btn-menu'),
+      btnHome: document.getElementById('btn-home'),
       btnClose: document.getElementById('btn-close'),
       btnSettings: document.getElementById('btn-settings'),
       btnSettingsBack: document.getElementById('btn-settings-back'),
@@ -246,6 +260,7 @@
     }
 
     this.loadStage(this.firstUnsolved());
+    this.showHome();
   }
 
   Game.prototype.firstUnsolved = function () {
@@ -264,6 +279,46 @@
     for (var j = 0; j < aria.length; j++) aria[j].setAttribute('aria-label', t(aria[j].getAttribute('data-t-aria')));
     if (this.dom.fine) this.dom.fine.textContent = t('stagesFine').replace('%n', STAGES.length);
     document.documentElement.lang = JA ? 'ja' : 'en';
+  };
+
+  // -- home -------------------------------------------------------------------
+
+  Game.prototype.renderHome = function () {
+    if (!this.dom.home) return;
+    var def = STAGES[this.index] || STAGES[0];
+    this.dom.homeStage.textContent = 'STAGE ' + def.id + ' · ' + def.name;
+    this.dom.homeRecord.textContent = this.save.clearedCount() + ' / ' + STAGES.length;
+    this.dom.btnHomePlay.textContent = this.save.data.everMoved || this.save.clearedCount() ?
+      t('homeContinue') : t('homeStart');
+  };
+
+  Game.prototype.showHome = function () {
+    this.closeAllSheets();
+    this.homeOpen = true;
+    this.renderHome();
+    this.renderer.aimDir = null;
+    this.dom.home.classList.remove('hidden');
+    this.dom.home.setAttribute('aria-hidden', 'false');
+    this.dom.app.setAttribute('aria-hidden', 'true');
+    document.body.classList.add('at-home');
+    this.running = false;
+  };
+
+  Game.prototype.leaveHome = function () {
+    if (!this.homeOpen) return;
+    this.homeOpen = false;
+    this.dom.home.classList.add('hidden');
+    this.dom.home.setAttribute('aria-hidden', 'true');
+    this.dom.app.removeAttribute('aria-hidden');
+    document.body.classList.remove('at-home');
+    this.armTilt();
+    this.renderer.layout();
+    this.wake();
+  };
+
+  Game.prototype.openHomeStages = function () {
+    this.leaveHome();
+    this.openMenu();
   };
 
   // -- motion -----------------------------------------------------------------
@@ -376,7 +431,7 @@
   // -- input ------------------------------------------------------------------
 
   Game.prototype.aim = function (dir) {
-    if (this.phase === 'clear' || this.sheets.length) { this.renderer.aimDir = null; return; }
+    if (this.homeOpen || this.phase === 'clear' || this.sheets.length) { this.renderer.aimDir = null; return; }
     if (dir && dir !== this.renderer.aimDir) this.haptics.select();
     this.renderer.aimDir = dir;
     this.wake();
@@ -384,7 +439,7 @@
 
   /** A tap is not a move, but it is a question, and it deserves an answer. */
   Game.prototype.onTap = function () {
-    if (this.phase !== 'play' || this.sheets.length) return;
+    if (this.homeOpen || this.phase !== 'play' || this.sheets.length) return;
     this.audio.resume();
     this.armTilt();
     if (!this.save.data.everMoved) {
@@ -407,6 +462,7 @@
   };
 
   Game.prototype.commit = function (dir) {
+    if (this.homeOpen) return;
     this.audio.resume();
     this.armTilt();
     if (this.sheets.length) return;
@@ -1224,6 +1280,9 @@
     tap(this.dom.btnUndo, function () { self.undo(); });
     tap(this.dom.btnRestart, function () { self.restart(); });
     tap(this.dom.btnMenu, function () { self.openMenu(); });
+    tap(this.dom.btnHome, function () { self.showHome(); });
+    tap(this.dom.btnHomePlay, function () { self.leaveHome(); });
+    tap(this.dom.btnHomeStages, function () { self.openHomeStages(); });
     tap(this.dom.btnClose, function () { self.closeAllSheets(); });
     tap(this.dom.btnSettings, function () { self.openSettings(); });
     tap(this.dom.btnSettingsBack, function () { self.closeSheet(); });
@@ -1237,6 +1296,10 @@
     this.bindSheetDrag(this.dom.howto);
 
     window.addEventListener('keydown', function (e) {
+      if (self.homeOpen) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); self.leaveHome(); }
+        return;
+      }
       if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') { e.preventDefault(); self.undo(); }
       else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); self.restart(); }
       else if (e.key === 'Escape') {
@@ -1328,6 +1391,7 @@
 
   Game.prototype.loop = function (now) {
     if (document.hidden) { this.running = false; return; }
+    if (this.homeOpen) { this.running = false; return; }
     // A sheet covers the board completely; there is nothing to spend frames on.
     if (this.sheets.length) { this.running = false; return; }
 

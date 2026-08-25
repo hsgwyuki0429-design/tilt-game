@@ -85,7 +85,7 @@ function serve() {
       });
       return {
         projection: px.x > p0.x && px.y === p0.y && py.x === p0.x && py.y > p0.y &&
-          pz.x < p0.x && pz.y < p0.y,
+          pz.x === p0.x && pz.y === p0.y,
         swipes: input.classify(60, 0, false) === 'R' && input.classify(-60, 0, false) === 'L' &&
           input.classify(0, 60, false) === 'D' && input.classify(0, -60, false) === 'U',
         faces: names.every(function (name) { return geometry[name] && geometry[name].length === 4; }),
@@ -95,11 +95,12 @@ function serve() {
         footprintDepth: commandProbe.every(function (c) { return c.depth === commandProbe[0].depth; }),
         layers: commandProbe.map(function (c) { return c.layer; }).join(','),
         passes: commandProbe.map(function (c) { return c.pass; }).join(','),
+        penguinFaceOnTop: r.textureBank.faces['penguin-orange'].top === r.textureBank.images.penguinFront,
         staticSprites: Object.keys(r.staticSprites || {}).length,
         dpr: r.dpr
       };
     });
-    check('grid axes stay parallel to screen axes while z exposes cube sides', architecture.projection);
+    check('grid is strictly top-down with no z perspective', architecture.projection);
     check('four swipe directions map to the same four screen-aligned grid axes', architecture.swipes);
     check('box geometry exposes all six named faces', architecture.faces);
     check('all standalone supplied textures decode into semantic 512px faces',
@@ -108,11 +109,12 @@ function serve() {
     check('depth key uses the shared footprint, not object height', architecture.footprintDepth);
     check('equal-footprint layers remain floor → goal → penguin', architecture.layers === '0,1,4');
     check('terrain is fully painted before raised penguins', architecture.passes === '0,0,1');
+    check('the penguin face texture is mapped to the top plane', architecture.penguinFaceOnTop);
     check('seven static terrain variants are cached', architecture.staticSprites === 7,
       'sprites=' + architecture.staticSprites);
     check('devicePixelRatio is capped at 2', architecture.dpr <= 2, 'dpr=' + architecture.dpr);
 
-    console.log('\n\u001b[1mRESPONSIVE DIORAMA\u001b[0m');
+    console.log('\n\u001b[1mRESPONSIVE FLAT BOARD\u001b[0m');
     var viewports = [
       { width: 320, height: 568, name: 'iPhone SE' },
       { width: 390, height: 844, name: 'iPhone 12' },

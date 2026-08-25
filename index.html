@@ -96,10 +96,39 @@
   <symbol id="i-target" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="3.1"/>
   </symbol>
+  <symbol id="i-home" viewBox="0 0 24 24">
+    <path d="m3.5 11 8.5-7 8.5 7"/><path d="M5.5 9.8v10.1h13V9.8M9.5 19.9v-6h5v6"/>
+  </symbol>
   <symbol id="i-swipe" viewBox="0 0 24 24">
     <path d="M4.2 12h15.6"/><path d="m8 7.6-4.4 4.4L8 16.4"/><path d="m16 7.6 4.4 4.4L16 16.4"/>
   </symbol>
 </defs></svg>
+
+<!-- ══ HOME ══════════════════════════════════════════════════════════════════ -->
+<section id="home" class="home-screen" aria-labelledby="home-title">
+  <div class="home-aurora" aria-hidden="true"></div>
+  <div class="home-card">
+    <p class="home-eyebrow" data-t="homeEyebrow">氷上グラビティパズル</p>
+    <h1 id="home-title" class="home-logo">TILT</h1>
+    <p class="home-lead" data-t="homeLead">スマホを傾けて、ペンギンを同じ色のオーロラへ。</p>
+
+    <div class="home-board" aria-hidden="true">
+      <i class="home-tile t1"></i><i class="home-tile t2"></i><i class="home-tile t3"></i>
+      <i class="home-tile t4"></i><i class="home-goal"></i><i class="home-tile t6"></i>
+      <i class="home-tile t7"></i><i class="home-penguin"></i><i class="home-tile t9"></i>
+    </div>
+
+    <div class="home-progress">
+      <span id="home-stage">STAGE 1 · HOME</span>
+      <span id="home-record">0 / 5</span>
+    </div>
+    <button id="btn-home-play" class="home-primary" type="button" data-t="homeStart">ゲームをはじめる</button>
+    <button id="btn-home-stages" class="home-secondary" type="button">
+      <svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg>
+      <span data-t="homeSelect">ステージを選ぶ</span>
+    </button>
+  </div>
+</section>
 
 
 <!-- ══ GAME ═══════════════════════════════════════════════════════════════════
@@ -238,6 +267,9 @@
   <header class="sheet-bar">
     <h2 id="menu-title" class="sheet-title" data-t="stages">Stages</h2>
     <div class="sheet-tools">
+      <button id="btn-home" class="round-btn" type="button" data-t-aria="home" aria-label="Home">
+        <svg class="ic" aria-hidden="true"><use href="#i-home"/></svg>
+      </button>
       <button id="btn-settings" class="round-btn" type="button" data-t-aria="settings" aria-label="Settings">
         <svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg>
       </button>

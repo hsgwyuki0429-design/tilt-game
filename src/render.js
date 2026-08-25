@@ -1,6 +1,6 @@
 'use strict';
 /*
- * TILT — fixed-camera 2.5D ice diorama.
+ * TILT — flat top-down ice board.
  *
  * The engine remains the single source of truth in grid coordinates. Rendering
  * interpolates those coordinates and only then calls project(x, y, z).
@@ -78,20 +78,18 @@
   var TAIL = 48;
   var SQUASH = 150;
   var MAX_CELL = 112;
-  /* Screen-aligned orthographic basis. Grid X is always screen-right and grid
-     Y is always screen-down, so a swipe and the resulting slide share the same
-     visible direction. Height alone shifts a cube up-left, exposing its south
-     and east faces without rotating the board away from the phone screen. */
+  /* A strictly top-down basis. Supplied square textures remain square and the
+     live board uses the same visual language as the home-screen tile preview. */
   var GRID_X = 1;
   var GRID_Y = 1;
-  var Z_X = .07;
-  var Z_Y = .50;
-  var FLOOR_DEPTH = .15;
-  var WALL_HEIGHT = .52;
-  var RING_HEIGHT = .50;
-  var FRONT_RING_HEIGHT = .46;
-  var PENGUIN_HEIGHT = .82;
-  var SCENE_HEIGHT = Math.max(WALL_HEIGHT,RING_HEIGHT,PENGUIN_HEIGHT+.035);
+  var Z_X = 0;
+  var Z_Y = 0;
+  var FLOOR_DEPTH = 0;
+  var WALL_HEIGHT = .02;
+  var RING_HEIGHT = .02;
+  var FRONT_RING_HEIGHT = .02;
+  var PENGUIN_HEIGHT = .02;
+  var SCENE_HEIGHT = 0;
   var FACE_SIZE = 512;
   var FACE_NAMES = ['top','bottom','north','south','east','west'];
 
@@ -128,10 +126,12 @@
       east:'wallEastA',west:'wallEastA'},
     'wall-brick':{top:'wallTopSnow',bottom:'wallTopIce',north:'wallSouthB',south:'wallSouthB',
       east:'wallEastB',west:'wallEastB'},
-    'penguin-orange':{top:'penguinTopOrange',bottom:'penguinBottom',north:'penguinBack',
-      south:'penguinFront',east:'penguinEast',west:'penguinWest'},
-    'penguin-purple':{top:'penguinTopPurple',bottom:'penguinBottom',north:'penguinBack',
-      south:'penguinFront',east:'penguinEast',west:'penguinWest'}
+    /* The face belongs on the upward plane. Colour identity is painted onto the
+       beak at runtime, so every goal colour uses the same readable penguin. */
+    'penguin-orange':{top:'penguinFront',bottom:'penguinBottom',north:'penguinBack',
+      south:'penguinBack',east:'penguinEast',west:'penguinWest'},
+    'penguin-purple':{top:'penguinFront',bottom:'penguinBottom',north:'penguinBack',
+      south:'penguinBack',east:'penguinEast',west:'penguinWest'}
   };
 
   function TextureBank(onReady) {
@@ -224,7 +224,7 @@
     }
     if(!this.stage)return;
     var st=this.stage,margin=Math.max(7,Math.min(w,h)*.022),pad=.20;
-    var zRange=SCENE_HEIGHT+FLOOR_DEPTH+.12;
+    var zRange=0;
     var widthUnits=st.w+2+zRange*Z_X+pad;
     var heightUnits=st.h+2+zRange*Z_Y+pad;
     var cell=Math.floor(Math.min(
@@ -267,15 +267,13 @@
   };
 
   Renderer.prototype.drawDioramaBase=function(g){
-    var cx=(this.boardBounds.left+this.boardBounds.right)/2;
-    g.save();
-    /* The blocks cast one compact shared shadow, but there is deliberately no
-       oversized tray or architectural plinth beneath the grid. */
-    g.fillStyle='rgba(28,63,109,.105)';
-    g.shadowColor='rgba(31,73,118,.12)';g.shadowBlur=Math.min(22,this.cell*.28);
-    g.beginPath();g.ellipse(cx,this.boardBounds.bottom-this.cell*.10,
-      (this.boardBounds.right-this.boardBounds.left)*.405,this.cell*.18,0,0,Math.PI*2);g.fill();
-    g.restore();
+    var b=this.boardBounds,r=Math.min(28,this.cell*.28);
+    g.save();g.fillStyle='rgba(123,188,211,.18)';
+    g.strokeStyle='rgba(71,139,166,.16)';g.lineWidth=Math.max(1,this.cell*.016);
+    g.beginPath();
+    if(g.roundRect)g.roundRect(b.left,b.top,b.right-b.left,b.bottom-b.top,r);
+    else g.rect(b.left,b.top,b.right-b.left,b.bottom-b.top);
+    g.fill();g.stroke();g.restore();
   };
 
   /* Static cells remain individual painter commands for correct occlusion, but
@@ -545,10 +543,11 @@
   };
 
   Renderer.prototype.boxGeometry=function(o){
-    var p00=this.project(o.x0,o.y0,o.z1),p10=this.project(o.x1,o.y0,o.z1);
-    var p11=this.project(o.x1,o.y1,o.z1),p01=this.project(o.x0,o.y1,o.z1);
-    var b00=this.project(o.x0,o.y0,o.z0),b10=this.project(o.x1,o.y0,o.z0);
-    var b11=this.project(o.x1,o.y1,o.z0),b01=this.project(o.x0,o.y1,o.z0);
+    var self=this,project=o.projector||function(x,y,z){return self.project(x,y,z);};
+    var p00=project(o.x0,o.y0,o.z1),p10=project(o.x1,o.y0,o.z1);
+    var p11=project(o.x1,o.y1,o.z1),p01=project(o.x0,o.y1,o.z1);
+    var b00=project(o.x0,o.y0,o.z0),b10=project(o.x1,o.y0,o.z0);
+    var b11=project(o.x1,o.y1,o.z0),b01=project(o.x0,o.y1,o.z0);
     return {
       top:[p00,p10,p11,p01],bottom:[b00,b10,b11,b01],
       north:[p00,p10,b10,b00],south:[p01,p11,b11,b01],
@@ -557,9 +556,12 @@
   };
   Renderer.prototype.drawBox=function(g,o){
     var f=this.boxGeometry(o),s=MATERIAL_STYLE[o.material]||MATERIAL_STYLE.ice;
-    this.drawFace(g,f.east,this.textureBank.face(o.material,'east'),s.east,o.eastShade,o.radius);
-    this.drawFace(g,f.south,this.textureBank.face(o.material,'south'),s.south,o.southShade,o.radius);
-    this.drawFace(g,f.top,this.textureBank.face(o.material,o.topTextureFace||'top'),s.top,o.topShade,o.radius);
+    var xFace=o.visibleX||'east',yFace=o.visibleY||'south',textures=o.textures||{};
+    var texture=function(name){return Object.prototype.hasOwnProperty.call(textures,name)?
+      textures[name]:this.textureBank.face(o.material,name);}.bind(this);
+    this.drawFace(g,f[xFace],texture(xFace),s.east,o.eastShade,o.radius);
+    this.drawFace(g,f[yFace],texture(yFace),s.south,o.southShade,o.radius);
+    this.drawFace(g,f.top,texture(o.topTextureFace||'top'),s.top,o.topShade,o.radius);
     return f;
   };
   Renderer.prototype.drawFace=function(g,pts,texture,colours,shade,radius){
@@ -589,11 +591,10 @@
   Renderer.prototype.drawWall=function(g,c){
     var spriteKey=c.ring?(c.front?'wall:ring-front':'wall:ring-back'):(c.outer?'wall:outer':'wall:smooth');
     if(this.blitStaticSprite(g,spriteKey,c.x,c.y))return;
-    var material=c.ring?'wall-brick':(c.outer?'wall-brick':'wall-smooth');
+    var material='wall-brick';
     var h = c.ring ? (c.front ? FRONT_RING_HEIGHT : RING_HEIGHT) : WALL_HEIGHT;
     var gap = c.ring ? .018 : .022;
     var z0 = c.ring ? -.04 : .015;
-    this.drawContactShadow(g,c.x+.5,c.y+.5,.43,.25,true);
     var f=this.drawBox(g,{x0:c.x+gap,y0:c.y+gap,x1:c.x+1-gap,y1:c.y+1-gap,
       z0:z0,z1:h,material:material,radius:this.cell*.095,
       topShade:'rgba(255,255,255,.014)',southShade:'rgba(19,88,133,.025)',
@@ -639,19 +640,19 @@
       if(z.cell[0]===c.x&&z.cell[1]===c.y)graze=Math.max(graze,1-z.life/z.max);}
     var pulse=this.reduceMotion ? .10 : (.08+(.5+.5*Math.sin(this.time/760))*.055);
     g.save();roundedPoly(g,top,this.cell*.075);g.clip();faceTransform(g,top,FACE_SIZE);
-    /* The supplied aurora remains the image. Lighting adds only a restrained
-       emissive pulse and the small A/B ring needed by the puzzle rules. */
+    /* Keep one aurora artwork and identify its destination with a true colour
+       filter. No extra symbol or badge is laid over the goal. */
+    g.globalCompositeOperation='color';g.globalAlpha=.64;g.fillStyle=pal.mid;
+    g.fillRect(0,0,FACE_SIZE,FACE_SIZE);
+    g.globalCompositeOperation='source-over';g.globalAlpha=1;
     var glow=g.createRadialGradient(256,256,18,256,256,218);
     glow.addColorStop(0,'rgba(255,255,255,'+(pulse+flash*.18)+')');
-    glow.addColorStop(.58,'rgba(94,234,245,'+(pulse*.45)+')');
-    glow.addColorStop(1,'rgba(94,234,245,0)');
+    glow.addColorStop(.58,'rgba(255,255,255,'+(pulse*.32)+')');
+    glow.addColorStop(1,'rgba(255,255,255,0)');
     g.globalCompositeOperation='screen';g.fillStyle=glow;g.fillRect(0,0,FACE_SIZE,FACE_SIZE);
-    g.globalCompositeOperation='source-over';g.translate(256,256);
-    g.globalAlpha=.88;g.strokeStyle=pal.mid;g.lineWidth=14;g.beginPath();g.arc(0,0,76,0,Math.PI*2);g.stroke();
-    g.globalAlpha=.96;g.fillStyle='rgba(255,255,255,.90)';g.beginPath();g.arc(0,0,47,0,Math.PI*2);g.fill();
-    g.fillStyle=pal.mid;glyph(g,0,0,24,pal.shape);g.fill();
-    if(graze>0){g.globalAlpha=graze*.72;g.strokeStyle=pal.hi;g.lineWidth=11;
-      g.beginPath();g.arc(0,0,150+(1-graze)*58,0,Math.PI*2);g.stroke();}
+    g.globalCompositeOperation='source-over';
+    if(graze>0){g.globalAlpha=graze*.38;g.strokeStyle='rgba(255,255,255,.94)';g.lineWidth=11;
+      g.beginPath();g.arc(256,256,150+(1-graze)*58,0,Math.PI*2);g.stroke();}
     g.restore();
   };
 
@@ -659,7 +660,7 @@
     var p=d.pos,sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
     var sx=sq&&sq.axis==='x'?1+q*.045:1-q*.018;
     var sy=sq&&sq.axis==='y'?1+q*.045:1-q*.018;
-    var h=PENGUIN_HEIGHT*(1-q*.075),inset=.105;
+    var h=PENGUIN_HEIGHT,inset=.075;
     var x0=p[0]+.5-(.5-inset)*sx,x1=p[0]+.5+(.5-inset)*sx;
     var y0=p[1]+.5-(.5-inset)*sy,y1=p[1]+.5+(.5-inset)*sy;
     this.drawContactShadow(g,p[0]+.5,p[1]+.5,.37,.20,false);
@@ -668,7 +669,17 @@
       material:material,radius:this.cell*.11,topShade:'rgba(255,255,255,.012)',
       southShade:d.inert?'rgba(185,213,220,.22)':'rgba(0,18,30,.025)',
       eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
+    this.drawPenguinBeak(g,f.top,paletteOf(d.colour));
     if(!this.textureBank.face(material,'south'))this.drawPenguinFallback(g,f);
+  };
+  Renderer.prototype.drawPenguinBeak=function(g,top,pal){
+    g.save();roundedPoly(g,top,this.cell*.1);g.clip();faceTransform(g,top,FACE_SIZE);
+    g.globalCompositeOperation='color';g.globalAlpha=.98;g.fillStyle=pal.mid;
+    g.beginPath();g.moveTo(198,278);g.bezierCurveTo(215,229,297,226,316,278);
+    g.bezierCurveTo(298,320,218,322,198,278);g.closePath();g.fill();
+    g.globalCompositeOperation='source-over';g.globalAlpha=.30;g.fillStyle=pal.hi;
+    g.beginPath();g.ellipse(256,266,48,15,0,Math.PI,Math.PI*2);g.fill();
+    g.restore();
   };
   Renderer.prototype.drawContactShadow=function(g,x,y,rx,ry,deep){
     var c=this.project(x,y,.008);g.save();g.fillStyle=deep?THEME.contactDeep:THEME.contact;
