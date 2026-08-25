@@ -18,7 +18,7 @@ node tools/serve.js        # then open the printed LAN address on a phone
 
 ## The rules
 
-**The base rules. Ten of the forty stages use nothing else.**
+**The base rules. Twenty of the eighty stages use nothing else.**
 
 1. The board is a grid of **floor** and **wall** cells. Some floor cells are **goals**.
 2. Tilting sends gravity one of four ways. Every block slides until something stops it —
@@ -58,7 +58,7 @@ never something you had to catch — and all four are also visible in the pictur
 
 | | Rule | The question it asks |
 |---|---|---|
-| **ALL IN** *(default)* | Collect every block. | *How do I get all of them home?* The only win condition that needs no words at all, which is why it is the default and why 25 of the 40 stages use it. |
+| **ALL IN** *(default)* | Collect every block. | *How do I get all of them home?* The only win condition that needs no words at all, which is why it is the default and why 40 of the 80 stages use it. |
 | **SELECT** | Collect every block whose colour has a goal. A block whose colour has **no socket anywhere** can never leave — it is furniture that moves, and it is drawn dimmed and hollow to say so. | *How do I move this one without the others getting in the way?* It creates the only **permanent** backstop in the game: under ALL IN every block is spent eventually, so every brake is temporary. You cannot move one block — you move the world, and everything answers. |
 | **MATCH** | No goals at all. Blocks of the same colour must end up **touching**. | *How do I make these two meet?* The board stops being about a destination and becomes about a relationship — and the two blocks you are joining are driven by the same gravity, so most of the work is driving them apart first. Nothing is ever banked, so every pair you closed is still on the board being pushed around. |
 | **FORM** | The goal characters mark cells to be **stood on**, not holes. Every one must be occupied at the same time, and nothing is ever removed. | *How do I satisfy all of these at once?* Where ALL IN drains the board one block at a time, FORM has to land every constraint simultaneously — and every block placed correctly is a new wall in the way of the next one. |
@@ -163,9 +163,9 @@ Worth recording, because each one changed the design rather than merely confirmi
   ships most of the genuinely excellent 3×3 base boards by stage 5. Rather than pad chapter
   two with near-misses, the two slots 3×3 cannot supply are allowed twelve cells.
 - **More than half of every board's finalists are carrying a piece the board would not
-  miss.** Across the campaign's finalists the deletion test rejects **57%** — it was 88% when
-  the game was twenty-five stages of mostly 3×3, and it falls as boards get larger only
-  because a piece has more chances to matter. It is the most expensive gate and by a distance
+  miss.** Across the campaign's finalists the deletion test rejects **64%** — it was 88% when
+  the game was twenty-five stages of mostly 3×3, and it moves with the mix of board sizes
+  rather than with the quality of the search. It is the most expensive gate and by a distance
   the most useful.
 - **A perfect crux is not enough.** Two stages passed every measurement above and were
   still wrong, and it took looking at the filmstrips to see it: `unlock 1`, `flow 8`, and a
@@ -213,20 +213,20 @@ what "these two blocks are the same block" means, and it is why the par on scree
 
 ## The campaign
 
-**Forty stages, all of which are worth playing** — rather than a hundred that are mostly
+**Eighty stages, all of which are worth playing** — rather than four hundred that are mostly
 filler. Every slot is a stated idea with a required signature; the search runs against it
-and one board out of tens of thousands survives.
+and one board out of tens of thousands survives. The whole campaign is 1,182 tilts long.
 
 | Ch | Name | Stages | Rules | Par | What it is |
 |---|---|---|---|---|---|
-| 1 | GRAVITY · 重力 | 1–5 | base | 2–7 | the whole vocabulary: gravity, then *you slid over it*, then what a backstop is, then that blocks are backstops too, then the first board that turns on you |
-| 2 | NINE · 九マス | 6–10 | base | 4–8 | nothing new added — just the same few things made to work much harder |
-| 3 | EDGE · 境界 | 11–15 | + hazard | 4–11 | a square you may cross and may not stop on: it removes places to rest, and that is what makes a small board deep |
-| 4 | PAIR · 対 | 16–20 | + colour | 7–15 | a goal that is a hole for one block and a floor for the other, so finishing early is how you lose |
-| 5 | TOGETHER · 結 | 21–25 | + MATCH | 4–22 | no holes at all: same colours must end up touching, and one gravity moves both of them |
-| 6 | CHOSEN · 選 | 26–30 | + SELECT | 4–26 | only the lit blocks have to get home; the rest can never leave, and are the best walls you have |
-| 7 | SHAPE · 形 | 31–35 | + FORM | 3–24 | the marks are standing spots, not holes — every one has to be covered at the same moment |
-| 8 | ABYSS · 深淵 | 36–40 | combined | **35–57** | the only chapter where length is the target, and the rules that were kept apart all game put together on purpose |
+| 1 | GRAVITY · 重力 | 1–10 | base | 2–5 | the whole vocabulary: gravity, then *you slid over it*, then what a backstop is, then that blocks are backstops too, then the edge, the chain, and the gap you cannot push shut |
+| 2 | NINE · 九マス | 11–20 | base | 5–10 | nothing new added — just the same few things made to work much harder, out to 4×4 |
+| 3 | EDGE · 境界 | 21–30 | + hazard | 4–12 | a square you may cross and may not stop on: it removes places to rest, and that is what makes a small board deep |
+| 4 | PAIR · 対 | 31–40 | + colour | 7–18 | a goal that is a hole for one block and a floor for the other, so finishing early is how you lose |
+| 5 | TOGETHER · 結 | 41–50 | + MATCH | 4–22 | no holes at all: same colours must end up touching, and one gravity moves both of them |
+| 6 | CHOSEN · 選 | 51–60 | + SELECT | 4–28 | only the lit blocks have to get home; the rest can never leave, and are the best walls you have |
+| 7 | SHAPE · 形 | 61–70 | + FORM | 3–32 | the marks are standing spots, not holes — every one has to be covered at the same moment |
+| 8 | ABYSS · 深淵 | 71–80 | combined | **34–57** | the only chapter where length is the target, and the rules that were kept apart all game put together on purpose |
 
 Boards stay small on purpose — nothing in the game is larger than 4×4, including the
 forty-tilt boards — and **no board carries more than two blocks of one colour**. Small board,
@@ -235,9 +235,18 @@ high thought density is the point, not a beginner's concession.
 Par is a target, not a requirement. Clearing in more moves is a normal clear, and your best
 is kept so you can come back and shave it down.
 
-Nine stages exist to put a rule on screen for the first time (1, 2, 3, 11, 16, 21, 26, 31)
+Nine stages exist to put a rule on screen for the first time (1, 2, 3, 21, 31, 41, 51, 61)
 and are allowed to be gentle; each says so in its own note. Everything else has to earn its
 place.
+
+Two of the eighty ideas did not survive contact with the search, and both were replaced
+rather than watered down. One asked for a board where the same block is the backstop for two
+separate collections — impossible with two blocks, because after the first collection there
+is only one block left and nothing but terrain to stop it. The other asked for a forty-tilt
+MATCH board, and every board in that space past par 22 measures **jam 61% and guided 31%**:
+unwinnable from most of its own positions and a fight at nearly every tilt, because nothing
+is ever banked on a MATCH board. A long MATCH board is not a long puzzle, it is a short one
+that keeps coming undone.
 
 ### Chapter 8 is the one place the rules are broken on purpose
 
@@ -328,7 +337,7 @@ src/save.js           localStorage, defensively parsed
 src/game.js           state machine, screens, settings, coaching
 docs/RULES.md         every rule the game has or could have, and the measurements behind it
 docs/DESIGN.md        the interface: what was wrong with it, and every number in the fix
-tools/campaign.js     the forty slots as design briefs; regenerates src/stages.js
+tools/campaign.js     the eighty slots as design briefs; regenerates src/stages.js
 tools/lib/design.js   what makes a board good — every measurement above
 tools/lib/generate.js terrain sweeping, exhaustive enumeration, climbing, variation
 tools/audit.js        rules suite, per-stage proof, campaign-wide design checks

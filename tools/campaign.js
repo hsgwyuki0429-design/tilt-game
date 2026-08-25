@@ -2,7 +2,7 @@
 /*
  * TILT — the campaign.
  *
- * This file IS the design document for all forty stages, and it generates
+ * This file IS the design document for all eighty stages, and it generates
  * src/stages.js from it.
  *
  *   node tools/campaign.js              build
@@ -56,8 +56,9 @@
  * chapter opens with a board that teaches it by making the player do it once,
  * and outside the chapter that owns it nothing else uses it.
  *
- * Ten of the forty stages use nothing but the base rules and ALL IN. A quarter
- * of the campaign is nine cells, four characters and no exceptions.
+ * Twenty of the eighty stages use nothing but the base rules and ALL IN. A
+ * quarter of the campaign is nine or twelve cells, four characters and no
+ * exceptions.
  *
  * NO STAGE IN CHAPTERS 1–7 USES MORE THAN ONE DEVICE AT ONCE, and that was
  * tested rather than assumed. 26,744 boards carrying a hazard AND two colours
@@ -162,6 +163,9 @@ function twelve(b, walls) { return spec(4, 3, reps('@', b), walls); }
 function twelveHaz(b, walls, hz) { return spec(4, 3, reps('@', b), walls, { hazards: hz }); }
 function twelveCol(blocks, walls) { return spec(4, 3, blocks, walls, { goals: ['a', 'b'] }); }
 
+/** Two plain sockets rather than one — a different picture, not a bigger board. */
+function twoDoors(w, h, walls) { return spec(w, h, reps('@', 2), walls, { goals: ['o', 'o'] }); }
+
 /** 4×4 — only where the extra room buys a genuinely longer idea. */
 function sixteen(b, walls) { return spec(4, 4, reps('@', b), walls); }
 function sixteenCol(blocks, walls) { return spec(4, 4, blocks, walls, { goals: ['a', 'b'] }); }
@@ -216,7 +220,7 @@ var SLOTS = [
   // rule that defines the game: a goal is a cell you must be STOPPED on.
 
   {
-    id: 1, name: 'DROP', chapter: 1,
+    name: 'DROP', chapter: 1,
     idea: 'Gravity is a thing you point, and everything obeys it at once.',
     feeling: 'No resistance at all. This board exists to be understood in one gesture.',
     note: 'One block, one goal, two tilts, and the goal is in a corner so the edge does ' +
@@ -228,7 +232,7 @@ var SLOTS = [
     prefer: function (p) { return -p.pieces.total * 10 - p.states; }
   },
   {
-    id: 2, name: 'OVER', chapter: 1,
+    name: 'OVER', chapter: 1,
     idea: 'A goal is not a target. Aim at it and the block sails straight over the top of it.',
     feeling: 'You point at the hole, you watch the block go past the hole, and the rule lands.',
     note: 'The most important board in the game, and it is the second one. Pointing gravity ' +
@@ -245,7 +249,7 @@ var SLOTS = [
     }
   },
   {
-    id: 3, name: 'BRAKE', chapter: 1,
+    name: 'BRAKE', chapter: 1,
     idea: 'What stops you on a goal is a wall behind it — so come at it from the side that has one.',
     feeling: 'Having learned that goals are not targets, learn what they ARE: a cell with a backstop.',
     note: 'The answer to the board before it. Only one of the four directions has anything ' +
@@ -257,7 +261,7 @@ var SLOTS = [
     prefer: function (p) { return p.traps * 9 + p.overshoot * 6 + p.retreat * 4 - p.pieces.total * 6 - p.par; }
   },
   {
-    id: 4, name: 'STACK', chapter: 1,
+    name: 'STACK', chapter: 1,
     idea: 'A block is a backstop too — and it is the only backstop you can move.',
     feeling: 'Send the wrong one home first and the brake you needed is the thing that left.',
     note: 'The last piece of the vocabulary, and the one the rest of the game is built on. ' +
@@ -271,7 +275,7 @@ var SLOTS = [
     prefer: function (p) { return p.caught * 14 + p.blindness * 10 + p.flow * 4 + p.par * 2 - p.pieces.total * 4; }
   },
   {
-    id: 5, name: 'AWAY', chapter: 1,
+    name: 'AWAY', chapter: 1,
     idea: 'The way out is not the way you are facing: a block has to travel away from the goal to reach it.',
     feeling: 'A player who only ever tilts toward the exit circles this board forever.',
     note: 'Chapter one closing its own argument, and the first board that is purely a ' +
@@ -282,13 +286,71 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 14 + p.retreat * 8 + p.flow * 3 + p.par * 2 - p.pieces.total * 3; }
   },
 
+  {
+    name: 'RIM', chapter: 1,
+    idea: 'The board edge is a backstop you never have to build — and it only works from one side.',
+    feeling: 'Realising the wall you needed was there all along, on exactly one of the four sides.',
+    note: 'BRAKE taught that a wall behind a socket collects. This board has no walls at all, so ' +
+          'the only thing standing behind anything is the edge of the board — and a goal on the ' +
+          'rim is collectable from one direction and inert from the other three.',
+    specs: [nine(1, [0, 1]), nine(2, [0, 1]), twelve(2, [0, 1])],
+    need: { par: [3, 6], unlock: [1, 2], traps: 2, allowNaive: true, maxLuck: 0.25, minLive: 2 },
+    prefer: function (p) { return p.traps * 10 + p.overshoot * 5 - p.pieces.total * 7 - p.par; }
+  },
+  {
+    name: 'BOTH', chapter: 1,
+    idea: 'One tilt can bank two blocks. Arranging for that is a different job from banking one.',
+    feeling: 'The first time the board empties in a single gesture.',
+    note: 'A collection frees its cell, and gravity has not gone away — so whatever was queued ' +
+          'behind slides into the same socket and is taken in the same tilt. This is the first ' +
+          'board that requires it, which means the player has to line two blocks up before ' +
+          'pointing them anywhere.',
+    specs: [nine(2, [0, 2]), twelve(2, [0, 2])],
+    need: { par: [3, 7], unlock: [1, 2], chainLast: 2, allowNaive: true, maxLuck: 0.2, minLive: 2 },
+    prefer: function (p) { return p.chainLast * 16 + p.setup * 5 - p.pieces.total * 5 - p.par; }
+  },
+  {
+    name: 'PUSH', chapter: 1,
+    idea: 'You cannot shove one block into another. Gravity moves the front one first.',
+    feeling: 'Tilting at a block to close a gap, and watching the gap survive the whole board.',
+    note: 'Both blocks answer the same tilt, and the leader always moves first, so a gap between ' +
+          'two blocks travelling the same way never closes on its own. It closes when the leader ' +
+          'runs out of floor — which means the question is never how to push, it is where to ' +
+          'stop the one in front.',
+    specs: [nine(2, [1, 2]), twelve(2, [1, 2])],
+    need: { par: [4, 8], unlock: [1, 3], flow: 2, caught: 1, blindness: 1 },
+    prefer: function (p) { return p.caught * 13 + p.blindness * 10 + p.flow * 4 - p.pieces.total * 3; }
+  },
+  {
+    name: 'ROUND', chapter: 1,
+    idea: 'A block has to come back to a cell it has already left, travelling the other way.',
+    feeling: 'Undoing your own first move on purpose, four moves later.',
+    note: 'The board a player solves by accident and then cannot reproduce, until they notice ' +
+          'that one block goes out and comes back. Nothing is collected on the way out — the ' +
+          'whole excursion exists to change what is standing where.',
+    specs: [nine(2, [1, 3]), twelve(2, [1, 3])],
+    need: { par: [5, 9], unlock: [1, 3], flow: 2, retreat: 2, setup: 2 },
+    prefer: function (p) { return p.retreat * 11 + p.setup * 8 + p.blindness * 7 + p.flow * 3 - p.pieces.total * 3; }
+  },
+  {
+    name: 'VOCAB', chapter: 1,
+    idea: 'Gravity, the edge, a wall and a block — each doing exactly one job, with nothing spare.',
+    feeling: 'Chapter one\'s closing statement: you now know every rule this game has.',
+    note: 'The finale of the vocabulary chapter, and the last board before the game stops being ' +
+          'gentle. Everything the first five stages introduced separately has to be used here at ' +
+          'once, and nothing else is on the board.',
+    specs: [nine(2, [1, 3]), twelve(2, [1, 3])],
+    need: { par: [5, 9], unlock: [1, 3], flow: 3, blindness: 2, traps: 2 },
+    prefer: function (p) { return p.blindness * 13 + p.flow * 5 + p.par * 3 - p.pieces.total * 4; }
+  },
+
   // ── CHAPTER 2 · NINE ────────────────────────────────────────────────────
   // Nothing new is introduced anywhere in this chapter — no hazard, no colour,
   // the same four characters stage 1 had, and never more than two blocks. What
   // changes is only how hard the same few things are made to work.
 
   {
-    id: 6, name: 'WASTE', chapter: 2,
+    name: 'WASTE', chapter: 2,
     idea: 'The move that appears to accomplish nothing is the one that makes everything possible.',
     feeling: 'Three tilts look productive and all three are wrong. The fourth looks pointless.',
     note: 'Ranked by how a hurrying player would rate them, the correct opening is the LAST ' +
@@ -299,7 +361,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 20 + p.traps * 6 + p.flow * 4 + p.par * 2 - p.pieces.total * 3; }
   },
   {
-    id: 7, name: 'REFUSE', chapter: 2,
+    name: 'REFUSE', chapter: 2,
     idea: 'Collecting a block can be the wrong move. Progress is not the same as winning.',
     feeling: 'The board offers you something for free, and taking it loses.',
     note: 'The cruellest shape in the game and the fairest: a tilt that visibly banks a block ' +
@@ -310,7 +372,7 @@ var SLOTS = [
     prefer: function (p) { return p.bait * 18 + p.blindness * 12 + p.flow * 4 + p.par * 2 - p.pieces.total * 3; }
   },
   {
-    id: 8, name: 'OTHER', chapter: 2,
+    name: 'OTHER', chapter: 2,
     idea: 'The block you have to move first is not the block you are trying to get home.',
     feeling: 'You stare at the block next to the goal for a while before you look away from it.',
     note: 'Every instinct points at the piece nearest the socket. It is the last one that ' +
@@ -321,7 +383,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 14 + p.flow * 5 + p.setup * 4 + p.par * 3 - p.pieces.total * 3; }
   },
   {
-    id: 9, name: 'FALL', chapter: 2,
+    name: 'FALL', chapter: 2,
     idea: 'One tilt, and the whole board resolves at once — if you built it correctly first.',
     feeling: 'Several moves of arranging that collect nothing, then everything lands together.',
     note: 'The payoff stage. Nothing is banked until the end and then the last tilt takes the ' +
@@ -333,7 +395,7 @@ var SLOTS = [
     prefer: function (p) { return p.chainLast * 16 + p.setup * 7 + p.blindness * 8 + p.par * 2; }
   },
   {
-    id: 10, name: 'NINE', chapter: 2,
+    name: 'NINE', chapter: 2,
     idea: 'What nine cells can hold when every single one of them is carrying weight.',
     feeling: 'A board you can see all of at once and cannot hold all of at once.',
     note: 'The chapter closing its argument: the most thinking that fits in nine cells under ' +
@@ -343,13 +405,70 @@ var SLOTS = [
     prefer: function (p) { return p.states * 0.4 + p.par * 5 + p.blindness * 8 + p.flow * 3; }
   },
 
+  {
+    name: 'SLOW', chapter: 2,
+    idea: 'The shortest line is the one that looks longest.',
+    feeling: 'Counting the moves of the route that works and finding it is fewer than the one that does not.',
+    note: 'Every tilt on the correct line sends something further from where it needs to be, and ' +
+          'the route that heads straight at the sockets takes longer or fails outright. It is the ' +
+          'clearest board in the game for the difference between distance and progress.',
+    specs: [nine(2, [0, 3]), twelve(2, [1, 3]), sixteen(2, [2, 4])],
+    need: { par: [6, 12], unlock: [1, 3], flow: 3, retreat: 3, blindness: 1 },
+    prefer: function (p) { return p.retreat * 12 + p.blindness * 11 + p.flow * 4 + p.par * 2 - p.pieces.total * 3; }
+  },
+  {
+    name: 'TWELVE', chapter: 2,
+    idea: 'Three more cells, and the same two blocks have somewhere new to be wrong.',
+    feeling: 'A board that looks roomier than the nine-cell ones and is harder than all of them.',
+    note: 'Four by three under the base rules with two blocks, and nothing else. The extra column ' +
+          'does not make the board easier — it gives a block one more place to stop that is not ' +
+          'the place it needed to stop.',
+    specs: [twelve(2, [1, 3])],
+    need: { par: [7, 12], unlock: [1, 3], flow: 4, blindness: 2, minStates: 18 },
+    prefer: function (p) { return p.par * 5 + p.flow * 5 + p.blindness * 9 + p.states * 0.3 - p.pieces.total * 3; }
+  },
+  {
+    name: 'SIXTEEN', chapter: 2,
+    idea: 'What sixteen cells hold under nothing but the base rules.',
+    feeling: 'The biggest board in the first half, and it is still only two blocks.',
+    note: 'The only 4×4 base-rules board in the game. It is here to prove a point the rest of the ' +
+          'chapter argues the other way round: the board did not need to be bigger, and when it ' +
+          'is, the difficulty comes from the same four characters doing the same four things.',
+    specs: [sixteen(2, [2, 4])],
+    need: { par: [8, 14], unlock: [1, 3], flow: 4, blindness: 2, traps: 2 },
+    prefer: function (p) { return p.par * 4 + p.blindness * 12 + p.flow * 4 - p.pieces.total * 3; }
+  },
+  {
+    name: 'DOORS', chapter: 2,
+    idea: 'Two sockets, two blocks, and it matters enormously which goes in which.',
+    feeling: 'Two obvious targets, both available, and one of the two pairings does not work.',
+    note: 'The only base-rules boards in the game with more than one socket. A second hole is ' +
+          'not a second chance: each one is collectable from its own single direction, so ' +
+          'choosing which block goes where is choosing which two directions the rest of the ' +
+          'board has to survive.',
+    specs: [twoDoors(3, 3, [0, 2]), twoDoors(4, 3, [1, 2])],
+    need: { par: [5, 11], unlock: [1, 3], flow: 3, blindness: 2, traps: 2 },
+    prefer: function (p) { return p.blindness * 14 + p.traps * 7 + p.flow * 4 + p.par * 3 - p.pieces.total * 3; }
+  },
+  {
+    name: 'TEN', chapter: 2,
+    idea: 'Four tilts, four reasons to try them, and the right one is the fourth.',
+    feeling: 'Chapter two\'s closing statement: nothing hidden, nothing new, and still not obvious.',
+    note: 'The most misleading opening the base rules can produce. Ranked by how a hurrying ' +
+          'player would rate them, the correct tilt is dead last — and there is nothing on the ' +
+          'board except walls, blocks and a socket.',
+    specs: [nine(2, [0, 4]), twelve(2, [1, 3])],
+    need: { par: [6, 11], unlock: [1, 3], flow: 3, blindness: 3, traps: 3 },
+    prefer: function (p) { return p.blindness * 20 + p.traps * 8 + p.par * 3 + p.flow * 3 - p.pieces.total * 3; }
+  },
+
   // ── CHAPTER 3 · EDGE ────────────────────────────────────────────────────
   // The hazard: the exact mirror of a goal. Both resolve at rest and only at
   // rest, and they answer the same question in opposite directions. It is also
   // the one cell in the game that can end a run outright.
 
   {
-    id: 11, name: 'CROSS', chapter: 3,
+    name: 'CROSS', chapter: 3,
     idea: 'You may slide straight over a hazard. You may not be left standing on one.',
     feeling: 'Learn it by doing it, in a board where the crossing is the only route.',
     note: 'The hazard arrives doing the opposite of what a hazard normally does: the solution ' +
@@ -361,7 +480,7 @@ var SLOTS = [
     prefer: function (p) { return p.crossings * 10 + p.traps * 4 + p.par * 2 - p.pieces.total * 5; }
   },
   {
-    id: 12, name: 'CATCH', chapter: 3,
+    name: 'CATCH', chapter: 3,
     idea: 'A hazard is only survivable if something is waiting to stop you past it.',
     feeling: 'The route is obvious and lethal until you notice what has to be standing where.',
     note: 'The hazard turns the other block into a brake. This is where the dangerous square ' +
@@ -372,7 +491,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 12 + p.crossings * 8 + p.flow * 4 + p.par * 3 - p.pieces.total * 3; }
   },
   {
-    id: 13, name: 'LEDGE', chapter: 3,
+    name: 'LEDGE', chapter: 3,
     idea: 'Every direction looks fatal. One of them is not, and it is the one that looks worst.',
     feeling: 'Genuine "there is no move here" — followed by there being a move here.',
     note: 'The board a player is most likely to declare broken before solving it. Everything ' +
@@ -382,7 +501,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 16 + p.traps * 8 + p.flow * 4 + p.par * 3 - p.pieces.total * 2.5; }
   },
   {
-    id: 14, name: 'THREAD', chapter: 3,
+    name: 'THREAD', chapter: 3,
     idea: 'A hazard adds no material to the board — it removes places to rest, and that is what makes a small board deep.',
     feeling: 'A long solution on a tiny board, with no crowd of pieces to hide behind.',
     note: 'The densest thing in the first half of the game per square. Two blocks, nine or ' +
@@ -393,7 +512,7 @@ var SLOTS = [
     prefer: function (p) { return p.par * 6 + p.flow * 5 + p.blindness * 8 + p.states * 0.2 - p.pieces.total * 3; }
   },
   {
-    id: 15, name: 'EDGE', chapter: 3,
+    name: 'EDGE', chapter: 3,
     idea: 'The hazard, the walls and the blocks all doing one job each, with nothing left over.',
     feeling: 'Dangerous, completely fair, and solvable on sight once seen.',
     note: 'Chapter three\'s finale. Every piece is load-bearing, the dead ends are all loud ' +
@@ -403,13 +522,72 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 15 + p.flow * 5 + p.par * 5 - p.pieces.total * 3 - p.jam * 20; }
   },
 
+  {
+    name: 'BRINK', chapter: 3,
+    idea: 'A hazard one cell past a goal turns overshooting from a waste of time into the end of the run.',
+    feeling: 'The move you have made a hundred times, suddenly with a price on it.',
+    note: 'Everywhere else in the game, sliding past a socket costs a tilt. Here the cell past it ' +
+          'is a hazard, so the block that sails over the hole does not come back — which makes ' +
+          'this the sharpest statement in the game of the rule chapter one is built on.',
+    specs: [nineHaz(2, [0, 2], [1, 1]), twelveHaz(2, [1, 2], [1, 1])],
+    need: { par: [5, 11], unlock: [1, 3], flow: 3, traps: 3, blindness: 2, maxJam: 0.4 },
+    prefer: function (p) { return p.blindness * 14 + p.traps * 8 + p.flow * 4 + p.par * 3 - p.pieces.total * 3; }
+  },
+  {
+    name: 'BRIDGE', chapter: 3,
+    idea: 'The other block is the only safe place to stop, and it has to be over there first.',
+    feeling: 'Building the thing that will catch you before you set off.',
+    note: 'CATCH made a block into a brake past a hazard. This board makes it the ONLY brake: ' +
+          'no wall and no edge is in the right place, so the route across is impossible until a ' +
+          'block that is not going anywhere yet has been parked on the far side.',
+    // `caught` is the idea and `crossings` was only ever a description of the
+    // route it produces; asking for both left four boards in the whole space and
+    // the census took all four. Crossing survives as a tie-break instead.
+    specs: [nineHaz(2, [0, 2], [1, 2]), twelveHaz(2, [1, 2], [1, 2]), twelveHaz(2, [1, 3], [1, 1])],
+    need: { par: [5, 13], unlock: [1, 3], flow: 2, caught: 1, maxJam: 0.4 },
+    prefer: function (p) { return p.caught * 14 + p.crossings * 10 + p.blindness * 9 + p.flow * 4 - p.pieces.total * 3; }
+  },
+  {
+    name: 'NARROW', chapter: 3,
+    idea: 'Two hazards, and the only lane between them runs the wrong way.',
+    feeling: 'Reading a board as a set of places you may not stop, rather than places you may not go.',
+    note: 'A hazard removes resting places rather than adding material, and two of them on a ' +
+          'small board remove most of them. What is left is not a corridor — every direction ' +
+          'still works — it is a board where almost every direction ends somewhere illegal.',
+    specs: [nineHaz(2, [0, 2], [2, 2]), twelveHaz(2, [1, 2], [2, 2])],
+    need: { par: [7, 13], unlock: [1, 3], flow: 4, blindness: 2, maxJam: 0.45 },
+    prefer: function (p) { return p.par * 5 + p.blindness * 12 + p.flow * 5 - p.pieces.total * 3 - p.jam * 15; }
+  },
+  {
+    name: 'LURE', chapter: 3,
+    idea: 'The tilt that banks a block is the tilt that kills the other one.',
+    feeling: 'Being offered progress and having to work out what it costs before taking it.',
+    note: 'REFUSE asked the player to turn down a collection that ruined the position. Here the ' +
+          'collection destroys a block outright, in the same tilt, visibly — which makes it the ' +
+          'fairest cruel board in the game: the mistake explains itself the moment it happens.',
+    specs: [nineHaz(2, [0, 2], [1, 2]), twelveHaz(2, [1, 2], [1, 2])],
+    need: { par: [5, 12], unlock: [1, 3], flow: 3, bait: true, blindness: 1, maxJam: 0.45 },
+    prefer: function (p) { return (p.bait ? 20 : 0) + p.blindness * 12 + p.flow * 4 + p.par * 3 - p.pieces.total * 3; }
+  },
+  {
+    name: 'SHARD', chapter: 3,
+    idea: 'The hazard, the walls and the blocks all load-bearing, on the biggest board the chapter uses.',
+    feeling: 'Chapter three\'s closing statement: dangerous, legible, and solvable on sight once seen.',
+    note: 'Four by four with a hazard on it, which is the most room any board in the first half ' +
+          'of the game gets. The extra space is not generosity — it is more places to be left ' +
+          'standing somewhere you cannot stand.',
+    specs: [spec(4, 4, reps('@', 2), [2, 3], { hazards: [1, 2] })],
+    need: { par: [8, 15], unlock: [1, 3], flow: 4, blindness: 2, maxJam: 0.4 },
+    prefer: function (p) { return p.par * 5 + p.blindness * 13 + p.flow * 4 - p.pieces.total * 2.5 - p.jam * 15; }
+  },
+
   // ── CHAPTER 4 · PAIR ────────────────────────────────────────────────────
   // Colour, two blocks per colour. A goal is a hole for one block and a floor
   // tile for the other — and since a block that has not been collected is still
   // a wall, finishing early is how you lose.
 
   {
-    id: 16, name: 'SORT', chapter: 4,
+    name: 'SORT', chapter: 4,
     idea: 'A goal that is not yours does not take you. You can stop right in it and stay there.',
     feeling: 'Watch a block come to rest in a socket and not be collected, once, and the rule is learned.',
     note: 'Colour arrives in the smallest board that can show what it does. The lesson is not ' +
@@ -422,7 +600,7 @@ var SLOTS = [
     prefer: function (p) { return p.refused * 8 + p.traps * 4 + p.par * 3 - p.pieces.total * 5; }
   },
   {
-    id: 17, name: 'THROUGH', chapter: 4,
+    name: 'THROUGH', chapter: 4,
     idea: 'You do not want to collect that block yet. You still need it standing there.',
     feeling: 'Turning down a collection because the block is worth more as a wall.',
     note: 'The board that turns "collect everything as fast as possible" into a mistake. One ' +
@@ -433,7 +611,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 14 + p.refused * 6 + p.flow * 4 + p.par * 3 - p.pieces.total * 3; }
   },
   {
-    id: 18, name: 'ORDER', chapter: 4,
+    name: 'ORDER', chapter: 4,
     idea: 'Both colours want the same tilt. Only one of them can have it first.',
     feeling: 'Two plans that are each fine alone and destroy each other in the wrong sequence.',
     note: 'Nothing on this board is difficult to move. The entire puzzle is which of two ' +
@@ -444,7 +622,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 13 + p.traps * 7 + p.flow * 4 + p.par * 4 - p.pieces.total * 2.5; }
   },
   {
-    id: 19, name: 'SWAP', chapter: 4,
+    name: 'SWAP', chapter: 4,
     idea: 'Every tilt that helps one colour hurts the other, and the answer helps neither.',
     feeling: 'Four moves, four reasons not to. Then the fifth reading of the board.',
     note: 'Ranked by instinct the correct opening is dead last, and it is dead last because ' +
@@ -455,7 +633,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 18 + p.traps * 8 + p.flow * 4 + p.par * 4 - p.pieces.total * 2.5 - p.jam * 25; }
   },
   {
-    id: 20, name: 'TILT', chapter: 4,
+    name: 'TILT', chapter: 4,
     idea: 'The longest board in the first half that is still one idea.',
     feeling: 'Everything the campaign has taught so far, asked once, on a board that looks like it should be easy.',
     note: 'The halfway finale is not the biggest board — it is whichever board scored highest ' +
@@ -471,6 +649,63 @@ var SLOTS = [
     }
   },
 
+  {
+    name: 'WRONG', chapter: 4,
+    idea: 'A block sitting in the wrong socket is the best wall on the board, and it is free.',
+    feeling: 'Parking a block somewhere it visibly does not belong, on purpose, twice.',
+    note: 'SORT showed a block coming to rest in a socket that refuses it. This board requires ' +
+          'that twice on the shortest line: a socket in open floor is the one place the terrain ' +
+          'lets you leave a block standing exactly where you want it, and only the wrong colour ' +
+          'can use it.',
+    specs: [nineCol(['A', 'B'], [0, 2]), nineCol(['A', 'A', 'B'], [0, 2]), twelveCol(['A', 'A', 'B'], [1, 2])],
+    need: { par: [5, 11], unlock: [1, 3], flow: 3, refused: 2, maxJam: 0.2 },
+    prefer: function (p) { return p.refused * 12 + p.blindness * 11 + p.flow * 4 + p.par * 2 - p.pieces.total * 3; }
+  },
+  {
+    name: 'QUEUE', chapter: 4,
+    idea: 'Three blocks, three sockets, and exactly one order that works.',
+    feeling: 'Each collection is fine on its own and only one sequence of them is.',
+    note: 'Nothing on this board is hard to reach. Every block can be banked in two or three ' +
+          'tilts if you ignore the others, and every order except one leaves something with ' +
+          'nothing behind it.',
+    specs: [nineCol(['A', 'A', 'B'], [1, 2]), twelveCol(['A', 'A', 'B'], [1, 2]), twelveCol(['A', 'B', 'B'], [1, 2])],
+    need: { par: [8, 14], unlock: [1, 3], flow: 4, blindness: 2, caught: 1, maxJam: 0.2 },
+    prefer: function (p) { return p.blindness * 12 + p.caught * 9 + p.par * 4 + p.flow * 4 - p.pieces.total * 2.5; }
+  },
+  {
+    name: 'TANDEM', chapter: 4,
+    idea: 'One tilt, two colours, two sockets, both taken.',
+    feeling: 'A finish that empties half the board in a single gesture.',
+    note: 'The payoff board of the colour chapter. Two different colours have to arrive on two ' +
+          'different sockets in the same tilt, which means the whole board is arranged before ' +
+          'anything at all is banked.',
+    specs: [twelveCol(['A', 'A', 'B'], [1, 2]), twelveCol(['A', 'A', 'B', 'B'], [1, 2])],
+    need: { par: [7, 14], unlock: [1, 3], chainLast: 2, setup: 3, maxJam: 0.22 },
+    prefer: function (p) { return p.chainLast * 16 + p.setup * 8 + p.blindness * 8 + p.par * 3; }
+  },
+  {
+    name: 'PATIENCE', chapter: 4,
+    idea: 'Nothing at all is banked for the first four tilts, and every one of them matters.',
+    feeling: 'Playing for a while with no visible progress and knowing you are not lost.',
+    note: 'The longest setup in the first half of the game. A player who measures progress by ' +
+          'the counter will abandon this board; a player who measures it by where the blocks are ' +
+          'standing will not.',
+    specs: [twelveCol(['A', 'A', 'B'], [1, 2]), twelveCol(['A', 'A', 'B', 'B'], [1, 2])],
+    need: { par: [8, 15], unlock: [1, 3], flow: 4, setup: 4, blindness: 1, maxJam: 0.25 },
+    prefer: function (p) { return p.setup * 14 + p.blindness * 9 + p.par * 4 + p.flow * 3 - p.pieces.total * 2.5; }
+  },
+  {
+    name: 'FOUR', chapter: 4,
+    idea: 'Two colours, two blocks each, sixteen cells, and one line through all of it.',
+    feeling: 'Chapter four\'s closing statement: the most board the first half of the game asks you to hold.',
+    note: 'The largest colour board in the game. Four blocks under the two-per-colour cap on ' +
+          'sixteen cells is the deepest thing the ALL IN win condition reaches anywhere, and ' +
+          'everything after this stage changes what DONE means rather than adding material.',
+    specs: [sixteenCol(['A', 'A', 'B', 'B'], [3, 3]), twelveCol(['A', 'A', 'B', 'B'], [1, 3])],
+    need: { par: [10, 20], unlock: [1, 3], flow: 5, blindness: 2, traps: 3, maxJam: 0.25, maxWays: 6 },
+    prefer: function (p) { return p.blindness * 14 + p.par * 5 + p.flow * 5 + p.traps * 6 - p.pieces.total * 2.5 - p.jam * 25; }
+  },
+
   // ── CHAPTER 5 · TOGETHER · MATCH ────────────────────────────────────────
   // 「同じものをくっつけろ」. The holes are gone. Two blocks of a colour have to
   // end up touching, which means the board stops being about a destination and
@@ -479,7 +714,7 @@ var SLOTS = [
   // before you can bring them together.
 
   {
-    id: 21, name: 'MEET', chapter: 5,
+    name: 'MEET', chapter: 5,
     idea: 'There are no holes. Two blocks of a colour just have to end up touching.',
     feeling: 'The rule is understood from the picture before the hint is read.',
     note: 'A board with nothing on it but two pairs and a wall, so the new goal explains ' +
@@ -491,7 +726,7 @@ var SLOTS = [
     prefer: function (p) { return p.traps * 8 + p.par * 3 - p.pieces.total * 5; }
   },
   {
-    id: 22, name: 'APART', chapter: 5,
+    name: 'APART', chapter: 5,
     idea: 'One gravity moves both of them, so the way to bring two blocks together is to drive them apart first.',
     feeling: 'Every tilt that closes the gap re-opens it at the far wall.',
     note: 'The heart of MATCH. Two blocks in the same row chase each other forever: tilt ' +
@@ -503,7 +738,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 14 + p.retreat * 8 + p.flow * 4 + p.par * 3 - p.pieces.total * 3; }
   },
   {
-    id: 23, name: 'WEDGE', chapter: 5,
+    name: 'WEDGE', chapter: 5,
     idea: 'The wall between two blocks is the other pair — and you can move it.',
     feeling: 'Realising the blocks you are not trying to join are the tool for joining the ones you are.',
     note: 'Nothing in this game separates two blocks except something standing between them, ' +
@@ -514,7 +749,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 15 + p.traps * 7 + p.flow * 4 + p.par * 3 - p.pieces.total * 2.5; }
   },
   {
-    id: 24, name: 'BREAK', chapter: 5,
+    name: 'BREAK', chapter: 5,
     idea: 'A pair you already joined comes apart the moment you tilt for the next one.',
     feeling: 'Watching finished work undo itself, and understanding that the order was the puzzle.',
     note: 'MATCH has no bank. Nothing is ever put away, so every pair you close stays on the ' +
@@ -526,7 +761,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 13 + p.retreat * 7 + p.par * 5 + p.flow * 3 - p.pieces.total * 2; }
   },
   {
-    budget: 4000, id: 25, name: 'TOGETHER', chapter: 5,
+    budget: 4000, name: 'TOGETHER', chapter: 5,
     idea: 'Three pairs, one gravity, and exactly one arrangement where all of them are touching at once.',
     feeling: 'The chapter\'s closing statement: six blocks, twelve cells, and twenty tilts of one idea.',
     note: 'Chapter five\'s finale and the longest MATCH board the sweep found that is still ' +
@@ -538,6 +773,61 @@ var SLOTS = [
     prefer: function (p) { return p.par * 6 + p.blindness * 12 + p.guided * 2 - p.pieces.total * 2 - p.jam * 25; }
   },
 
+  {
+    name: 'CROSSING', chapter: 5,
+    idea: 'The two pairs are in each other\'s way in both directions at once.',
+    feeling: 'Every tilt closes one gap and opens the other, four times, until you stop trying.',
+    note: 'One pair sharing a row and one sharing a column, so no single tilt can be right for ' +
+          'both — and the answer is a tilt that is right for neither, which puts something ' +
+          'between one pair so the next tilt only moves the other.',
+    specs: [match(4, 3, ['A', 'A', 'B', 'B'], [1, 2]), match(3, 3, ['A', 'A', 'B', 'B'], [1, 2])],
+    need: { par: [6, 12], unlock: [1, 3], flow: 3, blindness: 2, retreat: 2, maxJam: 0.3 },
+    prefer: function (p) { return p.blindness * 14 + p.retreat * 9 + p.par * 3 + p.flow * 4 - p.pieces.total * 2.5; }
+  },
+  {
+    name: 'THIRD', chapter: 5,
+    idea: 'The third colour is not a third puzzle. It is the tool the first two needed.',
+    feeling: 'Moving a pair you had written off as scenery, and watching the board come apart.',
+    note: 'With two colours the only thing that can separate a pair is the other pair, and it is ' +
+          'usually busy. A third pair is the first spare part the chapter gets — and this board ' +
+          'is built so it is not spare at all.',
+    specs: [match(4, 3, ['A', 'A', 'B', 'B', 'C', 'C'], [1, 2])],
+    need: { par: [8, 16], unlock: [1, 4], flow: 3, blindness: 2, traps: 2, maxJam: 0.3 },
+    prefer: function (p) { return p.blindness * 13 + p.traps * 7 + p.par * 4 + p.flow * 3 - p.pieces.total * 2; }
+  },
+  {
+    name: 'ADRIFT', chapter: 5,
+    idea: 'A pair that starts one cell apart and cannot be closed for another eight tilts.',
+    feeling: 'Looking at two blocks that are almost touching and being unable to do anything about it.',
+    note: 'The cruellest picture the chapter can draw. Everything about the board says the answer ' +
+          'is one tilt away, and the gap is the one thing on the board that a tilt cannot change ' +
+          'until something is standing in the right place.',
+    specs: [match(4, 3, ['A', 'A', 'B', 'B'], [1, 3]), match(4, 3, ['A', 'A', 'B', 'B', 'C', 'C'], [1, 2])],
+    need: { par: [9, 18], unlock: [1, 4], flow: 3, blindness: 3, maxJam: 0.32 },
+    prefer: function (p) { return p.blindness * 16 + p.par * 4 + p.flow * 4 + p.retreat * 5 - p.pieces.total * 2; }
+  },
+  {
+    budget: 4000, name: 'ORBIT', chapter: 5,
+    idea: 'A block has to go all the way round the board to arrive next to where it began.',
+    feeling: 'A long journey for one cell of distance.',
+    note: 'Under one gravity the short way between two blocks is usually shut, and the way that ' +
+          'is open is the long one. This board is the extreme case: the shortest line takes a ' +
+          'block around three sides of the board to end up adjacent to its twin.',
+    specs: [match(5, 3, ['A', 'A', 'B', 'B'], [1, 2]), match(4, 4, ['A', 'A', 'B', 'B'], [1, 2])],
+    need: { par: [10, 20], unlock: [1, 40], flow: 0, blindness: 1, retreat: 3, maxJam: 0.35, minInsights: 3, minGuided: 0.3 },
+    prefer: function (p) { return p.par * 5 + p.retreat * 8 + p.blindness * 10 + p.guided * 1.5 - p.pieces.total * 2; }
+  },
+  {
+    budget: 4000, name: 'KNOT', chapter: 5,
+    idea: 'Three pairs that can only be assembled in one order, and the order is not visible.',
+    feeling: 'Chapter five\'s hardest single idea, on six blocks and twelve cells.',
+    note: 'Every pair is somebody else\'s obstacle and every obstacle is somebody else\'s pair. ' +
+          'It is the densest MATCH board that still has one clean line through it.',
+    specs: [match(4, 3, ['A', 'A', 'B', 'B', 'C', 'C'], [1, 2])],
+    need: { par: [14, 23], unlock: [1, 40], flow: 0, blindness: 2, maxJam: 0.35, minInsights: 4, minGuided: 0.3 },
+    prefer: function (p) { return p.par * 5 + p.blindness * 14 + p.guided * 2 - p.pieces.total * 2 - p.jam * 20; }
+  },
+
   // ── CHAPTER 6 · CHOSEN · SELECT ─────────────────────────────────────────
   // 「指定されたものだけを目的達成させろ」. Some blocks have a socket and some
   // do not, and the ones that do not can never leave. You cannot move one
@@ -545,7 +835,7 @@ var SLOTS = [
   // about getting one thing home THROUGH a board of things that will not go.
 
   {
-    id: 26, name: 'ONLY', chapter: 6,
+    name: 'ONLY', chapter: 6,
     idea: 'Only the blocks with a matching socket have to go home. The rest are furniture that moves.',
     feeling: 'Seeing a block that visibly has nowhere to go, and realising that is not a mistake.',
     note: 'SELECT arrives on the smallest board that can state it: one block with a socket, ' +
@@ -558,7 +848,7 @@ var SLOTS = [
     prefer: function (p) { return p.traps * 8 + p.par * 3 - p.pieces.total * 5; }
   },
   {
-    id: 27, name: 'INERT', chapter: 6,
+    name: 'INERT', chapter: 6,
     idea: 'The block that can never leave is the best wall you have.',
     feeling: 'The thing you were treating as an obstacle turns out to be the equipment.',
     note: 'Under ALL IN every block is spent eventually, so a backstop is temporary by ' +
@@ -570,7 +860,7 @@ var SLOTS = [
     prefer: function (p) { return p.caught * 12 + p.blindness * 12 + p.flow * 4 + p.par * 3 - p.pieces.total * 3; }
   },
   {
-    id: 28, name: 'THROUGH2', chapter: 6,
+    name: 'THROUGH2', chapter: 6,
     idea: 'You cannot move one block. You move the world, and everything answers.',
     feeling: 'Working out a route for one piece and discovering the board rearranges itself behind you.',
     note: 'The tilt that takes the cargo where it needs to go also takes three other blocks ' +
@@ -581,7 +871,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 14 + p.traps * 7 + p.flow * 4 + p.par * 4 - p.pieces.total * 2.5; }
   },
   {
-    budget: 4000, id: 29, name: 'CLEAR', chapter: 6,
+    budget: 4000, name: 'CLEAR', chapter: 6,
     idea: 'The furniture is in the way, and the only way to move it is to move everything.',
     feeling: 'Several tilts spent on blocks that are not going anywhere, before the one that matters.',
     note: 'A board where the cargo is one tilt from home from the very first frame, and that ' +
@@ -592,7 +882,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 12 + p.par * 5 + p.setup * 4 + p.guided * 2 - p.pieces.total * 2; }
   },
   {
-    budget: 4000, id: 30, name: 'CHOSEN', chapter: 6,
+    budget: 4000, name: 'CHOSEN', chapter: 6,
     idea: 'One block. Twenty tilts. Everything else on the board is the obstacle.',
     feeling: 'The chapter\'s closing statement: the longest route in the game so far, for a single piece.',
     note: 'Chapter six\'s finale. Two colours of furniture and one colour of cargo, and the ' +
@@ -604,6 +894,62 @@ var SLOTS = [
     prefer: function (p) { return p.par * 6 + p.blindness * 12 + p.guided * 2 - p.pieces.total * 2 - p.jam * 25; }
   },
 
+  {
+    name: 'CARGO', chapter: 6,
+    idea: 'The marked block never moves the way you want. Everything else does.',
+    feeling: 'Steering by moving the scenery.',
+    note: 'Every tilt that would take the cargo somewhere useful is blocked, and every tilt that ' +
+          'is legal takes it somewhere else. The route exists — it is made entirely out of the ' +
+          'positions the furniture is left in.',
+    specs: [select(4, 3, ['A', 'A', 'B'], ['a'], [1, 3]), select(4, 3, ['A', 'A', 'B', 'B'], ['a'], [1, 2])],
+    need: { par: [7, 14], unlock: [1, 4], flow: 3, blindness: 2, retreat: 2, maxJam: 0.28 },
+    prefer: function (p) { return p.blindness * 13 + p.retreat * 8 + p.flow * 4 + p.par * 3 - p.pieces.total * 2.5; }
+  },
+  {
+    name: 'DOOR', chapter: 6,
+    idea: 'The socket takes you from one direction only, and something is always standing in it.',
+    feeling: 'Finding the approach, then spending five tilts clearing it.',
+    note: 'A socket with a backstop on exactly one side, and a piece of furniture that keeps ' +
+          'arriving in the way of that approach. The puzzle is not the last tilt, it is ' +
+          'arranging for the last tilt to be legal.',
+    specs: [select(4, 3, ['A', 'A', 'B'], ['a'], [1, 2]), select(3, 3, ['A', 'A', 'B'], ['a'], [1, 2])],
+    need: { par: [7, 14], unlock: [1, 4], flow: 3, caught: 1, blindness: 2, maxJam: 0.28 },
+    prefer: function (p) { return p.caught * 12 + p.blindness * 12 + p.flow * 4 + p.par * 3 - p.pieces.total * 2.5; }
+  },
+  {
+    budget: 4000, name: 'BALLAST', chapter: 6,
+    idea: 'The furniture has to be moved out of the way and then put back.',
+    feeling: 'Undoing your own work because the work was the point.',
+    note: 'A block with no socket is permanent, which cuts both ways: it is the only reliable ' +
+          'backstop in the game and it is the only obstacle that never disappears. Here the same ' +
+          'piece is both, in that order, and it has to make the return journey.',
+    specs: [select(4, 3, ['A', 'A', 'B', 'B'], ['a'], [1, 2]), select(4, 3, ['A', 'A', 'B'], ['a'], [1, 3])],
+    need: { par: [10, 18], unlock: [1, 30], flow: 0, retreat: 3, blindness: 2, maxJam: 0.3, minInsights: 3, minGuided: 0.3 },
+    prefer: function (p) { return p.retreat * 10 + p.blindness * 11 + p.par * 4 + p.guided * 1.5 - p.pieces.total * 2; }
+  },
+  {
+    budget: 4000, name: 'TWO OF', chapter: 6,
+    idea: 'Two blocks have sockets and two do not, and the two that do cannot both go first.',
+    feeling: 'The chapter\'s first board where the cargo is in its own way.',
+    note: 'Every SELECT board so far has had one thing to deliver. With two, the first delivery ' +
+          'removes a block from the board — which is fine until you notice that the block being ' +
+          'removed was the backstop the second one needed.',
+    specs: [select(4, 3, ['A', 'A', 'B', 'B', 'C', 'C'], ['a', 'b'], [1, 2])],
+    need: { par: [12, 24], unlock: [1, 30], flow: 0, blindness: 2, caught: 1, maxJam: 0.3, minInsights: 4, minGuided: 0.3 },
+    prefer: function (p) { return p.caught * 10 + p.blindness * 12 + p.par * 4 + p.guided * 1.5 - p.pieces.total * 2; }
+  },
+  {
+    budget: 4000, name: 'PICKED', chapter: 6,
+    idea: 'One block home, and every other block on the board spent getting it there.',
+    feeling: 'Chapter six\'s closing statement: the longest route for the smallest cargo.',
+    note: 'The chapter\'s hardest single-cargo board. Nothing is collected until the very last ' +
+          'tilt and every move before it is made on behalf of something that is never going ' +
+          'anywhere.',
+    specs: [select(4, 3, ['A', 'A', 'B', 'B', 'C', 'C'], ['a'], [1, 2])],
+    need: { par: [16, 28], unlock: [1, 40], flow: 0, blindness: 2, maxJam: 0.32, minInsights: 4, minGuided: 0.3 },
+    prefer: function (p) { return p.par * 5 + p.blindness * 13 + p.guided * 2 - p.pieces.total * 2 - p.jam * 20; }
+  },
+
   // ── CHAPTER 7 · SHAPE · FORM ────────────────────────────────────────────
   // 「指定された形を作れ」. The marked cells are standing spots, not holes.
   // Nothing is ever removed, every constraint has to be satisfied at the same
@@ -611,7 +957,7 @@ var SLOTS = [
   // next one.
 
   {
-    id: 31, name: 'PLACE', chapter: 7,
+    name: 'PLACE', chapter: 7,
     idea: 'These marks are not holes. They are cells you have to be standing on when the board settles.',
     feeling: 'Watching a block stop on a marked cell and STAY there is the entire rule.',
     note: 'FORM opens with the smallest possible statement of it: two marks, two blocks, and ' +
@@ -624,7 +970,7 @@ var SLOTS = [
     prefer: function (p) { return p.traps * 8 + p.par * 3 - p.pieces.total * 5; }
   },
   {
-    id: 32, name: 'AT ONCE', chapter: 7,
+    name: 'AT ONCE', chapter: 7,
     idea: 'Every mark has to be covered at the same moment. Filling them one at a time is not progress.',
     feeling: 'Getting one right, then getting the next one right, then finding the first one has moved.',
     note: 'The difference between FORM and everything before it. Under ALL IN a collected ' +
@@ -636,7 +982,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 14 + p.retreat * 8 + p.flow * 4 + p.par * 3 - p.pieces.total * 3; }
   },
   {
-    id: 33, name: 'ANCHOR', chapter: 7,
+    name: 'ANCHOR', chapter: 7,
     idea: 'A block that is already in place is a wall — and walls are how you place the next one.',
     feeling: 'The first correct block stops being a result and becomes a tool.',
     note: 'The compensation for nothing being banked: a block on its mark is still on the ' +
@@ -648,7 +994,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 14 + p.traps * 7 + p.flow * 4 + p.par * 4 - p.pieces.total * 2.5; }
   },
   {
-    budget: 4000, id: 34, name: 'PATTERN', chapter: 7,
+    budget: 4000, name: 'PATTERN', chapter: 7,
     idea: 'The shape names colours as well as cells: the right block has to be on the right mark.',
     feeling: 'Two blocks in the right places and the shape is still wrong.',
     note: 'FORM and colour together, which is the only pairing in the game where two rules ' +
@@ -661,7 +1007,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 13 + p.par * 5 + p.guided * 2 - p.pieces.total * 2.5; }
   },
   {
-    budget: 4000, id: 35, name: 'SHAPE', chapter: 7,
+    budget: 4000, name: 'SHAPE', chapter: 7,
     idea: 'Three marks, three colours, and one arrangement of the board that satisfies all of them.',
     feeling: 'The chapter\'s closing statement: a picture you have to build with a tool that moves everything.',
     note: 'Chapter seven\'s finale. Every block is load-bearing twice over — as a piece of the ' +
@@ -671,6 +1017,63 @@ var SLOTS = [
             form(4, 3, ['A', 'A', 'B', 'B'], ['a', 'a', 'b'], [1, 2])],
     need: { par: [16, 24], unlock: [1, 40], flow: 0, blindness: 1, maxJam: 0.32, minInsights: 4, minGuided: 0.3 },
     prefer: function (p) { return p.par * 6 + p.blindness * 12 + p.guided * 2 - p.pieces.total * 2 - p.jam * 25; }
+  },
+
+  {
+    name: 'ROW', chapter: 7,
+    idea: 'A shape in a straight line, which is the hardest shape to hold under one gravity.',
+    feeling: 'Getting all three into the row and watching the row slide off the end of it.',
+    note: 'A line of marks along one axis is the shape most easily destroyed by the next tilt, ' +
+          'because every block in it answers that tilt the same way. Holding it requires the ' +
+          'line to be built against something.',
+    specs: [form(4, 3, ['@', '@', 'C'], ['o', 'o', 'o'], [1, 3]), form(4, 3, ['@', '@'], ['o', 'o'], [1, 3])],
+    need: { par: [6, 13], unlock: [1, 4], flow: 3, blindness: 2, retreat: 2, maxJam: 0.3 },
+    prefer: function (p) { return p.blindness * 13 + p.retreat * 8 + p.flow * 4 + p.par * 3 - p.pieces.total * 2.5; }
+  },
+  {
+    budget: 4000, name: 'LAST', chapter: 7,
+    idea: 'The final block has to land without moving any of the ones already placed.',
+    feeling: 'Three quarters of the shape sitting there, and every remaining tilt ruining it.',
+    note: 'Nothing is banked on a FORM board, so the last tilt is a constraint rather than a ' +
+          'formality: it has to be a direction in which every block already home is already ' +
+          'against something.',
+    specs: [form(4, 3, ['A', 'A', 'B'], ['a', 'a', 'b'], [1, 2]), form(4, 3, ['@', '@', 'C'], ['o', 'o', 'o'], [1, 2])],
+    need: { par: [8, 16], unlock: [1, 30], flow: 0, chainLast: 1, blindness: 2, maxJam: 0.3, minInsights: 3, minGuided: 0.3 },
+    prefer: function (p) { return p.blindness * 12 + p.par * 4 + p.chainLast * 8 + p.guided * 1.5 - p.pieces.total * 2.5; }
+  },
+  {
+    budget: 4000, name: 'SPARE', chapter: 7,
+    idea: 'The block that is not part of the shape is the only reason the shape can be built.',
+    feeling: 'Realising the piece you were ignoring is the whole answer.',
+    note: 'The measured heart of FORM: the sweep says a shape that uses every block on the board ' +
+          'is shallow, and one with a piece left over is deep. This board is that result made ' +
+          'playable — the spare block is the wall that holds every other one in place.',
+    specs: [form(4, 3, ['A', 'A', 'B', 'B', 'C'], ['a', 'a', 'b', 'b'], [1, 2])],
+    need: { par: [10, 20], unlock: [1, 30], flow: 0, blindness: 2, maxJam: 0.3, minInsights: 4, minGuided: 0.3 },
+    prefer: function (p) { return p.blindness * 12 + p.par * 4 + p.guided * 2 - p.pieces.total * 2; }
+  },
+  {
+    budget: 4000, name: 'SCATTER', chapter: 7,
+    idea: 'Marks in four corners of the board, all to be covered at the same moment.',
+    feeling: 'A shape that has no compact arrangement to fall into.',
+    note: 'The hardest kind of shape to hold: cells far enough apart that no single tilt ever ' +
+          'brings two blocks toward two of them. Every mark is satisfied separately, and every ' +
+          'one that is satisfied makes the next harder.',
+    specs: [form(4, 3, ['A', 'A', 'B', 'B'], ['a', 'a', 'b', 'b'], [1, 2]),
+            form(4, 3, ['A', 'A', 'B', 'B', 'C'], ['a', 'a', 'b', 'b'], [1, 2])],
+    need: { par: [12, 24], unlock: [1, 40], flow: 0, blindness: 2, retreat: 3, maxJam: 0.32, minInsights: 4, minGuided: 0.3 },
+    prefer: function (p) { return p.blindness * 12 + p.retreat * 7 + p.par * 4 + p.guided * 1.5 - p.pieces.total * 2; }
+  },
+  {
+    budget: 4000, name: 'BUILT', chapter: 7,
+    idea: 'A picture with four cells and four colours, and one arrangement of the board that is it.',
+    feeling: 'Chapter seven\'s closing statement: you can see the answer from the first frame and it takes twenty tilts.',
+    note: 'The hardest coloured shape the sweep found that is still fair. Knowing exactly what ' +
+          'the finished board looks like changes nothing, which is the clearest demonstration ' +
+          'in the game that the difficulty here was never about knowing where to go.',
+    specs: [form(4, 3, ['A', 'A', 'B', 'B', 'C'], ['a', 'a', 'b', 'b'], [1, 2])],
+    need: { par: [20, 32], unlock: [1, 40], flow: 0, blindness: 2, maxJam: 0.35, minInsights: 5, minGuided: 0.3 },
+    prefer: function (p) { return p.par * 5 + p.blindness * 13 + p.guided * 2 - p.pieces.total * 2 - p.jam * 20; }
   },
 
   // ── CHAPTER 8 · ABYSS ───────────────────────────────────────────────────
@@ -702,7 +1105,7 @@ var SLOTS = [
   // momentum, with a handful of places where momentum is exactly wrong.
 
   {
-    budget: 1200, id: 36, name: 'DESCENT', chapter: 8,
+    budget: 1200, name: 'DESCENT', chapter: 8,
     idea: 'Everything you have learned, on one board, for thirty tilts.',
     feeling: 'The first board that is genuinely a sitting-down puzzle rather than a moment.',
     note: 'The gate to the last chapter, and the gentlest thing in it. Three colours, one ' +
@@ -714,7 +1117,7 @@ var SLOTS = [
     prefer: function (p) { return p.blindness * 10 + p.insights * 3 + p.guided * 1.5 - p.jam * 20; }
   },
   {
-    budget: 1200, id: 37, name: 'WARREN', chapter: 8,
+    budget: 1200, name: 'WARREN', chapter: 8,
     idea: 'Twelve cells, six blocks and nowhere at all to put anything.',
     feeling: 'Every tilt is legal, almost every tilt is wrong, and it takes forty of them.',
     note: 'The density argument taken to its conclusion. Half the board is blocks, so the ' +
@@ -726,7 +1129,7 @@ var SLOTS = [
     prefer: function (p) { return p.par * 2 + p.blindness * 10 + p.insights * 3 - p.jam * 20; }
   },
   {
-    budget: 1200, id: 38, name: 'MIRE', chapter: 8,
+    budget: 1200, name: 'MIRE', chapter: 8,
     idea: 'A shape to build, in a room too full to build it in.',
     feeling: 'Knowing exactly what the answer looks like from the first second, and needing forty tilts to reach it.',
     note: 'FORM at the far end of its range. There is no mystery about the target — it is ' +
@@ -738,7 +1141,7 @@ var SLOTS = [
     prefer: function (p) { return p.par * 3 + p.blindness * 10 + p.insights * 3 - p.jam * 18; }
   },
   {
-    budget: 1200, id: 39, name: 'GAUNTLET', chapter: 8,
+    budget: 1200, name: 'GAUNTLET', chapter: 8,
     idea: 'The rules that were kept apart all game, on one board, on purpose.',
     feeling: 'Reading a board that is doing three things at once, and finding it is still fair.',
     note: 'The one place the campaign spends the result it spent the rest of the game ' +
@@ -753,7 +1156,75 @@ var SLOTS = [
     prefer: function (p) { return p.par * 3 + p.blindness * 12 + p.insights * 3 - p.jam * 15; }
   },
   {
-    budget: 1200, id: 40, name: 'ABYSS', chapter: 8,
+    budget: 1200, name: 'CRUCIBLE', chapter: 8,
+    idea: 'The gentlest board in the last chapter is still thirty tilts long.',
+    feeling: 'The first board that has to be sat down with.',
+    note: 'Chapter eight opens twice: DESCENT is the shortest thing in it and this is the second, ' +
+          'so the player crosses the thirty-tilt line before anything asks them to hold forty. ' +
+          'Same six blocks, same twelve cells, one fewer idea to find.',
+    specs: [select(4, 3, ['A', 'A', 'B', 'B', 'C', 'C'], ['a', 'b'], [1, 2])],
+    need: { par: [30, 34], unlock: [1, 99], flow: 0, blindness: 2, maxJam: 0.4, maxLuck: 0.001,
+            minInsights: 6, minGuided: 0.42, maxPump: 0.4 },
+    prefer: function (p) { return p.blindness * 12 + p.insights * 3 + p.guided * 1.5 - p.jam * 20; }
+  },
+  {
+    budget: 1200, name: 'THICKET', chapter: 8,
+    idea: 'Four marks, five blocks, and the fifth one is in the way of all four.',
+    feeling: 'Forty tilts spent moving the piece that is not part of the answer.',
+    note: 'FORM is deep because of the block that is NOT in the shape — the sweep says a shape ' +
+          'using every block on the board is shallow and one with a piece left over is not. This ' +
+          'is that result at the end of its range: the spare block is both the only thing that ' +
+          'can hold the shape together and the only thing standing where the shape goes. ' +
+          'This slot was going to be a long MATCH board — the one win condition chapter eight ' +
+          'otherwise never uses. It is not, because MATCH does not survive the length. Every ' +
+          'board in that space past par 22 measures jam 61% and guided 31%: unwinnable from ' +
+          'most of its own positions, and a fight at almost every tilt. Nothing is ever banked ' +
+          'on a MATCH board, so a long one is not a long puzzle, it is a short puzzle that keeps ' +
+          'coming undone.',
+    specs: [form(4, 3, ['A', 'A', 'B', 'B', 'C'], ['a', 'a', 'b', 'b'], [1, 2])],
+    need: { par: [39, 45], unlock: [1, 99], flow: 0, blindness: 1, maxJam: 0.42, maxLuck: 0.001,
+            minInsights: 6, minGuided: 0.4, maxPump: 0.45 },
+    prefer: function (p) { return p.blindness * 12 + p.insights * 3 + p.guided * 1.5 - p.jam * 18; }
+  },
+  {
+    budget: 1200, name: 'LATTICE', chapter: 8,
+    idea: 'A shape to build, at the length of a route.',
+    feeling: 'Thirty tilts in which the board never once looks closer to finished.',
+    note: 'FORM in the middle of its range, where the target is visible from the first frame and ' +
+          'stays exactly as far away for the first twenty tilts. The progress is real and none ' +
+          'of it shows.',
+    specs: [form(4, 3, ['A', 'A', 'B', 'B', 'C'], ['a', 'a', 'b', 'b'], [1, 2])],
+    need: { par: [32, 38], unlock: [1, 99], flow: 0, blindness: 1, maxJam: 0.42, maxLuck: 0.001,
+            minInsights: 6, minGuided: 0.4, maxPump: 0.45 },
+    prefer: function (p) { return p.blindness * 12 + p.insights * 3 + p.guided * 1.5 - p.jam * 18; }
+  },
+  {
+    budget: 1200, name: 'SIEVE', chapter: 8,
+    idea: 'Two deliveries, forty tilts, and the first one is what makes the second hard.',
+    feeling: 'Banking a block after thirty moves and immediately wishing you had not.',
+    note: 'A collection is irreversible: the block is gone and whatever it was holding up is ' +
+          'not held up any more. On a board this long that is a decision made half an hour ' +
+          'before its consequence.',
+    specs: [select(4, 3, ['A', 'A', 'B', 'B', 'C', 'C'], ['a', 'b'], [1, 2])],
+    need: { par: [43, 47], unlock: [1, 99], flow: 0, blindness: 1, maxJam: 0.42, maxLuck: 0.001,
+            minInsights: 8, minGuided: 0.4, maxPump: 0.4 },
+    prefer: function (p) { return p.blindness * 12 + p.insights * 3 + p.guided * 1.5 - p.jam * 20; }
+  },
+  {
+    budget: 1200, name: 'VAULT', chapter: 8,
+    idea: 'Fifty tilts, one of which is wrong in a way you will not find out about for twenty more.',
+    feeling: 'The second-longest board in the game, and the one most worth a piece of paper.',
+    note: 'Past fifty tilts the board stops being something held in the head. This is the point ' +
+          'in the campaign where writing the line down is a reasonable thing to do, and the ' +
+          'automatic rewind is the only reason that is a puzzle rather than a punishment.',
+    specs: [select(4, 3, ['A', 'A', 'B', 'B', 'C', 'C'], ['a', 'b'], [1, 2])],
+    need: { par: [50, 54], unlock: [1, 99], flow: 0, blindness: 1, maxJam: 0.45, maxLuck: 0.001,
+            minInsights: 8, minGuided: 0.4, maxPump: 0.45 },
+    prefer: function (p) { return p.par * 3 + p.blindness * 12 + p.insights * 2 - p.jam * 15; }
+  },
+
+  {
+    budget: 1200, name: 'ABYSS', chapter: 8,
     idea: 'The longest board in TILT that a person could actually solve.',
     feeling: 'Not a moment of insight. An afternoon.',
     note: 'The end of the game, and the only board in it chosen for its length. It is the ' +
@@ -768,6 +1239,38 @@ var SLOTS = [
     prefer: function (p) { return p.par * 5 + p.blindness * 10 + p.insights * 2 - p.jam * 15; }
   }
 ];
+
+/**
+ * The stage number is where the slot SITS, not something written on it.
+ *
+ * Ids used to be typed into each literal, which made inserting a stage into the
+ * middle of a chapter a rename of everything after it — and the chapter table
+ * below, the audit's device checks and the save file all read those numbers. So
+ * position assigns the id, the chapter spans are derived from the same pass,
+ * and adding a board is inserting a board.
+ */
+SLOTS.forEach(function (slot, i) { slot.id = i + 1; });
+
+(function checkChapters() {
+  var seen = [], last = null;
+  SLOTS.forEach(function (slot) {
+    if (slot.chapter !== last) {
+      if (seen.indexOf(slot.chapter) >= 0) {
+        throw new Error('chapter ' + slot.chapter + ' is split into two runs of slots');
+      }
+      seen.push(slot.chapter);
+      last = slot.chapter;
+    }
+  });
+})();
+
+/** First and last stage number of a chapter, read off the slots. */
+function spanOf(number) {
+  var ids = SLOTS.filter(function (s2) { return s2.chapter === number; })
+                 .map(function (s2) { return s2.id; });
+  if (!ids.length) throw new Error('chapter ' + number + ' has no slots');
+  return { from: Math.min.apply(null, ids), to: Math.max.apply(null, ids) };
+}
 
 // ---------------------------------------------------------------------------
 // the search
@@ -838,6 +1341,36 @@ function fullProfile(rows, win, need) {
   }));
 }
 
+/**
+ * One terrain sweep per (budget, filter) pair, however many slots want it.
+ *
+ * With ten slots per chapter the same design space is asked for over and over —
+ * the ten MATCH slots between them name four distinct budgets — and sweeping
+ * 14,000 terrains again for the second slot that wants them is most of the
+ * build time spent on an answer that has not changed. The result is keyed on
+ * the spec AND the filters, because a sweep run with a different par band is a
+ * different sweep and reusing it would silently narrow a slot's search.
+ *
+ * Bounded on the way in rather than the way out: a sweep that produced more
+ * than SWEEP_KEEP candidates is not cached at all, because the few enormous
+ * spaces are exactly the ones that would eat the heap, and they are also the
+ * ones least likely to be asked for twice.
+ */
+var SWEEP_CACHE = Object.create(null);
+var SWEEP_KEEP = 60000;
+
+function sweep(spec, filters) {
+  var k = JSON.stringify([spec, filters]);
+  var hit = SWEEP_CACHE[k];
+  if (hit) return hit;
+
+  var found = [];
+  var r = G.exhaust(spec, filters, function (c) { found.push(c); });
+  var out = { found: found, terrains: r.terrains };
+  if (found.length <= SWEEP_KEEP) SWEEP_CACHE[k] = out;
+  return out;
+}
+
 function search(slot, budget) {
   var need = {};
   var k;
@@ -877,13 +1410,15 @@ function search(slot, budget) {
   });
 
   slot.specs.forEach(function (sp) {
-    var r = G.exhaust(sp, sweepFilters, function (c) {
+    var swept = sweep(sp, sweepFilters);
+    terrainCount += swept.terrains;
+    for (var i = 0; i < swept.found.length; i++) {
+      var c = swept.found[i];
       var key2 = key(c.board, c.win);
-      if (seenBoard[key2]) return;
+      if (seenBoard[key2]) continue;
       seenBoard[key2] = 1;
       raw.push(c);
-    });
-    terrainCount += r.terrains;
+    }
   });
 
   // Order the profiling pass so the most promising boards are measured first.
@@ -964,7 +1499,7 @@ function shapeKey(p) {
 }
 
 /**
- * Fill the forty slots.
+ * Fill the eighty slots.
  *
  * No two stages may share a board, and no two may share a TERRAIN and a block
  * count either — the same walls with the blocks shuffled is the same puzzle
@@ -981,7 +1516,7 @@ function shapeKey(p) {
  * So slots are filled scarcest-first: whichever slot has the fewest qualifying
  * boards in the entire searched space picks before any slot that has more. The
  * teaching stages, which are the most accommodating, choose last from what is
- * left. Same forty ideas, assigned so that the rare ones survive.
+ * left. Same eighty ideas, assigned so that the rare ones survive.
  */
 function build() {
   var t0 = Date.now();
@@ -1120,23 +1655,30 @@ function report(chosen) {
 // ---------------------------------------------------------------------------
 
 var CHAPTERS = [
-  { number: 1, name: 'GRAVITY', ja: '重力', from: 1, to: 5,
+  { number: 1, name: 'GRAVITY', ja: '重力',
     note: 'The whole vocabulary, one board per idea — and two of the five spent on the rule that defines the game: a goal is not a target, it is a cell you have to be stopped on.' },
-  { number: 2, name: 'NINE', ja: '九マス', from: 6, to: 10,
+  { number: 2, name: 'NINE', ja: '九マス',
     note: 'Nothing added. Two blocks, four characters, and the hardest things they can be made to say. Every board here fits in a single glance and none can be solved in one.' },
-  { number: 3, name: 'EDGE', ja: '境界', from: 11, to: 15, device: 'hazard',
+  { number: 3, name: 'EDGE', ja: '境界', device: 'hazard',
     note: 'The exact mirror of a goal: a cell you may cross and must not be caught on. It adds no material to a board, it removes places to rest, and being caught on one ends the run.' },
-  { number: 4, name: 'PAIR', ja: '対', from: 16, to: 20, device: 'colour',
+  { number: 4, name: 'PAIR', ja: '対', device: 'colour',
     note: 'Two colours, two blocks each. A goal is a hole for one block and a floor tile for the other — so a block collected too early is a backstop you no longer have.' },
-  { number: 5, name: 'TOGETHER', ja: '結', from: 21, to: 25, device: 'match',
+  { number: 5, name: 'TOGETHER', ja: '結', device: 'match',
     note: 'No holes at all: blocks of one colour have to end up touching. One gravity moves both of them, so almost every way of closing a gap opens it again somewhere else.' },
-  { number: 6, name: 'CHOSEN', ja: '選', from: 26, to: 30, device: 'select',
+  { number: 6, name: 'CHOSEN', ja: '選', device: 'select',
     note: 'Only the marked blocks have to get home; the rest can never leave and are drawn dimmed to say so. You cannot move one block — you move the world, and everything answers.' },
-  { number: 7, name: 'SHAPE', ja: '形', from: 31, to: 35, device: 'form',
+  { number: 7, name: 'SHAPE', ja: '形', device: 'form',
     note: 'The marks are standing spots, not holes. Nothing is banked, every mark has to be covered at the same moment, and every block placed is a new wall in the way of the next.' },
-  { number: 8, name: 'ABYSS', ja: '深淵', from: 36, to: 40, extreme: true,
+  { number: 8, name: 'ABYSS', ja: '深淵', extreme: true,
     note: 'The rules that were kept apart all game, together, and the only chapter where length is the target. Thirty tilts at the shallow end. Nothing here is a moment of insight — it is an afternoon.' }
 ];
+
+// from/to are derived rather than declared, for the same reason ids are.
+CHAPTERS.forEach(function (c) {
+  var span = spanOf(c.number);
+  c.from = span.from;
+  c.to = span.to;
+});
 
 function emit(chosen) {
   var out = [];
@@ -1254,7 +1796,14 @@ function emit(chosen) {
 
 /** A JS string literal, wrapped so the generated file stays readable. */
 function jsStr(s) {
-  var esc = String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  var esc = String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    // A note is free text and free text can contain a line break. Emitting one
+    // raw produced a stage file that would not parse, which is a class of bug
+    // this generator should not be capable of.
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n');
   if (esc.length <= 76) return "'" + esc + "'";
   var words = esc.split(' '), lines = [], cur = '';
   words.forEach(function (w) {
@@ -1269,7 +1818,7 @@ function jsStr(s) {
 
 // ---------------------------------------------------------------------------
 
-console.log('\n  TILT — searching for forty boards worth playing\n');
+console.log('\n  TILT — searching for eighty boards worth playing\n');
 var chosen = build();
 if (REPORT) report(chosen);
 if (!DRY && !ONLY) {

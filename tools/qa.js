@@ -171,19 +171,53 @@ async function swipe(page, x, y, dx, dy) {
 
   // ── undo / restart integrity ───────────────────────────────────────────────
   console.log('\n\u001b[1mUNDO / RESTART\u001b[0m');
-  await page.evaluate(function () { window.game.loadStage(6); });
-  await page.waitForTimeout(180);
 
+  // Pick the stage AND the tilts at runtime.
+  //
+  // This used to be `loadStage(6)` followed by a hard-coded D, R, U, L — and it
+  // broke the moment the campaign was regenerated, because on the new stage 7
+  // that sequence happens to be a solution. The undo button is disabled on a
+  // cleared board, so the test undid nothing and then complained that undo had
+  // not worked. What it needs is a few moves that MOVE something and do not
+  // finish the stage, which is a question the engine can answer.
+  var plan = await page.evaluate(function () {
+    var g = window.game, E = window.TiltEngine, S = window.TiltStages.STAGES;
+    g.save.data.unlocked = 99;
+    for (var idx = 0; idx < S.length; idx++) {
+      g.loadStage(idx);
+      var s = E.initialState(g.stage), seq = [];
+      for (var step = 0; step < 4; step++) {
+        for (var d = 0; d < 4; d++) {
+          var r = E.simulate(g.stage, s, E.DIRS[d], { frames: false });
+          if (!r.moved || r.clear || r.broken) continue;
+          seq.push(E.DIRS[d]);
+          s = r.state;
+          break;
+        }
+        if (seq.length !== step + 1) break;
+      }
+      if (seq.length >= 3) {
+        g.loadStage(idx);
+        return { idx: idx, id: S[idx].id, seq: seq };
+      }
+    }
+    return null;
+  });
+  ok('a stage exists with a few non-finishing tilts to undo', !!plan);
+
+  await page.waitForTimeout(180);
+  var keyOfDir = { U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight' };
   var start = await page.evaluate(function () { return window.TiltEngine.stateKey(window.game.state); });
-  var seq = ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'];
-  for (var k = 0; k < seq.length; k++) {
-    await page.keyboard.press(seq[k]);
+  for (var k = 0; k < plan.seq.length; k++) {
+    await page.keyboard.press(keyOfDir[plan.seq[k]]);
     await page.waitForFunction(function () { return window.game.phase !== 'busy'; }, null, { timeout: 6000 });
   }
   var mid = await page.evaluate(function () {
-    return { moves: window.game.state.moves, hist: window.game.history.length };
+    return { moves: window.game.state.moves, hist: window.game.history.length, phase: window.game.phase };
   });
-  ok('moves accumulated', mid.hist > 0, 'history=' + mid.hist + ' moves=' + mid.moves);
+  ok('moves accumulated  (stage ' + plan.id + ', ' + plan.seq.join(' ') + ')',
+    mid.hist === plan.seq.length && mid.phase === 'play',
+    'history=' + mid.hist + ' moves=' + mid.moves + ' phase=' + mid.phase);
 
   // Undo until the button says there is nothing left, rather than assuming a
   // count — a no-op tilt correctly leaves no history entry behind.
@@ -206,7 +240,7 @@ async function swipe(page, x, y, dx, dy) {
   ok('undo restores the move counter', afterUndo.moves === 0, 'moves=' + afterUndo.moves);
   ok('undo button disables when history is empty', afterUndo.disabled === true);
 
-  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press(keyOfDir[plan.seq[0]]);
   await page.waitForFunction(function () { return window.game.phase !== 'busy'; });
   await page.click('#btn-restart');
   await page.waitForTimeout(150);
@@ -217,7 +251,7 @@ async function swipe(page, x, y, dx, dy) {
       hist: window.game.history.length
     };
   });
-  ok('restart returns to the initial state', afterRestart.key === start);
+  ok('restart returns to the initial state', afterRestart.key === start, afterRestart.key + ' vs ' + start);
   ok('restart clears history and counter', afterRestart.hist === 0 && afterRestart.moves === 0);
 
   // ── the devices, in the real game ─────────────────────────────────────────

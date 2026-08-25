@@ -369,6 +369,14 @@ almost immediately, whatever the walls do — there is no puzzle to have. MATCH 
 in the game that is *born* needing another rule, and the third colour more than doubles its
 ceiling because the second pair is the only tool for separating the first.
 
+**Where it stops.** MATCH is the one win condition with a **fairness ceiling** rather than a
+depth ceiling, and it arrives around par 22. Every board in the 4×3 three-colour space past
+that length measures **jam 61% and guided 31%** — unwinnable from most of its own positions,
+and a fight at almost every tilt. The cause is the thing that makes MATCH interesting in the
+first place: nothing is ever banked, so a long MATCH board is not a long puzzle, it is a
+short puzzle that keeps coming undone. The campaign's extreme chapter was going to open with
+a forty-tilt MATCH board and does not, for exactly this reason.
+
 **Good use.** A board where the tilt that closes one pair opens another, so the order is the
 entire question.
 
@@ -487,6 +495,7 @@ Measured at 4×3, same quality gates throughout.
 | hazard | colour | ✕ | Strictly worse than colour alone on every axis, and jams 6% → 11%. |
 | colour | — (alone) | ◎◎ | Par 16 under ALL IN, and the precondition for everything in §4. |
 | colour | MATCH | ◎◎ | **Required.** One colour produces zero viable MATCH boards; three produce 160,314. |
+| MATCH | length | ✕ | Past par 22 every board in the space is unwinnable from 61% of its positions. MATCH is a short-board rule. |
 | colour | SELECT | ◎◎ | **Required.** SELECT *is* "some colours have sockets and some do not". |
 | colour | FORM | ◎ | Optional and strong: it turns a count into a picture, and lifts the ceiling 22 → 60. |
 | hazard | SELECT | ✕ | Par ceiling 48 where SELECT alone reaches 58, over a space five times larger. The combination is shorter *and* less clear. |
@@ -635,11 +644,11 @@ the wrong thing is cheap, obvious, and instructive.
 | 2 OVER | **goals are not targets** | The obvious tilt sends the block visibly *past* the socket. The player does this wrong exactly once. |
 | 3 BRAKE | walls as backstops | Only one of four directions has anything behind the goal. Answers the board before it. |
 | 4 STACK | blocks as backstops | Required by measurement to contain a collection where a block was the brake. |
-| 11 CROSS | hazard | The solution goes *across* it. Stopping on it ends the run where you can see exactly why. |
-| 16 SORT | colour | Watch a block come to rest in a socket and not be taken. |
-| 21 MEET | **MATCH** | No holes on the board at all, and the first tilt slams two of a colour together. |
-| 26 ONLY | **SELECT** | One block lit, one block dimmed and hollow. The dim one visibly has nowhere to go. |
-| 31 PLACE | **FORM** | Two brackets on the floor, two blocks, one tilt that fills both. |
+| 21 CROSS | hazard | The solution goes *across* it. Stopping on it ends the run where you can see exactly why. |
+| 31 SORT | colour | Watch a block come to rest in a socket and not be taken. |
+| 41 MEET | **MATCH** | No holes on the board at all, and the first tilt slams two of a colour together. |
+| 51 ONLY | **SELECT** | One block lit, one block dimmed and hollow. The dim one visibly has nowhere to go. |
+| 61 PLACE | **FORM** | Two brackets on the floor, two blocks, one tilt that fills both. |
 
 **The principle:** a rule is introduced by a board where the rule is the only thing that
 happens, and where being wrong costs one tap. Nothing is introduced in a board that is also
@@ -708,13 +717,14 @@ else in the game, because they are what separates a long puzzle from a long chor
 | `insights` | ≥ 6 | moves on the line where instinct is wrong. A forty-tilt board with two decisions in it is thirty-eight tilts of admin. |
 | `guided` | ≥ 42% | and at least that much of it plays itself. A board where every move is its own fight is a corridor, however long. |
 
-What shipped, measured: par **35 · 42 · 49 · 48 · 57**, with 16 to 29 moves of genuine
-decision on each and the rest momentum. Four of the five have blindness 3 — the correct
-opening is the very last one instinct would try — which is the same signature the three-tilt
-boards in chapter 1 are selected for. Length was added; nothing was given up for it.
+What shipped, measured: ten boards at par **34 · 35 · 38 · 42 · 45 · 46 · 48 · 49 · 52 · 57**,
+with 16 to 29 moves of genuine decision on each and the rest momentum. Nine of the ten have
+blindness 3 — the correct opening is the very last one instinct would try — which is the same
+signature the three-tilt boards in chapter 1 are selected for. Length was added; nothing was
+given up for it.
 
-The one thing that is genuinely worse at this end of the game is jams: stage 39 is unwinnable
-from 32% of its positions and stage 40 from 28%, against 0% almost everywhere else. That is
+The one thing that is genuinely worse at this end of the game is jams: three of the ten are
+unwinnable from about a third of their positions, against 0% almost everywhere else. That is
 what a board this dense costs, and it is exactly the cost the automatic rewind was built to
 absorb — a jam is now an interruption of one tilt rather than a run quietly ending.
 
