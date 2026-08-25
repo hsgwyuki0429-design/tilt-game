@@ -20,7 +20,7 @@
       ja: '重力',
       from: 1,
       to: 5,
-      note: 'Tilt the ice world. Glide each penguin onto its aurora while avoiding cracked ice.'
+      note: 'Swipe the ice world. Glide each penguin onto its aurora while avoiding cracked ice.'
     }
   ];
 

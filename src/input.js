@@ -8,19 +8,15 @@
  *   - a swipe commits at 18px, or at any speed if the flick was fast
  *   - the dominant axis wins outright; there is no diagonal to get wrong
  *   - the direction being aimed at is drawn on the board *before* release
- *   - device tilt fires from the current pose, regardless of how it got there
- *   - a captured neutral and return-to-centre gate prevent repeated moves
  *
- * Swipe alone plays the entire game. Tilt is strictly an alternative.
+ * Swipe alone plays the entire game. Keyboard input is retained for desktop
+ * accessibility and automated testing.
  */
 (function (root) {
 
   var SWIPE_MIN = 18;        // px before a drag counts as aimed
   var FLICK_MIN = 10;        // px, if it was fast enough
   var FLICK_MS = 260;
-
-  var TILT_ON = 9;           // degrees from neutral to fire immediately
-  var TILT_OFF = 4;          // degrees to re-arm
 
   function Input(el, handlers) {
     this.el = el;
@@ -31,14 +27,6 @@
     this.on = handlers;
     this.start = null;
     this.aimed = null;
-    this.tilt = {
-      enabled: false,
-      neutral: null,
-      armed: true,
-      dir: null,
-      invert: false,
-      supported: typeof window !== 'undefined' && 'DeviceOrientationEvent' in window
-    };
     this.bind();
   }
 
@@ -118,101 +106,6 @@
     // for the player to get subtly wrong.
     if (ax >= ay) return dx > 0 ? 'R' : 'L';
     return dy > 0 ? 'D' : 'U';
-  };
-
-  // -- device tilt ------------------------------------------------------------
-
-  Input.prototype.enableTilt = function (cb) {
-    var self = this;
-    if (!this.tilt.supported) { cb(false, 'unsupported'); return; }
-
-    var attach = function () {
-      self.tilt.enabled = true;
-      self.resetTiltPose();
-      if (!self.tiltHandler) {
-        self.tiltHandler = function (e) { self.onOrientation(e); };
-        window.addEventListener('deviceorientation', self.tiltHandler);
-      }
-      cb(true);
-    };
-
-    // iOS 13+ requires an explicit grant, and only from a user gesture.
-    var DOE = window.DeviceOrientationEvent;
-    if (DOE && typeof DOE.requestPermission === 'function') {
-      DOE.requestPermission().then(function (res) {
-        if (res === 'granted') attach();
-        else cb(false, 'denied');
-      }).catch(function () { cb(false, 'denied'); });
-    } else {
-      attach();
-    }
-  };
-
-  Input.prototype.disableTilt = function () {
-    this.tilt.enabled = false;
-    this.resetTiltPose();
-    this.on.aim(null);
-  };
-
-  Input.prototype.resetTiltPose = function () {
-    var t = this.tilt;
-    t.neutral = null;
-    t.armed = true;
-    t.dir = null;
-  };
-
-  Input.prototype.recentre = function () {
-    this.resetTiltPose();
-    this.on.aim(null);
-  };
-
-  Input.prototype.onOrientation = function (e) {
-    var t = this.tilt;
-    if (!t.enabled || e.beta == null || e.gamma == null) return;
-
-    if (!t.neutral) {
-      t.neutral = { beta: e.beta, gamma: e.gamma };
-      return;
-    }
-
-    var dBeta = e.beta - t.neutral.beta;
-    var dGamma = e.gamma - t.neutral.gamma;
-
-    // Compensate for the device being held sideways, so "tilt right" always
-    // means right *on the screen*.
-    var angle = 0;
-    if (screen.orientation && typeof screen.orientation.angle === 'number') angle = screen.orientation.angle;
-    else if (typeof window.orientation === 'number') angle = window.orientation;
-    var rad = -angle * Math.PI / 180;
-    var cos = Math.cos(rad), sin = Math.sin(rad);
-    var gx = dGamma * cos - dBeta * sin;
-    var gy = dBeta * cos + dGamma * sin;
-    if (t.invert) gy = -gy;
-
-    var ax = Math.abs(gx), ay = Math.abs(gy);
-    var mag = Math.max(ax, ay);
-    var dir = null;
-    if (mag >= TILT_ON) dir = ax >= ay ? (gx > 0 ? 'R' : 'L') : (gy > 0 ? 'D' : 'U');
-
-    if (mag < TILT_OFF) {
-      t.armed = true;
-      t.dir = null;
-      this.on.aim(null);
-      return;
-    }
-    if (!dir) return;
-    // Holding one direction emits once. A genuinely different direction is a
-    // new command even when the phone never passed back through neutral.
-    if (!t.armed && t.dir === dir) return;
-
-    // The pose is the command. It does not matter whether the player moved
-    // quickly, slowly, paused on the way, or the sensor skipped intermediate
-    // samples: the first reading beyond the threshold fires that direction.
-    t.armed = false;
-    t.dir = dir;
-    this.on.aim(dir);
-    this.on.commit(dir);
-    this.on.aim(null);
   };
 
   root.TiltInput = { Input: Input };

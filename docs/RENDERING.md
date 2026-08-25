@@ -7,7 +7,7 @@ directly to a screen-aligned square so the live board matches the home preview.
 
 There is no perspective, visible side face, camera controller, rotation, zoom,
 or orbit. Logical X stays screen-right and logical Y stays screen-down, so all
-four swipe and tilt directions match the visible penguin movement:
+four swipe directions match the visible penguin movement:
 
 ```text
 screenX = originX + x * S

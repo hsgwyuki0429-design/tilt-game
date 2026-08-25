@@ -21,13 +21,11 @@
       unlocked: 1,        // highest stage the player may enter
       sound: true,
       haptics: true,
-      tilt: false,
-      invertTilt: false,
       // null means "follow the system", which is different from `false` and has
       // to survive a round trip: a player who has never touched the switch must
       // keep tracking their device, and one who has must not.
       reduceMotion: null,
-      // Has this person ever completed a single tilt? It is the difference
+      // Has this person ever completed a single move? It is the difference
       // between somebody who needs to be shown the gesture and somebody who has
       // been playing for a week, and it is the only thing the first-run cue asks.
       everMoved: false,
@@ -63,8 +61,6 @@
       if (typeof parsed.unlocked === 'number' && isFinite(parsed.unlocked)) d.unlocked = Math.max(1, Math.floor(parsed.unlocked));
       if (typeof parsed.sound === 'boolean') d.sound = parsed.sound;
       if (typeof parsed.haptics === 'boolean') d.haptics = parsed.haptics;
-      if (typeof parsed.tilt === 'boolean') d.tilt = parsed.tilt;
-      if (typeof parsed.invertTilt === 'boolean') d.invertTilt = parsed.invertTilt;
       // Only a real boolean overrides the system; anything else leaves it null.
       if (typeof parsed.reduceMotion === 'boolean') d.reduceMotion = parsed.reduceMotion;
       if (typeof parsed.everMoved === 'boolean') d.everMoved = parsed.everMoved;

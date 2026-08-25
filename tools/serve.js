@@ -6,7 +6,7 @@
  *
  * The game itself has no build step and no dependencies — opening index.html
  * straight off disk works too. This exists mainly so a phone on the same
- * network can load it, which is the only way to try the tilt controls.
+ * network can load and test the responsive touch interface.
  */
 
 var http = require('http');

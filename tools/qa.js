@@ -798,99 +798,21 @@ async function swipe(page, x, y, dx, dy) {
   var wobble = await page.evaluate(function () { return window.game.state.moves; });
   ok('a tiny wobble is ignored', wobble === 0, 'moves=' + wobble);
 
-  // ── device tilt ────────────────────────────────────────────────────────────
-  // No real accelerometer here, so drive the handler directly. This is the one
-  // input path a headless run would otherwise never touch, and it is the half
-  // of the control scheme that cannot be checked by hand on a desktop.
-  console.log('\n\u001b[1mDEVICE TILT\u001b[0m');
-  var tiltResult = await page.evaluate(async function () {
-    var g = window.game;
-    var input = g.input;
-    var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
-
-    g.loadStage(0);
-    input.tilt.enabled = true;
-    input.tilt.neutral = null;
-    input.tilt.armed = true;
-    input.tilt.invert = false;
-    var realCommit = input.on.commit;
-    var emitted = [];
-    input.on.commit = function (dir) { emitted.push(dir); };
-
-    var fire = function (beta, gamma) { input.onOrientation({ beta: beta, gamma: gamma }); };
-
-    // Neutral is beta 50, gamma 0. Intermediate readings below the threshold
-    // may arrive in any pattern; the first tilted pose must fire immediately.
-    var aim = function (d, amount) {
-      var POSE = {
-        R: [50, amount], L: [50, -amount],
-        D: [50 + amount, 0], U: [50 - amount, 0]
-      };
-      fire(POSE[d][0], POSE[d][1]);
-    };
-
-    var firstDir = 'R';
-    var accepted = function () { return emitted.length; };
-
-    fire(50, 0);                    // first reading captures the neutral pose
-    var neutralCaptured = !!input.tilt.neutral;
-
-    fire(50, 4);                    // inside the deadzone
-    await sleep(140);
-    fire(50, 4);
-    var deadzoneQuiet = accepted() === 0;
-
-    aim(firstDir, 5);
-    aim(firstDir, 8);
-    var pathQuiet = accepted() === 0;
-    aim(firstDir, 12);
-    var committedImmediately = accepted() === 1 && emitted[0] === firstDir;
-
-    // Still held over: must not fire again until the device returns to centre.
-    aim(firstDir, 30);
-    var noRepeatWhileHeld = accepted() === 1;
-
-    // Use the other axis without visiting neutral. A changed direction is a
-    // new command, while holding that new direction still emits only once.
-    var secondDir = 'D';
-    var vertical = true;
-
-    aim(secondDir, 12);
-    var switchedWithoutCentre = accepted() === 2 && emitted[1] === secondDir;
-    aim(secondDir, 24);
-    var secondHeldQuiet = accepted() === 2;
-
-    fire(50, 0);                    // neutral still re-arms the current direction
-    var rearmed = input.tilt.armed === true;
-    aim(firstDir, 12);
-    var firesAgain = accepted() === 3 && emitted[2] === firstDir;
-
-    input.disableTilt();
-    input.on.commit = realCommit;
+  // ── input modes ────────────────────────────────────────────────────────────
+  console.log('\n\u001b[1mINPUT MODES\u001b[0m');
+  var inputModes = await page.evaluate(function () {
+    window.game.renderSettings();
+    var input = window.game.input;
     return {
-      neutralCaptured: neutralCaptured,
-      deadzoneQuiet: deadzoneQuiet,
-      pathQuiet: pathQuiet,
-      committedImmediately: committedImmediately,
-      noRepeatWhileHeld: noRepeatWhileHeld,
-      switchedWithoutCentre: switchedWithoutCentre,
-      secondHeldQuiet: secondHeldQuiet,
-      rearmed: rearmed,
-      firesAgain: firesAgain,
-      firstDir: firstDir, secondDir: secondDir, vertical: vertical
+      noSensorState: !Object.prototype.hasOwnProperty.call(input, 'tilt'),
+      noSensorHandler: typeof input.onOrientation === 'undefined' &&
+        typeof input.enableTilt === 'undefined' && typeof input.disableTilt === 'undefined',
+      noTiltSetting: !document.querySelector('[data-set="tilt"]')
     };
   });
-  ok('tilt captures a neutral pose on enable', tiltResult.neutralCaptured);
-  ok('small tilts inside the deadzone do nothing', tiltResult.deadzoneQuiet);
-  ok('any movement path below the threshold stays quiet', tiltResult.pathQuiet);
-  ok('the first clearly tilted pose emits its direction immediately', tiltResult.committedImmediately);
-  ok('holding the tilt does not machine-gun moves', tiltResult.noRepeatWhileHeld);
-  ok('a different tilt direction fires without returning to centre', tiltResult.switchedWithoutCentre);
-  ok('the new held direction also emits only once', tiltResult.secondHeldQuiet);
-  ok('returning to centre re-arms the tilt', tiltResult.rearmed);
-  ok('a re-armed tilt accepts the next move  (' + tiltResult.secondDir + ')', tiltResult.firesAgain);
-  ok('both tilt axes map to the direction asked for', tiltResult.vertical,
-    'second direction was ' + tiltResult.secondDir);
+  ok('device-orientation state is absent', inputModes.noSensorState);
+  ok('device-orientation handlers are absent', inputModes.noSensorHandler);
+  ok('settings expose no tilt-control switch', inputModes.noTiltSetting);
 
   console.log('\n\u001b[1mCONSOLE\u001b[0m');
   ok('no console errors across the whole run', consoleErrors.length === 0, consoleErrors.slice(0, 4).join(' | '));

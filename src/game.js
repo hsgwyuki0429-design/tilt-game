@@ -28,8 +28,8 @@
  *
  * Settings and the rules live one level down from the stages sheet. They are
  * things a player touches once, and a control you touch once a month has no
- * business on the screen you look at for an hour — which is why sound and tilt
- * came out of the dock and left it with the only two actions the board itself
+ * business on the screen you look at for an hour — which is why preferences
+ * live in Settings and the dock keeps only the two actions the board itself
  * cannot express.
  */
 (function (root) {
@@ -68,8 +68,8 @@
     settings:   { ja: '設定', en: 'Settings' },
     home:       { ja: 'ホーム', en: 'Home' },
     homeEyebrow:{ ja: '氷上グラビティパズル', en: 'An ice gravity puzzle' },
-    homeLead:   { ja: 'スマホを傾けて、ペンギンを同じ色のオーロラへ。',
-                  en: 'Tilt your phone and guide each penguin to its matching aurora.' },
+    homeLead:   { ja: '指をはらって、ペンギンを同じ色のオーロラへ。',
+                  en: 'Swipe and guide each penguin to its matching aurora.' },
     homeStart:  { ja: 'ゲームをはじめる', en: 'Start game' },
     homeContinue:{ ja: 'つづきから', en: 'Continue' },
     homeSelect: { ja: 'ステージを選ぶ', en: 'Choose a stage' },
@@ -87,10 +87,6 @@
     progress:   { ja: 'クリア済み', en: 'solved' },
     chapEnd:    { ja: 'チャプタークリア', en: 'Chapter complete' },
     newBest:    { ja: '自己ベスト更新', en: 'New best' },
-    tiltOn:     { ja: '傾き操作をオンにしました', en: 'Tilt controls on' },
-    tiltOff:    { ja: '傾き操作をオフにしました', en: 'Tilt controls off' },
-    tiltNo:     { ja: 'この端末では傾きを使えません', en: 'Tilt is unavailable on this device' },
-    tiltDenied: { ja: 'センサーの使用が許可されませんでした', en: 'Motion permission was declined' },
     locked:     { ja: 'まだ挑戦できません', en: 'Locked' },
     chain:      { ja: '連鎖', en: 'Chain' },
     swipeCue:   { ja: '指をはらって重力を向けます', en: 'Swipe to aim gravity' },
@@ -104,9 +100,6 @@
     // Settings
     sound:      { ja: 'サウンド', en: 'Sound' },
     haptics:    { ja: '触覚フィードバック', en: 'Haptics' },
-    tiltCtl:    { ja: '傾き操作', en: 'Tilt controls' },
-    tiltNote:   { ja: '端末をかたむけて重力を向けます。スワイプはいつでも使えます。',
-                  en: 'Aim gravity by tilting the device. Swiping always works too.' },
     reduceMo:   { ja: 'アニメーションを減らす', en: 'Reduce motion' },
     reduceNote: { ja: '画面のゆれ、粒子、スライドの演出を止めます。',
                   en: 'Turns off shake, particles and sliding transitions.' },
@@ -244,14 +237,6 @@
       aim: this.aim.bind(this),
       tap: this.onTap.bind(this)
     });
-    this.input.tilt.invert = !!this.save.data.invertTilt;
-    if (this.save.data.tilt) {
-      // A grant given last session still has to be asked for again on iOS, and
-      // asking outside a gesture fails silently — so the switch is remembered
-      // and re-armed on the first touch rather than at boot.
-      this.tiltWanted = true;
-    }
-
     window.addEventListener('resize', this.onResize.bind(this));
     window.addEventListener('orientationchange', this.onResize.bind(this));
     document.addEventListener('visibilitychange', this.onVisibility.bind(this));
@@ -311,7 +296,6 @@
     this.dom.home.setAttribute('aria-hidden', 'true');
     this.dom.app.removeAttribute('aria-hidden');
     document.body.classList.remove('at-home');
-    this.armTilt();
     this.renderer.layout();
     this.wake();
   };
@@ -357,7 +341,6 @@
     this.phase = 'play';
 
     this.renderer.setStage(this.stage, this.state);
-    this.input.recentre();
 
     var chap = chapterOf(def.id);
     var chapName = JA ? (chap.ja || chap.name) : chap.name;
@@ -386,7 +369,7 @@
   /**
    * A direction the swipe cue can honestly demonstrate.
    *
-   * The cue used to sweep right unconditionally, and on stage 1 a rightward tilt
+   * The cue used to sweep right unconditionally, and on stage 1 a rightward move
    * moves nothing at all — so the one instruction the game ever gives was an
    * instruction to do something that does not work. Following a demonstration
    * and being answered with "nothing happened" is a worse first thirty seconds
@@ -441,7 +424,6 @@
   Game.prototype.onTap = function () {
     if (this.homeOpen || this.phase !== 'play' || this.sheets.length) return;
     this.audio.resume();
-    this.armTilt();
     if (!this.save.data.everMoved) {
       // Someone tapping the board has not worked out the gesture yet. Put the
       // cue back rather than leaving them tapping at a board that never answers.
@@ -453,18 +435,9 @@
     }
   };
 
-  /** iOS only grants motion access inside a gesture, so it is asked for in one. */
-  Game.prototype.armTilt = function () {
-    if (!this.tiltWanted || this.input.tilt.enabled) return;
-    this.tiltWanted = false;
-    var self = this;
-    this.input.enableTilt(function (ok) { if (!ok) self.save.set('tilt', false); });
-  };
-
   Game.prototype.commit = function (dir) {
     if (this.homeOpen) return;
     this.audio.resume();
-    this.armTilt();
     if (this.sheets.length) return;
 
     if (this.phase === 'clear') {
@@ -564,7 +537,7 @@
     }
 
     // A block left standing on a hazard is not a setback, it is the end of the
-    // run. The player watched it happen and knows exactly which tilt did it,
+    // run. The player watched it happen and knows exactly which move did it,
     // which is what makes stopping here fair rather than punitive.
     if (res.broken) {
       this.queued = null;
@@ -592,7 +565,7 @@
    * information, and the wrong shape for it. It asks the player to notice a
    * label, understand what it means, and then perform the only move the game was
    * ever going to accept — three steps to arrive somewhere there was no choice
-   * about. Worse, a player who does not read it keeps tilting a board that
+   * about. Worse, a player who does not read it keeps swiping a board that
    * cannot be won, and the game says nothing while they do.
    *
    * So the game does it: the move that jammed the board is undone, and a toast
@@ -1082,9 +1055,6 @@
     if (this.haptics.supported) {
       rows.push(sw('haptics', t('haptics'), this.save.data.haptics !== false));
     }
-    if (this.input.tilt.supported) {
-      rows.push(sw('tilt', t('tiltCtl'), this.input.tilt.enabled, t('tiltNote')));
-    }
     rows.push(sw('motion', t('reduceMo'), this.motionReduced(), t('reduceNote')));
 
     var html = '<div class="list">' + rows.join('') + '</div>';
@@ -1116,7 +1086,6 @@
   };
 
   Game.prototype.toggleSetting = function (key) {
-    var self = this;
     if (key === 'sound') {
       var on = this.save.data.sound === false;
       this.save.set('sound', on);
@@ -1131,25 +1100,6 @@
       this.save.set('reduceMotion', !this.motionReduced());
       this.applyMotion();
       this.audio.ui(false);
-    } else if (key === 'tilt') {
-      if (this.input.tilt.enabled) {
-        this.input.disableTilt();
-        this.save.set('tilt', false);
-        this.renderSettings();
-        this.showToast(t('tiltOff'));
-        return;
-      }
-      this.input.enableTilt(function (ok, why) {
-        if (ok) {
-          self.save.set('tilt', true);
-          self.showToast(t('tiltOn'));
-        } else {
-          self.save.set('tilt', false);
-          self.showToast(why === 'denied' ? t('tiltDenied') : t('tiltNo'));
-        }
-        self.renderSettings();
-      });
-      return;
     }
     this.renderSettings();
   };

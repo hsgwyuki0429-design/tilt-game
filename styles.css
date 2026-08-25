@@ -2,7 +2,7 @@
  * TILT — interface.
  *
  * The board is the game. Everything in this file exists to stay out of its way
- * and to make the one question the player is asking — "what happens if I tilt
+ * and to make the one question the player is asking — "what happens if I swipe
  * that way?" — the only question the screen is asking too.
  *
  * The rules this file is held to, in order:
@@ -339,7 +339,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; bo
 
 /* ── 6 · DOCK ─────────────────────────────────────────────────────────────── */
 /* Two actions, and they are the only two the board itself cannot express.
-   Sound, tilt controls and everything else moved into Settings: they are things
+   Sound and other preferences moved into Settings: they are things
    a player sets once, and a control you touch once a month does not belong on
    the screen you look at for an hour.
  *

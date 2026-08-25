@@ -11,7 +11,7 @@ The campaign contains five 5×5 levels and one consistent objective:
 - A penguin is collected only when it comes to rest on its aurora; crossing it is not enough.
 - Cracked ice is safe to cross, but ending a move on it breaks the run.
 - Penguins can stop each other, but touching never clears a level.
-- Swipe, keyboard, and optional device-tilt controls keep the same movement behaviour.
+- Swipe and keyboard controls keep the same movement behaviour.
 
 The Canvas renderer keeps those rules on the original 2D grid and draws a flat,
 top-down board matching the home-screen preview. Supplied pale-blue ice, white

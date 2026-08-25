@@ -10,7 +10,7 @@ A level contains one or two penguins. Each penguin has one matching aurora, iden
 
 ## Cracked ice
 
-A penguin may glide across cracked ice. If it comes to rest there, the tile breaks and the run ends. Undo returns to the state before that tilt.
+A penguin may glide across cracked ice. If it comes to rest there, the tile breaks and the run ends. Undo returns to the state before that move.
 
 ## Clear condition
 
