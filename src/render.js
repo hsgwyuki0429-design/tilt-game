@@ -85,12 +85,12 @@
   var GRID_X = 1;
   var GRID_Y = 1;
   var Z_X = .10;
-  var Z_Y = .55;
-  var FLOOR_DEPTH = .17;
-  var WALL_HEIGHT = 1.02;
-  var RING_HEIGHT = .82;
-  var FRONT_RING_HEIGHT = .62;
-  var PENGUIN_HEIGHT = 1.22;
+  var Z_Y = .20;
+  var FLOOR_DEPTH = .22;
+  var WALL_HEIGHT = .48;
+  var RING_HEIGHT = .44;
+  var FRONT_RING_HEIGHT = .38;
+  var PENGUIN_HEIGHT = .54;
   var SCENE_HEIGHT = Math.max(WALL_HEIGHT,RING_HEIGHT,PENGUIN_HEIGHT+.035);
   var FACE_SIZE = 256;
   var FACE_NAMES = ['top','bottom','north','south','east','west'];
@@ -569,7 +569,7 @@
     var f=this.boxGeometry(o),s=MATERIAL_STYLE[o.material]||MATERIAL_STYLE.ice;
     this.drawFace(g,f.east,this.textureBank.face(o.material,'east'),s.east,o.eastShade,o.radius);
     this.drawFace(g,f.south,this.textureBank.face(o.material,'south'),s.south,o.southShade,o.radius);
-    this.drawFace(g,f.top,this.textureBank.face(o.material,'top'),s.top,o.topShade,o.radius);
+    this.drawFace(g,f.top,this.textureBank.face(o.material,o.topTextureFace||'top'),s.top,o.topShade,o.radius);
     return f;
   };
   Renderer.prototype.drawFace=function(g,pts,texture,colours,shade,radius){
@@ -676,7 +676,7 @@
     this.drawContactShadow(g,p[0]+.5,p[1]+.5,.37,.20,false);
     this.drawFeet(g,p[0]+.5,p[1]+.5);
     var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+h,
-      material:'penguin',radius:this.cell*.105,topShade:'rgba(255,255,255,.02)',
+      material:'penguin',topTextureFace:'south',radius:this.cell*.105,topShade:'rgba(255,255,255,.02)',
       southShade:d.inert?'rgba(185,213,220,.22)':'rgba(0,18,30,.025)',
       eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
     if(!this.textureBank.face('penguin','south'))this.drawPenguinFallback(g,f);
@@ -702,14 +702,14 @@
     g.beginPath();g.ellipse(c.x+this.cell*.115,c.y+this.cell*.025,this.cell*.10,this.cell*.035,.12,0,Math.PI*2);g.fill();g.stroke();g.restore();
   };
   Renderer.prototype.drawPenguinFallback=function(g,f){
-    g.save();roundedPoly(g,f.south,this.cell*.1);g.clip();faceTransform(g,f.south,256);
+    g.save();roundedPoly(g,f.top,this.cell*.1);g.clip();faceTransform(g,f.top,256);
     g.fillStyle='#F8FCFD';g.beginPath();g.ellipse(128,150,76,91,0,0,Math.PI*2);g.fill();
     g.fillStyle='#07131B';g.beginPath();g.arc(101,103,9,0,Math.PI*2);g.arc(155,103,9,0,Math.PI*2);g.fill();
     g.fillStyle='#F6D0C9';g.beginPath();g.arc(76,137,11,0,Math.PI*2);g.arc(180,137,11,0,Math.PI*2);g.fill();
     g.fillStyle='#F3AC2D';g.beginPath();g.moveTo(128,121);g.lineTo(106,139);g.lineTo(150,139);g.closePath();g.fill();g.restore();
   };
   Renderer.prototype.drawPenguinIdentity=function(g,f,pal,inert){
-    g.save();roundedPoly(g,f.south,this.cell*.1);g.clip();faceTransform(g,f.south,256);
+    g.save();roundedPoly(g,f.top,this.cell*.1);g.clip();faceTransform(g,f.top,256);
     g.globalAlpha=inert ? .46 : .96;g.strokeStyle=pal.mid;g.lineWidth=22;g.lineCap='round';
     g.beginPath();g.moveTo(54,68);g.quadraticCurveTo(128,84,202,67);g.stroke();
     g.globalAlpha=inert ? .28 : .52;g.fillStyle=pal.mid;g.fillRect(24,232,208,24);

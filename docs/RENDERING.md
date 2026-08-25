@@ -13,12 +13,14 @@ cell scale `S`:
 
 ```text
 screenX = originX + x * S - z * 0.10S
-screenY = originY + y * S - z * 0.55S
+screenY = originY + y * S - z * 0.20S
 ```
 
-The top of every floor is `z = 0`. Floors extend downward, while walls and
-penguin cubes extend upward. Movement animation interpolates the engine's
-floating grid position first and calls `project()` second.
+The top of every floor is `z = 0`. Floors extend only slightly downward, while
+walls and penguins use a shallow elevation. Their main square face remains
+parallel to the screen; the small south/east strips provide depth without
+tilting the board. Movement animation interpolates the engine's floating grid
+position first and calls `project()` second.
 
 ## Materials and faces
 
