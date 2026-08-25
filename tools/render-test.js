@@ -56,7 +56,8 @@ function serve() {
     page.on('pageerror', function (e) { errors.push(e.message); });
     await page.goto('http://127.0.0.1:' + server.address().port + '/', { waitUntil: 'networkidle' });
     await page.waitForFunction(function () {
-      return window.game && window.game.renderer && window.game.renderer.textureBank.loaded === 6;
+      var bank=window.game&&window.game.renderer&&window.game.renderer.textureBank;
+      return bank&&bank.loaded===bank.expected;
     }, null, { timeout: 10000 });
 
     console.log('\n\u001b[1mRENDER ARCHITECTURE\u001b[0m');
@@ -71,12 +72,13 @@ function serve() {
       r.pushCommand('penguin', 1, 1, .035, 4, {});
       var commandProbe = r.commands.map(function (c) { return { depth: c.depth, layer: c.layer }; });
       var names = ['top', 'bottom', 'north', 'south', 'east', 'west'];
-      var materials = ['ice', 'wall-smooth', 'wall-brick', 'cracked', 'goal', 'penguin'];
+      var materials = ['ice', 'wall-smooth', 'wall-brick', 'cracked', 'goal',
+        'penguin-orange', 'penguin-purple'];
       var input = window.game.input;
       var facesReady = materials.every(function (material) {
         return names.every(function (face) {
           var image = r.textureBank.faces[material] && r.textureBank.faces[material][face];
-          return image && image.width === 256 && image.height === 256;
+          return image && image.width === 512 && image.height === 512;
         });
       });
       return {
@@ -86,6 +88,8 @@ function serve() {
           input.classify(0, 60, false) === 'D' && input.classify(0, -60, false) === 'U',
         faces: names.every(function (name) { return geometry[name] && geometry[name].length === 4; }),
         facesReady: facesReady,
+        suppliedTextures: Object.keys(window.TiltRender.TEXTURE_FILES).length,
+        loadedTextures: r.textureBank.loaded,
         footprintDepth: commandProbe.every(function (c) { return c.depth === commandProbe[0].depth; }),
         layers: commandProbe.map(function (c) { return c.layer; }).join(','),
         staticSprites: Object.keys(r.staticSprites || {}).length,
@@ -95,7 +99,9 @@ function serve() {
     check('grid axes stay parallel to screen axes while z exposes cube sides', architecture.projection);
     check('four swipe directions map to the same four screen-aligned grid axes', architecture.swipes);
     check('box geometry exposes all six named faces', architecture.faces);
-    check('all six material atlases decode to six 256px faces', architecture.facesReady);
+    check('all standalone supplied textures decode into semantic 512px faces',
+      architecture.facesReady && architecture.suppliedTextures === 16 && architecture.loadedTextures === 16,
+      'configured=' + architecture.suppliedTextures + ' loaded=' + architecture.loadedTextures);
     check('depth key uses the shared footprint, not object height', architecture.footprintDepth);
     check('equal-footprint layers remain floor → goal → penguin', architecture.layers === '0,1,4');
     check('seven static terrain variants are cached', architecture.staticSprites === 7,

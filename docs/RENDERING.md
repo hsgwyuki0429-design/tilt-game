@@ -1,51 +1,58 @@
-# 2.5D rendering architecture
+# Fixed orthographic block rendering
 
-`src/engine.js` owns the canonical 2D grid. The renderer does not alter stage
-coordinates, collision, gravity, hazards, or goal resolution.
+`src/engine.js` remains the canonical 2D grid. The renderer does not change
+stage coordinates, collision, gravity, hazards, movement, goals, move counts,
+input, or UI layout. It only projects each grid cell into a fixed block view.
 
 ## Camera
 
-The fixed orthographic camera keeps the gameplay grid parallel to the display.
-Logical X always points screen-right and logical Y always points screen-down,
-so the four swipe directions exactly match visible penguin movement. Height is
-the only diagonal basis and exposes the south/east cube faces. With responsive
-cell scale `S`:
+The camera is a fixed orthographic projection. There is no camera controller,
+rotation, zoom, drag-to-look, or automatic orbit. Logical X stays screen-right
+and logical Y stays screen-down, so all four swipes still match the visible
+penguin movement. Height alone shifts the upper face slightly up-left to expose
+shallow south/east faces:
 
 ```text
-screenX = originX + x * S - z * 0.10S
-screenY = originY + y * S - z * 0.20S
+screenX = originX + x * S - z * 0.07S
+screenY = originY + y * S - z * 0.50S
 ```
 
-The top of every floor is `z = 0`. Floors extend only slightly downward, while
-walls and penguins use a shallow elevation. Their main square face remains
-parallel to the screen; the small south/east strips provide depth without
-tilting the board. Movement animation interpolates the engine's floating grid
-position first and calls `project()` second.
+This produces the slightly elevated reference composition without perspective
+foreshortening; blocks in the back row remain the same size as blocks in front.
 
-## Materials and faces
+## Blocks and spacing
 
-Every box material exposes `top`, `bottom`, `north`, `south`, `east`, and `west`
-faces. The screen-aligned camera currently draws the visible `top`, `south`,
-and `east` faces. Texture atlases are decoded once into 256×256 face canvases;
-procedural fills remain available while they load or if a file is unavailable.
+Every floor, hazard, goal, wall, and penguin shares that projection and is
+positioned from its existing 2D cell. Faces have soft rounded corners and gaps
+are deliberately small (`0.012S` for floor and `0.018–0.022S` for walls). A
+compact shared shadow grounds the grid; there is no oversized tray or plinth.
 
-Cracked ice and goal cells replace only the top face. Their sides inherit normal
-ice, preserving the rule that both are traversable floor blocks—not pits.
+## Supplied face assets
 
-## Occlusion
+The renderer loads the 16 individual 512×512 PNGs in
+`assets/textures/faces/`. Each is mapped directly by semantic role. Cracked ice
+and auroras replace only the top face, while their sides inherit normal ice.
+Orange and purple penguins use their matching supplied top images, and share the
+supplied front, back, left, right, and four-foot bottom images.
 
-Floor cells, goal effects, walls, penguins, ripples, and particles enter one
-painter queue. Commands sort by the projected Y coordinate of their world-space
-footprint, then by layer and projected X. This allows a foreground wall to cover
-a penguin behind it while retaining deterministic ordering within equal rows.
+Procedural cracks, snow, and penguin art remain only as load-error fallbacks.
+The aurora texture receives a weak emissive pulse plus a small colour/shape ring
+so the A/B matching rule stays readable without repainting the supplied image.
+
+## Lighting and occlusion
+
+The texture artwork supplies most of the light and surface detail. Rendering
+adds only soft per-face shade, subtle contact/ambient occlusion, and a broad
+low-alpha board shadow to avoid white clipping and crushed blacks.
+
+Floor cells, goals, walls, penguins, ripples, and particles enter one painter
+queue. Commands sort by their 2D footprint, then layer and X tie-breaker, so a
+foreground wall can cover a penguin behind it without changing game state.
 
 ## Performance
 
 - Device pixel ratio is capped at 2.
-- Atlas crops are generated once after image decode.
-- The diorama base and broad shadow are cached on layout/resize.
-- Floor, cracked, goal-base, and wall cubes are rasterized into seven small
-  static sprites on layout/texture decode. They stay as individual depth
-  commands, but a frame only blits them instead of remapping three faces.
-- No per-frame canvases or texture decoding are performed.
-- The game loop keeps its existing full-rate animation and low-rate idle modes.
+- Source assets are pre-sized to 512px; no runtime atlas crop occurs.
+- Floor, hazard, goal-base, and wall cubes are cached as seven small sprites.
+- The background cache contains only the compact board shadow.
+- No per-frame canvas allocation or image decode is performed.

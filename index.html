@@ -17,14 +17,24 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' fill='%23F1F3F9'/><rect x='34' y='34' width='56' height='56' rx='18' fill='%230B8DAE'/><rect x='98' y='98' width='48' height='48' rx='15' fill='none' stroke='%235C6484' stroke-width='8'/></svg>">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23F1F3F9'/><rect x='6' y='6' width='11' height='11' rx='3.5' fill='%230B8DAE'/><rect x='17.5' y='17.5' width='9' height='9' rx='2.8' fill='none' stroke='%235C6484' stroke-width='2'/></svg>">
-<!-- The six reference sheets are small JPEG atlases. The renderer extracts only
-     their labelled face squares into in-memory, transparent face textures. -->
-<link rel="preload" as="image" href="assets/textures/ice/atlas.jpg">
-<link rel="preload" as="image" href="assets/textures/wall-smooth/atlas.jpg">
-<link rel="preload" as="image" href="assets/textures/wall-brick/atlas.jpg">
-<link rel="preload" as="image" href="assets/textures/cracked/atlas.jpg">
-<link rel="preload" as="image" href="assets/textures/goal/atlas.jpg">
-<link rel="preload" as="image" href="assets/textures/penguin/atlas.jpg">
+<!-- Standalone supplied face assets. The renderer maps each image directly to
+     its semantic cube face; no contact-sheet slicing or texture recreation. -->
+<link rel="preload" as="image" href="assets/textures/faces/ice-top.png">
+<link rel="preload" as="image" href="assets/textures/faces/wall-top-ice.png">
+<link rel="preload" as="image" href="assets/textures/faces/wall-top-snow.png">
+<link rel="preload" as="image" href="assets/textures/faces/wall-south-a.png">
+<link rel="preload" as="image" href="assets/textures/faces/wall-south-b.png">
+<link rel="preload" as="image" href="assets/textures/faces/wall-east-a.png">
+<link rel="preload" as="image" href="assets/textures/faces/wall-east-b.png">
+<link rel="preload" as="image" href="assets/textures/faces/cracked-top.png">
+<link rel="preload" as="image" href="assets/textures/faces/goal-top.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-front.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-back.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-west.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-east.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-bottom.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-top-orange.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-top-purple.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>

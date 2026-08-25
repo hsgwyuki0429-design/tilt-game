@@ -1,21 +1,24 @@
-# Ice-world texture atlases
+# Supplied ice-world face textures
 
-The six `atlas.jpg` files are the supplied visual references, kept by material:
+The live renderer uses the 16 standalone PNGs in `faces/`. They are the supplied
+game assets, resized from 1254×1254 to 512×512 for mobile decode cost. No artwork
+is regenerated and no contact sheet is sliced at runtime.
 
-- `ice`: normal floor
-- `wall-smooth`: interior wall
-- `wall-brick`: perimeter wall
-- `cracked`: cracked-ice top
-- `goal`: aurora goal top
-- `penguin`: movable penguin cube
+## Semantic face map
 
-Each source is a 1280×960 contact sheet. `src/render.js` extracts only the six
-label-free face rectangles into transparent 256×256 in-memory canvases named
-`top`, `bottom`, `north`, `south`, `east`, and `west`. The source headings and
-direction labels are never drawn.
+- `ice-top.png`: normal ice top; reused on normal-ice sides because no separate
+  side was supplied.
+- `wall-top-ice.png`, `wall-top-snow.png`: smooth and perimeter wall tops.
+- `wall-south-a.png`, `wall-south-b.png`: visible front faces for the two snow
+  wall variants.
+- `wall-east-a.png`, `wall-east-b.png`: visible right faces for the two snow
+  wall variants.
+- `cracked-top.png`: cracked hazard top only. Its other faces inherit normal ice.
+- `goal-top.png`: aurora goal top only. Its other faces inherit normal ice.
+- `penguin-front.png`, `penguin-back.png`, `penguin-west.png`,
+  `penguin-east.png`, `penguin-bottom.png`: matching penguin cube faces.
+- `penguin-top-orange.png`, `penguin-top-purple.png`: colour-specific penguin
+  tops used for A and B respectively.
 
-The material API is face-oriented even though the fixed camera currently shows
-only `top`, `south`, and `east`. A future standalone face PNG can replace an
-atlas rectangle without changing cube projection or game logic. Cracked ice and
-goals intentionally replace only `top`; their side/bottom faces inherit normal
-ice so both remain full-height, traversable floor blocks rather than holes.
+The previous `atlas.jpg` files are retained as historical source material, but
+the game no longer preloads, crops, or renders them.

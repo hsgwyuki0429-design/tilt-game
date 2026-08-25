@@ -84,98 +84,91 @@
      and east faces without rotating the board away from the phone screen. */
   var GRID_X = 1;
   var GRID_Y = 1;
-  var Z_X = .10;
-  var Z_Y = .20;
-  var FLOOR_DEPTH = .22;
-  var WALL_HEIGHT = .48;
-  var RING_HEIGHT = .44;
-  var FRONT_RING_HEIGHT = .38;
-  var PENGUIN_HEIGHT = .54;
+  var Z_X = .07;
+  var Z_Y = .50;
+  var FLOOR_DEPTH = .15;
+  var WALL_HEIGHT = .52;
+  var RING_HEIGHT = .50;
+  var FRONT_RING_HEIGHT = .46;
+  var PENGUIN_HEIGHT = .82;
   var SCENE_HEIGHT = Math.max(WALL_HEIGHT,RING_HEIGHT,PENGUIN_HEIGHT+.035);
-  var FACE_SIZE = 256;
+  var FACE_SIZE = 512;
   var FACE_NAMES = ['top','bottom','north','south','east','west'];
 
   function easeOut(p) { return 1-Math.pow(1-p,2.45); }
   function clamp01(v) { return v<0?0:v>1?1:v; }
   function lerp(a,b,t) { return a+(b-a)*t; }
 
-  /*
-   * Contact-sheet rectangles. Only these label-free squares are decoded into
-   * face canvases; headings and direction labels are never drawn.
-   */
-  var ATLAS = {
-    'wall-smooth': {
-      src:'assets/textures/wall-smooth/atlas.jpg',
-      rects:{south:[120,167,282,287],north:[496,167,282,287],west:[871,167,283,287],
-        east:[120,556,282,287],top:[496,556,282,287],bottom:[871,556,283,287]}
-    },
-    'wall-brick': {
-      src:'assets/textures/wall-brick/atlas.jpg',
-      rects:{south:[73,96,339,343],north:[470,96,339,343],west:[869,96,339,343],
-        east:[73,542,339,343],top:[470,542,339,343],bottom:[870,542,338,343]}
-    },
-    ice: {
-      src:'assets/textures/ice/atlas.jpg',
-      rects:{top:[81,115,323,323],bottom:[477,115,322,323],north:[869,115,324,323],
-        south:[81,548,323,321],east:[477,548,322,321],west:[869,548,324,321]}
-    },
-    cracked: {
-      src:'assets/textures/cracked/atlas.jpg',
-      rects:{top:[103,85,322,323],bottom:[488,86,306,322],north:[848,85,321,323],
-        south:[103,506,322,323],east:[488,506,306,323],west:[848,506,321,323]}
-    },
-    goal: {
-      src:'assets/textures/goal/atlas.jpg',
-      rects:{top:[101,113,330,332],bottom:[477,113,324,332],north:[848,113,330,332],
-        south:[101,549,330,332],east:[477,549,325,332],west:[848,549,330,332]}
-    },
-    penguin: {
-      src:'assets/textures/penguin/atlas.jpg',
-      rects:{south:[79,64,322,318],north:[479,64,322,316],west:[880,64,322,316],
-        east:[80,503,322,316],top:[480,503,322,316],bottom:[879,503,323,316]}
-    }
+  /* The supplied images are standalone face assets, not contact sheets. They
+     are only resized to a practical 512px decode size; the artwork itself is
+     mapped directly to the matching cube face. */
+  var TEXTURE_FILES = {
+    iceTop:'assets/textures/faces/ice-top.png',
+    wallSouthA:'assets/textures/faces/wall-south-a.png',
+    wallSouthB:'assets/textures/faces/wall-south-b.png',
+    wallEastA:'assets/textures/faces/wall-east-a.png',
+    wallEastB:'assets/textures/faces/wall-east-b.png',
+    wallTopIce:'assets/textures/faces/wall-top-ice.png',
+    wallTopSnow:'assets/textures/faces/wall-top-snow.png',
+    crackedTop:'assets/textures/faces/cracked-top.png',
+    goalTop:'assets/textures/faces/goal-top.png',
+    penguinFront:'assets/textures/faces/penguin-front.png',
+    penguinBack:'assets/textures/faces/penguin-back.png',
+    penguinWest:'assets/textures/faces/penguin-west.png',
+    penguinEast:'assets/textures/faces/penguin-east.png',
+    penguinBottom:'assets/textures/faces/penguin-bottom.png',
+    penguinTopOrange:'assets/textures/faces/penguin-top-orange.png',
+    penguinTopPurple:'assets/textures/faces/penguin-top-purple.png'
+  };
+  var MATERIAL_FACES = {
+    ice:{top:'iceTop',bottom:'iceTop',north:'iceTop',south:'iceTop',east:'iceTop',west:'iceTop'},
+    cracked:{top:'crackedTop',bottom:'iceTop',north:'iceTop',south:'iceTop',east:'iceTop',west:'iceTop'},
+    goal:{top:'goalTop',bottom:'iceTop',north:'iceTop',south:'iceTop',east:'iceTop',west:'iceTop'},
+    'wall-smooth':{top:'wallTopIce',bottom:'wallTopIce',north:'wallSouthA',south:'wallSouthA',
+      east:'wallEastA',west:'wallEastA'},
+    'wall-brick':{top:'wallTopSnow',bottom:'wallTopIce',north:'wallSouthB',south:'wallSouthB',
+      east:'wallEastB',west:'wallEastB'},
+    'penguin-orange':{top:'penguinTopOrange',bottom:'penguinBottom',north:'penguinBack',
+      south:'penguinFront',east:'penguinEast',west:'penguinWest'},
+    'penguin-purple':{top:'penguinTopPurple',bottom:'penguinBottom',north:'penguinBack',
+      south:'penguinFront',east:'penguinEast',west:'penguinWest'}
   };
 
   function TextureBank(onReady) {
     this.faces = {};
+    this.images = {};
     this.loaded = 0;
+    this.expected = Object.keys(TEXTURE_FILES).length;
     this.onReady = onReady || function () {};
     this.load();
   }
   TextureBank.prototype.load = function () {
     if (typeof Image === 'undefined' || typeof document === 'undefined') return;
     var self=this;
-    Object.keys(ATLAS).forEach(function (name) {
-      var spec=ATLAS[name], img=new Image();
+    Object.keys(TEXTURE_FILES).forEach(function (name) {
+      var img=new Image();
       img.decoding='async';
       img.onload=function () {
-        var set={};
-        for(var i=0;i<FACE_NAMES.length;i++) {
-          var face=FACE_NAMES[i];
-          if(spec.rects[face]) set[face]=cropFace(img,spec.rects[face]);
-        }
-        self.faces[name]=set; self.loaded++; self.onReady(name);
+        self.images[name]=img;self.loaded++;self.syncFaces();
+        if(self.loaded===self.expected)self.onReady(name);
       };
-      img.onerror=function(){ self.faces[name]={}; self.loaded++; };
-      img.src=spec.src;
+      img.onerror=function(){self.loaded++;self.syncFaces();
+        if(self.loaded===self.expected)self.onReady(name);};
+      img.src=TEXTURE_FILES[name];
+    });
+  };
+  TextureBank.prototype.syncFaces = function () {
+    var bank=this;
+    Object.keys(MATERIAL_FACES).forEach(function (material) {
+      var set={},map=MATERIAL_FACES[material];
+      for(var i=0;i<FACE_NAMES.length;i++)set[FACE_NAMES[i]]=bank.images[map[FACE_NAMES[i]]]||null;
+      bank.faces[material]=set;
     });
   };
   TextureBank.prototype.face = function (material, face) {
-    if ((material==='goal'||material==='cracked') && face!=='top') material='ice';
     var set=this.faces[material];
     return set&&set[face]?set[face]:null;
   };
-  function cropFace(img,r) {
-    var c=document.createElement('canvas'),g=c.getContext('2d');
-    c.width=c.height=FACE_SIZE;
-    var side=Math.min(r[2],r[3])-8;
-    var sx=r[0]+(r[2]-side)/2, sy=r[1]+(r[3]-side)/2;
-    g.imageSmoothingEnabled=true;
-    if('imageSmoothingQuality' in g) g.imageSmoothingQuality='high';
-    g.save(); roundRect(g,2,2,252,252,29); g.clip();
-    g.drawImage(img,sx,sy,side,side,0,0,256,256); g.restore();
-    return c;
-  }
 
   function Renderer(canvas) {
     var self=this;
@@ -274,26 +267,15 @@
   };
 
   Renderer.prototype.drawDioramaBase=function(g){
-    var st=this.stage;
-    var a=this.project(-1,-1,-.03),b=this.project(st.w+1,-1,-.03);
-    var c=this.project(st.w+1,st.h+1,-.03),d=this.project(-1,st.h+1,-.03);
-    var ab=this.project(-1,-1,-FLOOR_DEPTH-.12),bb=this.project(st.w+1,-1,-FLOOR_DEPTH-.12);
-    var cb=this.project(st.w+1,st.h+1,-FLOOR_DEPTH-.12),db=this.project(-1,st.h+1,-FLOOR_DEPTH-.12);
     var cx=(this.boardBounds.left+this.boardBounds.right)/2;
     g.save();
-    g.fillStyle='rgba(28,63,109,.13)'; g.shadowColor='rgba(31,73,118,.14)';
-    g.shadowBlur=Math.min(24,this.cell*.3);
-    g.beginPath(); g.ellipse(cx,this.boardBounds.bottom-this.cell*.02,
-      (this.boardBounds.right-this.boardBounds.left)*.47,this.cell*.27,0,0,Math.PI*2); g.fill();
+    /* The blocks cast one compact shared shadow, but there is deliberately no
+       oversized tray or architectural plinth beneath the grid. */
+    g.fillStyle='rgba(28,63,109,.105)';
+    g.shadowColor='rgba(31,73,118,.12)';g.shadowBlur=Math.min(22,this.cell*.28);
+    g.beginPath();g.ellipse(cx,this.boardBounds.bottom-this.cell*.10,
+      (this.boardBounds.right-this.boardBounds.left)*.405,this.cell*.18,0,0,Math.PI*2);g.fill();
     g.restore();
-    drawPoly(g,[d,c,cb,db]);
-    var gs=g.createLinearGradient(d.x,d.y,db.x,db.y);
-    gs.addColorStop(0,'#B6DDEC');gs.addColorStop(1,'#69A7CB');g.fillStyle=gs;g.fill();
-    drawPoly(g,[b,c,cb,bb]);
-    var ge=g.createLinearGradient(b.x,b.y,bb.x,bb.y);
-    ge.addColorStop(0,'#91C8DF');ge.addColorStop(1,'#4F91BB');g.fillStyle=ge;g.fill();
-    g.strokeStyle='rgba(255,255,255,.44)';g.lineWidth=1;drawPoly(g,[a,b,c,d]);g.stroke();
-    g.strokeStyle='rgba(28,91,132,.25)';drawPoly(g,[db,cb,bb,ab]);g.stroke();
   };
 
   /* Static cells remain individual painter commands for correct occlusion, but
@@ -311,7 +293,7 @@
       {key:'wall:ring-front',kind:'wall',data:{ring:true,front:true,outer:true}}
     ];
     var cssW=Math.ceil(this.cell*1.46),cssH=Math.ceil(this.cell*1.54);
-    var anchorX=cssW/2,anchorY=this.cell*.48,dpr=this.dpr;
+    var anchorX=this.cell*.18,anchorY=this.cell*.48,dpr=this.dpr;
     var oldOx=this.ox,oldOy=this.oy,oldBuilding=this._buildingSprites;
     var sprites={};this._buildingSprites=true;this.ox=anchorX;this.oy=anchorY;
     try{
@@ -551,7 +533,8 @@
     goal:{top:['#C6E8ED','#79BDC9'],south:['#C0E2ED','#83BED8'],east:['#9BCDE0','#5E9FC6']},
     'wall-smooth':{top:['#FFFFFF','#EAF5FA'],south:['#79C8E2','#43A0CB'],east:['#62B5D8','#347FB1']},
     'wall-brick':{top:['#FFFFFF','#EDF7FC'],south:['#A9D9F3','#629FC6'],east:['#88C2E2','#4E89B5']},
-    penguin:{top:['#EEF4FB','#BCD8EC'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']}
+    'penguin-orange':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
+    'penguin-purple':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']}
   };
 
   Renderer.prototype.boxGeometry=function(o){
@@ -576,8 +559,9 @@
     g.save();roundedPoly(g,pts,radius||0);
     var gr=g.createLinearGradient(pts[0].x,pts[0].y,pts[2].x,pts[2].y);
     gr.addColorStop(0,colours[0]);gr.addColorStop(1,colours[1]);g.fillStyle=gr;g.fill();
-    if(texture){g.save();roundedPoly(g,pts,radius||0);g.clip();faceTransform(g,pts,256);
-      g.drawImage(texture,0,0,256,256);g.restore();}
+    if(texture){var size=texture.naturalWidth||texture.width||FACE_SIZE;
+      g.save();roundedPoly(g,pts,radius||0);g.clip();faceTransform(g,pts,size);
+      g.drawImage(texture,0,0,size,size);g.restore();}
     if(shade){roundedPoly(g,pts,radius||0);g.fillStyle=shade;g.fill();}
     roundedPoly(g,pts,radius||0);g.strokeStyle=THEME.floorEdge;
     g.lineWidth=Math.max(.75,this.cell*.011);g.lineJoin='round';g.stroke();g.restore();
@@ -585,29 +569,31 @@
 
   Renderer.prototype.drawFloor=function(g,c){
     if(this.blitStaticSprite(g,'floor:'+c.material,c.x,c.y))return;
-    var gap=.035;
+    var gap=.012;
     var f=this.drawBox(g,{x0:c.x+gap,y0:c.y+gap,x1:c.x+1-gap,y1:c.y+1-gap,
-      z0:-FLOOR_DEPTH,z1:0,material:c.material,radius:this.cell*.034,
-      topShade:'rgba(255,255,255,.035)',southShade:'rgba(24,100,140,.035)',
-      eastShade:'rgba(18,72,126,.105)'});
+      z0:-FLOOR_DEPTH,z1:0,material:c.material,radius:this.cell*.075,
+      topShade:'rgba(242,251,255,.12)',southShade:'rgba(24,100,140,.025)',
+      eastShade:'rgba(18,72,126,.075)'});
     g.save();g.strokeStyle='rgba(255,255,255,.72)';g.lineWidth=Math.max(.8,this.cell*.011);
     g.beginPath();g.moveTo(f.top[0].x,f.top[0].y);g.lineTo(f.top[1].x,f.top[1].y);
     g.moveTo(f.top[0].x,f.top[0].y);g.lineTo(f.top[3].x,f.top[3].y);g.stroke();g.restore();
-    if(c.material==='cracked')this.drawCracks(g,f.top);
+    if(c.material==='cracked'&&!this.textureBank.face('cracked','top'))this.drawCracks(g,f.top);
   };
   Renderer.prototype.drawWall=function(g,c){
     var spriteKey=c.ring?(c.front?'wall:ring-front':'wall:ring-back'):(c.outer?'wall:outer':'wall:smooth');
     if(this.blitStaticSprite(g,spriteKey,c.x,c.y))return;
     var material=c.ring?'wall-brick':(c.outer?'wall-brick':'wall-smooth');
     var h = c.ring ? (c.front ? FRONT_RING_HEIGHT : RING_HEIGHT) : WALL_HEIGHT;
-    var gap = c.ring ? .045 : .055;
+    var gap = c.ring ? .018 : .022;
     var z0 = c.ring ? -.04 : .015;
     this.drawContactShadow(g,c.x+.5,c.y+.5,.43,.25,true);
     var f=this.drawBox(g,{x0:c.x+gap,y0:c.y+gap,x1:c.x+1-gap,y1:c.y+1-gap,
-      z0:z0,z1:h,material:material,radius:this.cell*.07,
-      topShade:'rgba(255,255,255,.025)',southShade:'rgba(19,88,133,.045)',
-      eastShade:'rgba(12,63,113,.15)'});
-    this.drawSnow(g,f.south);this.drawSnow(g,f.east);this.drawAO(g,f.south);this.drawAO(g,f.east);
+      z0:z0,z1:h,material:material,radius:this.cell*.095,
+      topShade:'rgba(255,255,255,.014)',southShade:'rgba(19,88,133,.025)',
+      eastShade:'rgba(12,63,113,.10)'});
+    if(!this.textureBank.face(material,'south'))this.drawSnow(g,f.south);
+    if(!this.textureBank.face(material,'east'))this.drawSnow(g,f.east);
+    this.drawAO(g,f.south);this.drawAO(g,f.east);
   };
   Renderer.prototype.drawCracks=function(g,top){
     var rays=[[128,132,24,32],[128,132,220,20],[128,132,238,130],
@@ -638,68 +624,48 @@
 
   Renderer.prototype.drawGoal=function(g,c){
     var st=this.stage,pal=paletteOf(st.goalColour?st.goalColour[c.i]:0);
-    var top=this.topFace(c.x+.055,c.y+.055,c.x+.945,c.y+.945,.018);
+    var top=this.topFace(c.x+.035,c.y+.035,c.x+.965,c.y+.965,.018);
     var flash=0,graze=0,i;
     for(i=0;i<this.flashes.length;i++){var f=this.flashes[i];
       if(f.cell[0]===c.x&&f.cell[1]===c.y)flash=Math.max(flash,1-f.life/f.max);}
     for(i=0;i<this.grazes.length;i++){var z=this.grazes[i];
       if(z.cell[0]===c.x&&z.cell[1]===c.y)graze=Math.max(graze,1-z.life/z.max);}
-    var pulse = this.reduceMotion ? .55 : (.5 + Math.sin(this.time / 700) * .12);
-    g.save();roundedPoly(g,top,this.cell*.034);g.clip();faceTransform(g,top,256);
-    var glow=g.createRadialGradient(128,128,2,128,128,98);
-    glow.addColorStop(0,'rgba(255,255,255,'+(.82+flash*.16)+')');
-    glow.addColorStop(.22,'rgba(116,244,247,'+(.42+pulse*.2)+')');
-    glow.addColorStop(.64,'rgba(72,185,225,.18)');glow.addColorStop(1,'rgba(72,185,225,0)');
-    g.globalCompositeOperation='screen';g.fillStyle=glow;g.beginPath();g.arc(128,128,100,0,Math.PI*2);g.fill();
-    g.translate(128,128);var turn=this.reduceMotion?0:this.time/5200;g.rotate(turn);
-    var rings=[46,67,86];for(i=0;i<3;i++){g.strokeStyle=i===2?'rgba(126,211,241,.38)':'rgba(176,251,253,.68)';
-      g.lineWidth=i===0?4.5:3;g.beginPath();g.arc(0,0,rings[i],-.55+i*.7,Math.PI*1.3+i*.42);g.stroke();}
-    g.rotate(-turn*2.2);for(i=0;i<5;i++){var a=i*Math.PI*.4+.3;
-      g.fillStyle='rgba(239,255,255,.78)';g.beginPath();g.arc(Math.cos(a)*91,Math.sin(a)*72,2.4+(i%2),0,Math.PI*2);g.fill();}
-    g.globalCompositeOperation='source-over';g.globalAlpha=.9;g.strokeStyle=pal.socket;g.lineWidth=5;
-    glyph(g,0,0,20,pal.shape);g.stroke();
-    g.globalAlpha=.58;g.strokeStyle=pal.mid;g.lineWidth=7;g.setLineDash([18,13]);
-    g.beginPath();g.arc(0,0,96,0,Math.PI*2);g.stroke();g.setLineDash([]);
-    if(graze>0){g.globalAlpha=graze*.65;g.setLineDash([16,12]);g.lineWidth=5;
-      g.beginPath();g.arc(0,0,92+(1-graze)*30,0,Math.PI*2);g.stroke();g.setLineDash([]);}
+    var pulse=this.reduceMotion ? .10 : (.08+(.5+.5*Math.sin(this.time/760))*.055);
+    g.save();roundedPoly(g,top,this.cell*.075);g.clip();faceTransform(g,top,FACE_SIZE);
+    /* The supplied aurora remains the image. Lighting adds only a restrained
+       emissive pulse and the small A/B ring needed by the puzzle rules. */
+    var glow=g.createRadialGradient(256,256,18,256,256,218);
+    glow.addColorStop(0,'rgba(255,255,255,'+(pulse+flash*.18)+')');
+    glow.addColorStop(.58,'rgba(94,234,245,'+(pulse*.45)+')');
+    glow.addColorStop(1,'rgba(94,234,245,0)');
+    g.globalCompositeOperation='screen';g.fillStyle=glow;g.fillRect(0,0,FACE_SIZE,FACE_SIZE);
+    g.globalCompositeOperation='source-over';g.translate(256,256);
+    g.globalAlpha=.88;g.strokeStyle=pal.mid;g.lineWidth=14;g.beginPath();g.arc(0,0,76,0,Math.PI*2);g.stroke();
+    g.globalAlpha=.96;g.fillStyle='rgba(255,255,255,.90)';g.beginPath();g.arc(0,0,47,0,Math.PI*2);g.fill();
+    g.fillStyle=pal.mid;glyph(g,0,0,24,pal.shape);g.fill();
+    if(graze>0){g.globalAlpha=graze*.72;g.strokeStyle=pal.hi;g.lineWidth=11;
+      g.beginPath();g.arc(0,0,150+(1-graze)*58,0,Math.PI*2);g.stroke();}
     g.restore();
   };
 
   Renderer.prototype.drawPenguin=function(g,d){
-    var p=d.pos,pal=paletteOf(d.colour),sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
+    var p=d.pos,sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
     var sx=sq&&sq.axis==='x'?1+q*.045:1-q*.018;
     var sy=sq&&sq.axis==='y'?1+q*.045:1-q*.018;
     var h=PENGUIN_HEIGHT*(1-q*.075),inset=.105;
     var x0=p[0]+.5-(.5-inset)*sx,x1=p[0]+.5+(.5-inset)*sx;
     var y0=p[1]+.5-(.5-inset)*sy,y1=p[1]+.5+(.5-inset)*sy;
-    this.drawIdentityRing(g,p[0]+.5,p[1]+.5,pal,d.inert);
     this.drawContactShadow(g,p[0]+.5,p[1]+.5,.37,.20,false);
-    this.drawFeet(g,p[0]+.5,p[1]+.5);
+    var material=d.colour===2?'penguin-purple':'penguin-orange';
     var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+h,
-      material:'penguin',topTextureFace:'south',radius:this.cell*.105,topShade:'rgba(255,255,255,.02)',
+      material:material,radius:this.cell*.11,topShade:'rgba(255,255,255,.012)',
       southShade:d.inert?'rgba(185,213,220,.22)':'rgba(0,18,30,.025)',
       eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
-    if(!this.textureBank.face('penguin','south'))this.drawPenguinFallback(g,f);
-    this.drawPenguinIdentity(g,f,pal,d.inert);
-    g.save();g.strokeStyle='rgba(255,255,255,.44)';g.lineWidth=Math.max(1,this.cell*.014);g.lineCap='round';
-    g.beginPath();g.moveTo(lerp(f.top[0].x,f.top[1].x,.18),lerp(f.top[0].y,f.top[1].y,.18));
-    g.lineTo(lerp(f.top[0].x,f.top[1].x,.76),lerp(f.top[0].y,f.top[1].y,.76));g.stroke();g.restore();
-  };
-  Renderer.prototype.drawIdentityRing=function(g,x,y,pal,inert){
-    var c=this.project(x,y,.025);g.save();g.globalAlpha=inert ? .22 : .38;
-    g.strokeStyle=pal.hi;g.lineWidth=Math.max(2,this.cell*.034);g.beginPath();
-    g.ellipse(c.x,c.y+this.cell*.045,this.cell*.34,this.cell*.105,0,0,Math.PI*2);g.stroke();
-    g.globalAlpha=inert ? .28 : .72;g.strokeStyle=pal.mid;g.lineWidth=Math.max(1,this.cell*.014);
-    g.beginPath();g.ellipse(c.x,c.y+this.cell*.045,this.cell*.29,this.cell*.083,0,0,Math.PI*2);g.stroke();g.restore();
+    if(!this.textureBank.face(material,'south'))this.drawPenguinFallback(g,f);
   };
   Renderer.prototype.drawContactShadow=function(g,x,y,rx,ry,deep){
     var c=this.project(x,y,.008);g.save();g.fillStyle=deep?THEME.contactDeep:THEME.contact;
     g.beginPath();g.ellipse(c.x+this.cell*.035,c.y+this.cell*.075,this.cell*rx,this.cell*ry,0,0,Math.PI*2);g.fill();g.restore();
-  };
-  Renderer.prototype.drawFeet=function(g,x,y){
-    var c=this.project(x,y,.045);g.save();g.fillStyle='#F2A92D';g.strokeStyle='rgba(174,103,8,.28)';g.lineWidth=1;
-    g.beginPath();g.ellipse(c.x-this.cell*.115,c.y+this.cell*.025,this.cell*.10,this.cell*.035,-.12,0,Math.PI*2);g.fill();g.stroke();
-    g.beginPath();g.ellipse(c.x+this.cell*.115,c.y+this.cell*.025,this.cell*.10,this.cell*.035,.12,0,Math.PI*2);g.fill();g.stroke();g.restore();
   };
   Renderer.prototype.drawPenguinFallback=function(g,f){
     g.save();roundedPoly(g,f.top,this.cell*.1);g.clip();faceTransform(g,f.top,256);
@@ -708,24 +674,6 @@
     g.fillStyle='#F6D0C9';g.beginPath();g.arc(76,137,11,0,Math.PI*2);g.arc(180,137,11,0,Math.PI*2);g.fill();
     g.fillStyle='#F3AC2D';g.beginPath();g.moveTo(128,121);g.lineTo(106,139);g.lineTo(150,139);g.closePath();g.fill();g.restore();
   };
-  Renderer.prototype.drawPenguinIdentity=function(g,f,pal,inert){
-    g.save();roundedPoly(g,f.top,this.cell*.1);g.clip();faceTransform(g,f.top,256);
-    g.globalAlpha=inert ? .46 : .96;g.strokeStyle=pal.mid;g.lineWidth=22;g.lineCap='round';
-    g.beginPath();g.moveTo(54,68);g.quadraticCurveTo(128,84,202,67);g.stroke();
-    g.globalAlpha=inert ? .28 : .52;g.fillStyle=pal.mid;g.fillRect(24,232,208,24);
-    g.globalAlpha=inert ? .56 : .96;g.fillStyle='rgba(255,255,255,.9)';
-    g.beginPath();g.arc(128,198,36,0,Math.PI*2);g.fill();
-    g.fillStyle=pal.mid;glyph(g,128,198,17,pal.shape);g.fill();g.restore();
-    g.save();roundedPoly(g,f.east,this.cell*.1);g.clip();faceTransform(g,f.east,256);
-    g.globalAlpha=inert ? .36 : .84;g.strokeStyle=pal.mid;g.lineWidth=20;g.lineCap='round';
-    g.beginPath();g.moveTo(38,72);g.quadraticCurveTo(128,84,220,66);g.stroke();
-    g.globalAlpha=inert ? .25 : .48;g.fillStyle=pal.mid;g.fillRect(26,232,204,24);g.restore();
-    g.save();roundedPoly(g,f.top,this.cell*.1);g.clip();faceTransform(g,f.top,256);
-    g.globalAlpha=inert ? .48 : .94;g.fillStyle='rgba(255,255,255,.82)';
-    g.beginPath();g.arc(128,132,37,0,Math.PI*2);g.fill();g.fillStyle=pal.mid;
-    glyph(g,128,132,18,pal.shape);g.fill();g.restore();
-  };
-
   Renderer.prototype.drawRipple=function(g,r){
     var p=r.life/r.max,rad=r.r0+(r.r1-r.r0)*easeOut(p),c=this.project(r.x,r.y,r.z);
     g.save();g.globalAlpha=(1-p)*.82;g.strokeStyle=r.col;g.lineWidth=Math.max(1.2,this.cell*.05*(1-p));
@@ -820,14 +768,9 @@
     for(i=1;i<=n;i++){var j=i%n;g.lineTo(s[j].x,s[j].y);g.quadraticCurveTo(p[j].x,p[j].y,e[j].x,e[j].y);}
     g.closePath();
   }
-  function roundRect(g,x,y,w,h,r){
-    r=Math.min(r,Math.abs(w)/2,Math.abs(h)/2);g.beginPath();g.moveTo(x+r,y);
-    g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);
-    g.arcTo(x,y,x+w,y,r);g.closePath();
-  }
-
   root.TiltRender={
     Renderer:Renderer,BLOCK:BLOCK,SOCKET:SOCKET,PALETTE:PALETTE,
-    THEME:THEME,TICK:TICK,TAIL:TAIL,MAX_CELL:MAX_CELL,ATLAS:ATLAS
+    THEME:THEME,TICK:TICK,TAIL:TAIL,MAX_CELL:MAX_CELL,FACE_SIZE:FACE_SIZE,
+    TEXTURE_FILES:TEXTURE_FILES,MATERIAL_FACES:MATERIAL_FACES
   };
 })(typeof window!=='undefined'?window:globalThis);
