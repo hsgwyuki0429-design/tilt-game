@@ -70,7 +70,9 @@ function serve() {
       r.pushCommand('floor', 1, 1, 0, 0, {});
       r.pushCommand('goal', 1, 1, .012, 1, {});
       r.pushCommand('penguin', 1, 1, .035, 4, {});
-      var commandProbe = r.commands.map(function (c) { return { depth: c.depth, layer: c.layer }; });
+      var commandProbe = r.commands.map(function (c) {
+        return { depth: c.depth, layer: c.layer, pass: c.pass };
+      });
       var names = ['top', 'bottom', 'north', 'south', 'east', 'west'];
       var materials = ['ice', 'wall-smooth', 'wall-brick', 'cracked', 'goal',
         'penguin-orange', 'penguin-purple'];
@@ -92,6 +94,7 @@ function serve() {
         loadedTextures: r.textureBank.loaded,
         footprintDepth: commandProbe.every(function (c) { return c.depth === commandProbe[0].depth; }),
         layers: commandProbe.map(function (c) { return c.layer; }).join(','),
+        passes: commandProbe.map(function (c) { return c.pass; }).join(','),
         staticSprites: Object.keys(r.staticSprites || {}).length,
         dpr: r.dpr
       };
@@ -104,6 +107,7 @@ function serve() {
       'configured=' + architecture.suppliedTextures + ' loaded=' + architecture.loadedTextures);
     check('depth key uses the shared footprint, not object height', architecture.footprintDepth);
     check('equal-footprint layers remain floor → goal → penguin', architecture.layers === '0,1,4');
+    check('terrain is fully painted before raised penguins', architecture.passes === '0,0,1');
     check('seven static terrain variants are cached', architecture.staticSprites === 7,
       'sprites=' + architecture.staticSprites);
     check('devicePixelRatio is capped at 2', architecture.dpr <= 2, 'dpr=' + architecture.dpr);
@@ -130,7 +134,12 @@ function serve() {
           r.frame(16, performance.now());
           var b = r.boardBounds;
           var sorted = r.commands.every(function (c, i, all) {
-            return !i || all[i - 1].depth <= c.depth + .01;
+            if (!i) return true;
+            var p = all[i - 1];
+            if (p.pass !== c.pass) return p.pass < c.pass;
+            if (Math.abs(p.depth - c.depth) > .01) return p.depth < c.depth;
+            if (p.layer !== c.layer) return p.layer < c.layer;
+            return p.tie <= c.tie;
           });
           return {
             inside: b.left >= -.5 && b.top >= -.5 && b.right <= r.cssW + .5 && b.bottom <= r.cssH + .5,

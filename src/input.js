@@ -8,8 +8,8 @@
  *   - a swipe commits at 18px, or at any speed if the flick was fast
  *   - the dominant axis wins outright; there is no diagonal to get wrong
  *   - the direction being aimed at is drawn on the board *before* release
- *   - device tilt uses a captured neutral and needs a return to centre before
- *     it will fire again, so a held tilt cannot machine-gun moves
+ *   - device tilt reads the settled pose, not motion on the way there
+ *   - a captured neutral and return-to-centre gate prevent repeated moves
  *
  * Swipe alone plays the entire game. Tilt is strictly an alternative.
  */
@@ -19,9 +19,10 @@
   var FLICK_MIN = 10;        // px, if it was fast enough
   var FLICK_MS = 260;
 
-  var TILT_ON = 14;          // degrees from neutral to fire
-  var TILT_OFF = 7;          // degrees to re-arm
-  var TILT_HOLD = 90;        // ms held past threshold before committing
+  var TILT_ON = 11;          // degrees from neutral to select a direction
+  var TILT_OFF = 5;          // degrees to re-arm
+  var TILT_SETTLE = 72;      // ms still before the selected pose commits
+  var TILT_MOVE_RATE = 24;   // degrees/second: above this the phone is moving
 
   function Input(el, handlers) {
     this.el = el;
@@ -37,7 +38,10 @@
       neutral: null,
       armed: true,
       dir: null,
-      since: 0,
+      sample: null,
+      magnitude: 0,
+      lastMotion: 0,
+      settleTimer: null,
       invert: false,
       supported: typeof window !== 'undefined' && 'DeviceOrientationEvent' in window
     };
@@ -130,7 +134,7 @@
 
     var attach = function () {
       self.tilt.enabled = true;
-      self.tilt.neutral = null;
+      self.resetTiltPose();
       if (!self.tiltHandler) {
         self.tiltHandler = function (e) { self.onOrientation(e); };
         window.addEventListener('deviceorientation', self.tiltHandler);
@@ -152,11 +156,57 @@
 
   Input.prototype.disableTilt = function () {
     this.tilt.enabled = false;
-    this.tilt.dir = null;
+    this.resetTiltPose();
     this.on.aim(null);
   };
 
-  Input.prototype.recentre = function () { this.tilt.neutral = null; };
+  Input.prototype.clearTiltTimer = function () {
+    var t = this.tilt;
+    if (t.settleTimer != null) clearTimeout(t.settleTimer);
+    t.settleTimer = null;
+  };
+
+  Input.prototype.resetTiltPose = function () {
+    var t = this.tilt;
+    this.clearTiltTimer();
+    t.neutral = null;
+    t.armed = true;
+    t.dir = null;
+    t.sample = null;
+    t.magnitude = 0;
+    t.lastMotion = 0;
+  };
+
+  Input.prototype.recentre = function () {
+    this.resetTiltPose();
+    this.on.aim(null);
+  };
+
+  Input.prototype.scheduleTiltCommit = function (now, restart) {
+    var self = this, t = this.tilt;
+    if (restart) this.clearTiltTimer();
+    if (t.settleTimer != null || !t.armed || !t.dir) return;
+
+    var delay = Math.max(0, TILT_SETTLE - (now - t.lastMotion));
+    t.settleTimer = setTimeout(function settle() {
+      t.settleTimer = null;
+      var at = performance.now();
+      var left = TILT_SETTLE - (at - t.lastMotion);
+      if (left > 1) {
+        t.settleTimer = setTimeout(settle, left);
+        return;
+      }
+      // The timer is deliberately independent of the sensor event frequency.
+      // Some phones stop dispatching orientation events once physically still;
+      // the settled pose must still commit promptly on those devices.
+      if (!t.enabled || !t.armed || !t.dir || t.magnitude < TILT_ON) return;
+      var dir = t.dir;
+      t.armed = false;
+      t.dir = null;
+      self.on.aim(null);
+      self.on.commit(dir);
+    }, delay);
+  };
 
   Input.prototype.onOrientation = function (e) {
     var t = this.tilt;
@@ -164,6 +214,7 @@
 
     if (!t.neutral) {
       t.neutral = { beta: e.beta, gamma: e.gamma };
+      t.sample = { x: 0, y: 0, at: performance.now() };
       return;
     }
 
@@ -186,19 +237,34 @@
     var dir = null;
     if (mag >= TILT_ON) dir = ax >= ay ? (gx > 0 ? 'R' : 'L') : (gy > 0 ? 'D' : 'U');
 
-    if (mag < TILT_OFF) { t.armed = true; t.dir = null; this.on.aim(null); return; }
-    if (!dir || !t.armed) return;
-
-    // A brief hold before committing means the on-board arrow is always seen
-    // first — which is how the tilt mapping teaches itself.
     var now = performance.now();
-    if (t.dir !== dir) { t.dir = dir; t.since = now; this.on.aim(dir); return; }
-    if (now - t.since >= TILT_HOLD) {
-      t.armed = false;
+    var moving = true;
+    if (t.sample) {
+      var elapsed = Math.max(1, now - t.sample.at);
+      var rate = Math.max(Math.abs(gx - t.sample.x), Math.abs(gy - t.sample.y)) * 1000 / elapsed;
+      moving = rate >= TILT_MOVE_RATE;
+    }
+    t.sample = { x: gx, y: gy, at: now };
+    t.magnitude = mag;
+
+    if (mag < TILT_OFF) {
+      this.clearTiltTimer();
+      t.armed = true;
       t.dir = null;
       this.on.aim(null);
-      this.on.commit(dir);
+      return;
     }
+    if (!dir || !t.armed) return;
+
+    var changed = t.dir !== dir;
+    if (changed) {
+      t.dir = dir;
+      this.on.aim(dir);
+    }
+    // Every real movement postpones the command. Once readings settle, the
+    // direction represented by the final phone pose is emitted exactly once.
+    if (moving || changed) t.lastMotion = now;
+    this.scheduleTiltCommit(now, moving || changed);
   };
 
   root.TiltInput = { Input: Input };

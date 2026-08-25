@@ -483,6 +483,11 @@
   };
 
   function depthCompare(a,b){
+    /* Terrain is a base pass. Without this split, a floor tile in the next row
+       can be painter-sorted over a penguin while its fractional animation
+       position crosses the row boundary. Raised objects still depth-sort
+       together, so walls keep their legitimate positional occlusion. */
+    if(a.pass!==b.pass)return a.pass-b.pass;
     if(Math.abs(a.depth-b.depth)>.01)return a.depth-b.depth;
     if(a.layer!==b.layer)return a.layer-b.layer;
     return a.tie-b.tie;
@@ -491,7 +496,9 @@
     /* Painter order follows the footprint, never the object's height. Using z
        here makes tall objects sort behind their own floor tile. */
     var p=this.project(x+.92,y+.92,0);
-    this.commands.push({kind:kind,x:x,y:y,z:z||0,layer:layer,depth:p.y,tie:p.x,data:data});
+    var pass=kind==='particle'?2:(kind==='wall'||kind==='penguin'?1:0);
+    this.commands.push({kind:kind,x:x,y:y,z:z||0,layer:layer,pass:pass,
+      depth:p.y,tie:p.x,data:data});
   };
   Renderer.prototype.collectCommands=function(elapsed){
     var st=this.stage;this.commands.length=0;var i,c;
