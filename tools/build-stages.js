@@ -191,29 +191,46 @@ function pick(par) {
   return null;
 }
 
-function hintFor(stage, par, def) {
+/**
+ * The teaching line, shown until the stage is first cleared.
+ *
+ * It says what the board is MADE of, and nothing else. A hundred boards is
+ * more than a hundred insights, and a line that claims to know the trick when
+ * it only knows the piece count is worse than no line: it teaches the player to
+ * stop reading them.
+ */
+function hintFor(stage, par) {
   var two = stage.penguins === 2;
-  var drift = stage.drifters > 0;
-  var wall = false, crack = stage.rules.hazard;
-  for (var i = 0; i < stage.terrain.length; i++) if (stage.terrain[i] === E.WALL) wall = true;
+  var drift = stage.drifters;
+  var walls = 0, crack = stage.rules.hazard;
+  for (var i = 0; i < stage.terrain.length; i++) if (stage.terrain[i] === E.WALL) walls++;
 
   var ja, en;
   if (crack) {
     ja = 'ヒビ氷は通れるが、止まると割れる。';
     en = 'Cracked ice is safe to cross and fatal to stop on.';
+  } else if (drift >= 2) {
+    ja = '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。';
+    en = 'Two grey drifters. Neither is ever collected; both work only as movable walls.';
+  } else if (drift && walls) {
+    ja = '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。';
+    en = 'Wall, drifter, other penguin — three brakes, and the rest is the order.';
   } else if (drift && two) {
     ja = '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。';
-    en = 'The grey floe slides with the same gravity — and it can sit on an aurora.';
+    en = 'The grey drifter slides with the same gravity — and it can sit on an aurora.';
   } else if (drift) {
     ja = '灰色の流氷は回収されない。壁として使う駒。';
-    en = 'The grey floe is never collected. It is there to be used as a wall.';
-  } else if (two && wall) {
+    en = 'The grey drifter is never collected. It is there to be used as a wall.';
+  } else if (two && walls > 1) {
+    ja = '壁が2つ。どちらの手前で止めるかがすべて。';
+    en = 'Two walls. Which one you stop against is the whole decision.';
+  } else if (two && walls) {
     ja = '壁ともう一羽、どちらもストッパーになる。';
     en = 'The wall and the other penguin are both brakes.';
   } else if (two) {
     ja = '止められるのは盤の端ともう一羽だけ。';
     en = 'The only brakes here are the edge and the other penguin.';
-  } else if (wall) {
+  } else if (walls) {
     ja = '壁の手前でちょうど止める。';
     en = 'Stop short, against the wall.';
   } else {
@@ -235,7 +252,7 @@ function ideaFor(stage, par) {
   if (walls) bits.push(walls + ' wall' + (walls > 1 ? 's' : ''));
   if (cracks) bits.push(cracks + ' cracked tile' + (cracks > 1 ? 's' : ''));
   if (!stage.drifters && !walls && !cracks) bits.push('an empty tray');
-  return bits.join(', ') + '; ' + par + ' moves.';
+  return bits.join(', ') + '; ' + par + (par === 1 ? ' move.' : ' moves.');
 }
 
 // ---------------------------------------------------------------------------
@@ -287,7 +304,7 @@ for (var n = 1; n <= COUNT; n++) {
     name: NAMES[n - 1] || ('ICE ' + n),
     par: solved.moves,
     idea: ideaFor(stage, solved.moves),
-    hint: hintFor(stage, solved.moves, entry),
+    hint: hintFor(stage, solved.moves),
     board: rows,
     statics: entry.statics,
     grays: entry.grays
@@ -300,6 +317,21 @@ if (failures.length) {
     console.error('build failed: only ' + stages.length + ' of ' + COUNT + ' stages');
     process.exit(1);
   }
+}
+
+// A stage that fell back to a neighbouring length is still a stage, so the loop
+// above will not have stopped. Check the curve itself before writing anything:
+// a campaign that is off the line is the one failure this tool exists to avoid.
+var step = (stages[stages.length - 1].par - stages[0].par) / (stages.length - 1);
+var offLine = stages.filter(function (s, i) {
+  return Math.abs(s.par - (stages[0].par + i * step)) > 0.5 + 1e-9;
+});
+if (offLine.length) {
+  offLine.forEach(function (s) {
+    console.error('  ! stage ' + s.id + ': par ' + s.par + ' is off the difficulty line');
+  });
+  console.error('build failed: the campaign does not sit on a straight line');
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------

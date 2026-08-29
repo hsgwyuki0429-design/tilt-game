@@ -34,8 +34,10 @@ node tools/build-stages.js
 ```
 
 `--plans` takes `penguins,drifters,immovable` triples separated by `;`. The
-index that ships in `tools/level-index.json` is the union of every plan with at
-most two penguins, two drifters and three immovable obstacles.
+index that ships in `tools/level-index.json` names the twenty combinations it
+was measured from, and how long the longest board in each turned out to be —
+1.9 billion boards in total. Widen the budget, re-run the build, and the whole
+campaign moves onto the new line.
 
 Nothing in the build is trusted: `tools/build-stages.js` recompiles and
 re-solves every board with `src/engine.js` before writing it out, and `npm test`

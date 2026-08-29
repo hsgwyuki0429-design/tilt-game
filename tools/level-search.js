@@ -406,10 +406,12 @@ if (spec) {
   }
 }
 
+var covered = [];
 var merge = arg('merge', null);
 if (merge) {
   // fold an existing index back in, so several runs can be accumulated
   var prev = JSON.parse(fs.readFileSync(merge, 'utf8'));
+  if (prev.plans) covered = prev.plans.slice();
   Object.keys(prev.pars || prev).forEach(function (m) {
     var list = (prev.pars || prev)[m];
     list.forEach(function (e) {
@@ -426,6 +428,13 @@ plans.forEach(function (plan) {
     ' statics=' + plan.statics + (plan.hazards ? ' +cracked-ice' : '') +
     '  graphs=' + r.graphs + ' boards=' + r.boards + ' longest=' + r.maxSeen +
     '  (' + ((Date.now() - t0) / 1000).toFixed(1) + 's)');
+  // The index records exactly which corners of the space were measured, so a
+  // claim about "the longest board there is" can be checked rather than taken
+  // on trust.
+  covered.push({
+    penguins: plan.penguins, drifters: plan.gray, statics: plan.statics,
+    crackedIce: !!plan.hazards, longest: r.maxSeen, boards: r.boards
+  });
 });
 
 var out = arg('out', path.join(__dirname, 'level-index.json'));
@@ -438,6 +447,9 @@ Array.from(best.keys()).sort(function (a, b) { return a - b; }).forEach(function
     };
   });
 });
-fs.writeFileSync(out, JSON.stringify({ pars: pars }, null, 1));
+covered.sort(function (a, b) {
+  return a.penguins - b.penguins || a.drifters - b.drifters || a.statics - b.statics;
+});
+fs.writeFileSync(out, JSON.stringify({ plans: covered, pars: pars }, null, 1));
 var keys = Object.keys(pars).map(Number).sort(function (a, b) { return a - b; });
 console.log('wrote ' + out + ' — par ' + keys[0] + '…' + keys[keys.length - 1]);

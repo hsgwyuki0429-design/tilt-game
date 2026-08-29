@@ -41,6 +41,27 @@ STAGES.forEach(function (def, index) {
 });
 
 // ---------------------------------------------------------------------------
+// every obstacle earns its place
+// ---------------------------------------------------------------------------
+// The campaign is built by ranking boards of equal par by how empty they are,
+// so a board carrying an obstacle it does not need means the search measured
+// something other than the game. Take each wall, hazard and drifter away in
+// turn: the par has to change, or the board has to stop being solvable.
+STAGES.forEach(function (def) {
+  def.board.forEach(function (row, y) {
+    for (var x = 0; x < row.length; x++) {
+      if ('#xG'.indexOf(row[x]) < 0) continue;
+      var board = def.board.slice();
+      board[y] = row.slice(0, x) + '.' + row.slice(x + 1);
+      var without = E.solve(E.compile({ id: def.id, board: board }), null, 400000);
+      assert(!without.solvable || without.moves !== def.par,
+        'stage ' + def.id + ': the ' + row[x] + ' at ' + x + ',' + y +
+        ' changes nothing — par is still ' + def.par + ' without it');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // the difficulty curve
 // ---------------------------------------------------------------------------
 // The campaign is laid out along a straight line: stage 1 is one swipe, the

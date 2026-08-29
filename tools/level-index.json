@@ -1,4 +1,166 @@
 {
+ "plans": [
+  {
+   "penguins": 1,
+   "drifters": 0,
+   "statics": 0,
+   "crackedIce": false,
+   "longest": 2,
+   "boards": 144
+  },
+  {
+   "penguins": 1,
+   "drifters": 0,
+   "statics": 1,
+   "crackedIce": false,
+   "longest": 5,
+   "boards": 1015
+  },
+  {
+   "penguins": 1,
+   "drifters": 0,
+   "statics": 2,
+   "crackedIce": false,
+   "longest": 8,
+   "boards": 9132
+  },
+  {
+   "penguins": 1,
+   "drifters": 1,
+   "statics": 0,
+   "crackedIce": false,
+   "longest": 2,
+   "boards": 4288
+  },
+  {
+   "penguins": 1,
+   "drifters": 1,
+   "statics": 1,
+   "crackedIce": false,
+   "longest": 14,
+   "boards": 38204
+  },
+  {
+   "penguins": 1,
+   "drifters": 1,
+   "statics": 2,
+   "crackedIce": false,
+   "longest": 17,
+   "boards": 328767
+  },
+  {
+   "penguins": 2,
+   "drifters": 0,
+   "statics": 0,
+   "crackedIce": false,
+   "longest": 4,
+   "boards": 13432
+  },
+  {
+   "penguins": 2,
+   "drifters": 0,
+   "statics": 1,
+   "crackedIce": false,
+   "longest": 20,
+   "boards": 135952
+  },
+  {
+   "penguins": 2,
+   "drifters": 0,
+   "statics": 2,
+   "crackedIce": false,
+   "longest": 25,
+   "boards": 1354761
+  },
+  {
+   "penguins": 2,
+   "drifters": 0,
+   "statics": 2,
+   "crackedIce": true,
+   "longest": 25,
+   "boards": 3334418
+  },
+  {
+   "penguins": 2,
+   "drifters": 0,
+   "statics": 3,
+   "crackedIce": false,
+   "longest": 34,
+   "boards": 9082372
+  },
+  {
+   "penguins": 2,
+   "drifters": 0,
+   "statics": 4,
+   "crackedIce": false,
+   "longest": 33,
+   "boards": 43935128
+  },
+  {
+   "penguins": 2,
+   "drifters": 1,
+   "statics": 0,
+   "crackedIce": false,
+   "longest": 12,
+   "boards": 390048
+  },
+  {
+   "penguins": 2,
+   "drifters": 1,
+   "statics": 1,
+   "crackedIce": false,
+   "longest": 36,
+   "boards": 5963931
+  },
+  {
+   "penguins": 2,
+   "drifters": 1,
+   "statics": 1,
+   "crackedIce": true,
+   "longest": 36,
+   "boards": 7618041
+  },
+  {
+   "penguins": 2,
+   "drifters": 1,
+   "statics": 2,
+   "crackedIce": false,
+   "longest": 38,
+   "boards": 53321899
+  },
+  {
+   "penguins": 2,
+   "drifters": 1,
+   "statics": 3,
+   "crackedIce": false,
+   "longest": 57,
+   "boards": 316841014
+  },
+  {
+   "penguins": 2,
+   "drifters": 2,
+   "statics": 0,
+   "crackedIce": false,
+   "longest": 18,
+   "boards": 16892076
+  },
+  {
+   "penguins": 2,
+   "drifters": 2,
+   "statics": 1,
+   "crackedIce": false,
+   "longest": 33,
+   "boards": 168020626
+  },
+  {
+   "penguins": 2,
+   "drifters": 2,
+   "statics": 2,
+   "crackedIce": false,
+   "longest": 55,
+   "boards": 1262466924
+  }
+ ],
  "pars": {
   "1": [
    {
@@ -6777,6 +6939,3389 @@
      "#G.#.",
      "...b.",
      ".....",
+     "....."
+    ]
+   },
+   {
+    "moves": 38,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "...a.",
+     "bBGGA"
+    ]
+   },
+   {
+    "moves": 38,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "...aA",
+     "bBGG."
+    ]
+   },
+   {
+    "moves": 38,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "..Ga.",
+     "b.BGA"
+    ]
+   },
+   {
+    "moves": 38,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "..Ga.",
+     "bB.GA"
+    ]
+   },
+   {
+    "moves": 38,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "..GaA",
+     "b.BG."
+    ]
+   },
+   {
+    "moves": 38,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "..GaA",
+     "bB.G."
+    ]
+   },
+   {
+    "moves": 38,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".B.aA",
+     "..GGb"
+    ]
+   },
+   {
+    "moves": 38,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".G.a.",
+     "bB.GA"
+    ]
+   },
+   {
+    "moves": 38,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".G.a.",
+     "bBG.A"
+    ]
+   }
+  ],
+  "39": [
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..B",
+     ".AGGb"
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..B",
+     "A.GGb"
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..B",
+     "b.AGG"
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..B",
+     "bA.GG"
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..B",
+     "bAG.G"
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..G",
+     "b.AGB"
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..G",
+     "bA.GB"
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..G",
+     "bAG.B"
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.B.",
+     "bAGG."
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.BG",
+     "GA..b"
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.G.",
+     "b.AGB"
+    ]
+   },
+   {
+    "moves": 39,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.G.",
+     "bA.GB"
+    ]
+   }
+  ],
+  "40": [
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "..GaB",
+     "b.G.A"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..B",
+     ".AbGG"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..B",
+     "A.bGG"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..B",
+     "AG.Gb"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..B",
+     "AGG.b"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.B.",
+     ".AGGb"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.B.",
+     "A.GGb"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.B.",
+     "AG.Gb"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.B.",
+     "AGG.b"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.BG",
+     "b..GA"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.G.",
+     ".AGBb"
+    ]
+   },
+   {
+    "moves": 40,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.G.",
+     ".AbGB"
+    ]
+   }
+  ],
+  "41": [
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".GBa.",
+     "b..GA"
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a...",
+     "AGbBG"
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..G",
+     ".AbBG"
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..G",
+     "A.bBG"
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..G",
+     "ABb.G"
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..G",
+     "ABbG."
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.G.",
+     ".AbBG"
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.G.",
+     "A.bBG"
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.G.",
+     "ABb.G"
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.G.",
+     "ABbG."
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".aAGG",
+     "bB..."
+    ]
+   },
+   {
+    "moves": 41,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".aB.G",
+     "b..GA"
+    ]
+   }
+  ],
+  "42": [
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a...",
+     "bBAGG"
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a...",
+     "bGAGB"
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..G",
+     "AGbB."
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..G",
+     "bBAG."
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.B.",
+     "AGb.G"
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.BG",
+     ".Ab.G"
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.BG",
+     "A.b.G"
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.BG",
+     "AGb.."
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.G.",
+     "bBA.G"
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.GB",
+     "b..AG"
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.GB",
+     "bGA.."
+    ]
+   },
+   {
+    "moves": 42,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.GG",
+     ".AbB."
+    ]
+   }
+  ],
+  "43": [
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.GB",
+     "..AGb"
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.GB",
+     ".GA.b"
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.GB",
+     "G.A.b"
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".aA.B",
+     "..GGb"
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".aA.B",
+     ".G.Gb"
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".aA.B",
+     "G..Gb"
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "Ga..B",
+     "..AGb"
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "Ga..B",
+     "bA.G."
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "Ga..B",
+     "bAG.."
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "Ga.B.",
+     "bAG.."
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "GaB..",
+     "b..AG"
+    ]
+   },
+   {
+    "moves": 43,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...GB",
+     ".a...",
+     "..AGb"
+    ]
+   }
+  ],
+  "44": [
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".aA.G",
+     ".GbB."
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".aA.G",
+     "G.bB."
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "Ga.G.",
+     "bA..B"
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "GaG..",
+     "bA..B"
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "GaG..",
+     "bA.B."
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".b..G",
+     ".G.AB"
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".b..G",
+     ".GA.B"
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".b..G",
+     "G..AB"
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".b..G",
+     "G.A.B"
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".b.AG",
+     "...GB"
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".b.AG",
+     ".G..B"
+    ]
+   },
+   {
+    "moves": 44,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".b.AG",
+     "G...B"
+    ]
+   }
+  ],
+  "45": [
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a...",
+     "GAbBG"
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".b.AG",
+     "..G.B"
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".bA.G",
+     "...GB"
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".bA.G",
+     ".G.B."
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     ".bA.G",
+     "G..B."
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     "Ab..G",
+     "...GB"
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     "Ab..G",
+     "..G.B"
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     "Ab..G",
+     ".G..B"
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     "Ab.G.",
+     "..GB."
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     "Ab.G.",
+     ".G.B."
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     "Ab.G.",
+     "G...B"
+    ]
+   },
+   {
+    "moves": 45,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....a",
+     "AbG..",
+     ".GB.."
+    ]
+   }
+  ],
+  "46": [
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a..G",
+     "GAbB."
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.BG",
+     "GAb.."
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".a.GB",
+     "b..GA"
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".aG.B",
+     "b.G.A"
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     ".aGB.",
+     "b.GA."
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".....",
+     "Ga..G",
+     ".AbB."
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "....G",
+     ".a...",
+     "GAbB."
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...B.",
+     "Ga...",
+     ".Ab.G"
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...BG",
+     ".a...",
+     "GAb.."
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...BG",
+     "Ga...",
+     ".Ab.."
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...GB",
+     ".a...",
+     "b..GA"
+    ]
+   },
+   {
+    "moves": 46,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     "...G.",
+     ".GABb"
+    ]
+   }
+  ],
+  "47": [
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     "..AG.",
+     ".G.Bb"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     "..AG.",
+     "G..Bb"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     "..GB.",
+     ".GA.b"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     "..GB.",
+     "G.A.b"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     ".A.G.",
+     "G..Bb"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     ".AG..",
+     "G.B.b"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     ".GAG.",
+     "...Bb"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     "G.AG.",
+     "...Bb"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     "GA.G.",
+     "...Bb"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     "...a.",
+     "GAG..",
+     "..B.b"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".a...",
+     "..GB.",
+     ".AG.b"
+    ]
+   },
+   {
+    "moves": 47,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".....",
+     ".a...",
+     "..GB.",
+     "A.G.b"
+    ]
+   }
+  ],
+  "48": [
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     "...aG",
+     "...A.",
+     "...Gb"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     "...aG",
+     "..A..",
+     "..G.b"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     "..Ga.",
+     "....A",
+     "..G.b"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     "..Ga.",
+     "..A..",
+     ".G..b"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     "..Ga.",
+     "..A..",
+     "G...b"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     "..Ga.",
+     ".A...",
+     "G...b"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     ".G.a.",
+     "...A.",
+     "...Gb"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     ".G.a.",
+     "...A.",
+     "G...b"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     ".G.a.",
+     "..A..",
+     "..G.b"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     ".G.a.",
+     "..A..",
+     "G...b"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     ".G.a.",
+     ".A...",
+     ".G..b"
+    ]
+   },
+   {
+    "moves": 48,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..B",
+     ".....",
+     ".a..G",
+     "...G.",
+     "...Ab"
+    ]
+   }
+  ],
+  "49": [
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     ".G.a.",
+     ".A...",
+     ".G..b"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     "G..a.",
+     "A....",
+     "G...b"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     "Ga...",
+     "G....",
+     "A...b"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "...B.",
+     ".a.G.",
+     "...G.",
+     "...Ab"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "..B..",
+     "..Ga.",
+     "..A..",
+     "..G.b"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "..B..",
+     ".aG..",
+     "..G..",
+     "..A.b"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".A..G",
+     "...a.",
+     "G...B",
+     "....b"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     ".A..G",
+     "G..aB",
+     ".....",
+     "....b"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "GA..G",
+     "...a.",
+     "....B",
+     "....b"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "GA..G",
+     "...aB",
+     ".....",
+     "....b"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..G",
+     ".....",
+     "GA.a.",
+     "....B",
+     "....b"
+    ]
+   },
+   {
+    "moves": 49,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..G",
+     "GA...",
+     "...a.",
+     "....B",
+     "....b"
+    ]
+   }
+  ],
+  "50": [
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     "...aG",
+     "...A.",
+     "...Gb"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     "...aG",
+     "..A..",
+     "..G.b"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     "..Ga.",
+     "....A",
+     "..G.b"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     "..Ga.",
+     "..A..",
+     ".G..b"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     "..Ga.",
+     "..A..",
+     "G...b"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     "..Ga.",
+     ".A...",
+     "G...b"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     ".G.a.",
+     "...A.",
+     "...Gb"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     ".G.a.",
+     "...A.",
+     "G...b"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     ".G.a.",
+     "..A..",
+     "..G.b"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     ".G.a.",
+     "..A..",
+     "G...b"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     ".a..G",
+     "...G.",
+     "...Ab"
+    ]
+   },
+   {
+    "moves": 50,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##...",
+     "....B",
+     ".a..G",
+     "..G..",
+     "..A.b"
+    ]
+   }
+  ],
+  "51": [
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "..GbG",
+     "BA..."
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     "...GG",
+     "...b.",
+     "BA..."
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     "..G.G",
+     "...b.",
+     "BA..."
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     "..GG.",
+     "...b.",
+     "BA..."
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     ".....",
+     "GA.GB"
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     ".....",
+     "GAG.B"
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     ".....",
+     "GAGB."
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     "...BG",
+     "..G.A"
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     "..BG.",
+     "..G.A"
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     "..BG.",
+     ".G..A"
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     "..BG.",
+     "G...A"
+    ]
+   },
+   {
+    "moves": 51,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     ".B..G",
+     "G...A"
+    ]
+   }
+  ],
+  "52": [
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".b..G",
+     ".B.GA"
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".b..G",
+     ".BG.A"
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".b..G",
+     "B..GA"
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".b..G",
+     "B.G.A"
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".b.G.",
+     ".BGA."
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".b.G.",
+     "B.GA."
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".b.GG",
+     "...BA"
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".b.GG",
+     ".B..A"
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".b.GG",
+     "B...A"
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".bG.G",
+     "..B.A"
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".bG.G",
+     ".B..A"
+    ]
+   },
+   {
+    "moves": 52,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".bG.G",
+     "B...A"
+    ]
+   }
+  ],
+  "53": [
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "...bG",
+     ".B.GA"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "...bG",
+     ".BG.A"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "...bG",
+     "B..GA"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "...bG",
+     "B.G.A"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "..GbG",
+     "..B.A"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "..GbG",
+     ".B..A"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "..GbG",
+     "B...A"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".b.GG",
+     "..B.A"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".bG.G",
+     "...BA"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".bGG.",
+     "...BA"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".bGG.",
+     "..B.A"
+    ]
+   },
+   {
+    "moves": 53,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".bGG.",
+     ".B..A"
+    ]
+   }
+  ],
+  "54": [
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".G.bG",
+     "B...A"
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".GGb.",
+     "...BA"
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".GGb.",
+     ".B..A"
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".GGb.",
+     ".B.A."
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".GGb.",
+     "B...A"
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".GGb.",
+     "B..A."
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     ".GGb.",
+     "B.A.."
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "G.Gb.",
+     "...BA"
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "G.Gb.",
+     ".B..A"
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "G.Gb.",
+     ".B.A."
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "G.Gb.",
+     "B...A"
+    ]
+   },
+   {
+    "moves": 54,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".....",
+     "G.Gb.",
+     "B..A."
+    ]
+   }
+  ],
+  "55": [
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     "...GB",
+     "..G.A"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     "..G.B",
+     "...GA"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     "..GB.",
+     "...GA"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     "..GB.",
+     "..G.A"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     "..GB.",
+     ".G..A"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     "..GB.",
+     "G...A"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     ".G..B",
+     "G...A"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     ".G.B.",
+     "...GA"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     ".G.B.",
+     "..G.A"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     ".G.B.",
+     ".G..A"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     ".G.B.",
+     "G...A"
+    ]
+   },
+   {
+    "moves": 55,
+    "statics": 2,
+    "walls": 2,
+    "hazards": 0,
+    "grays": 2,
+    "penguins": 2,
+    "rows": [
+     "##..a",
+     ".....",
+     ".b...",
+     ".G.B.",
+     "G..A."
+    ]
+   }
+  ],
+  "56": [
+   {
+    "moves": 56,
+    "statics": 3,
+    "walls": 3,
+    "hazards": 0,
+    "grays": 1,
+    "penguins": 2,
+    "rows": [
+     ".#.a.",
+     "..#..",
+     "..#..",
+     ".b.BA",
+     "...G."
+    ]
+   },
+   {
+    "moves": 56,
+    "statics": 3,
+    "walls": 3,
+    "hazards": 0,
+    "grays": 1,
+    "penguins": 2,
+    "rows": [
+     ".#.a.",
+     "..#..",
+     "..#..",
+     ".bBA.",
+     "..G.."
+    ]
+   },
+   {
+    "moves": 56,
+    "statics": 3,
+    "walls": 3,
+    "hazards": 0,
+    "grays": 1,
+    "penguins": 2,
+    "rows": [
+     ".#.a.",
+     "..#..",
+     "..#..",
+     "Bb.A.",
+     "G...."
+    ]
+   },
+   {
+    "moves": 56,
+    "statics": 3,
+    "walls": 3,
+    "hazards": 0,
+    "grays": 1,
+    "penguins": 2,
+    "rows": [
+     ".#.a.",
+     "..#BA",
+     "..#G.",
+     ".b...",
+     "....."
+    ]
+   },
+   {
+    "moves": 56,
+    "statics": 3,
+    "walls": 3,
+    "hazards": 0,
+    "grays": 1,
+    "penguins": 2,
+    "rows": [
+     "B#.a.",
+     "..#..",
+     "GA#..",
+     ".b...",
+     "....."
+    ]
+   },
+   {
+    "moves": 56,
+    "statics": 3,
+    "walls": 3,
+    "hazards": 0,
+    "grays": 1,
+    "penguins": 2,
+    "rows": [
+     "B#.a.",
+     "GA#..",
+     "..#..",
+     ".b...",
+     "....."
+    ]
+   }
+  ],
+  "57": [
+   {
+    "moves": 57,
+    "statics": 3,
+    "walls": 3,
+    "hazards": 0,
+    "grays": 1,
+    "penguins": 2,
+    "rows": [
+     ".#.a.",
+     "..#..",
+     "..#..",
+     ".b.BA",
+     "....G"
+    ]
+   },
+   {
+    "moves": 57,
+    "statics": 3,
+    "walls": 3,
+    "hazards": 0,
+    "grays": 1,
+    "penguins": 2,
+    "rows": [
+     ".#.a.",
+     "..#..",
+     "..#..",
+     ".bBA.",
+     "...G."
+    ]
+   },
+   {
+    "moves": 57,
+    "statics": 3,
+    "walls": 3,
+    "hazards": 0,
+    "grays": 1,
+    "penguins": 2,
+    "rows": [
+     ".#.a.",
+     "..#..",
+     "..#..",
+     "Bb.A.",
+     "...G."
+    ]
+   },
+   {
+    "moves": 57,
+    "statics": 3,
+    "walls": 3,
+    "hazards": 0,
+    "grays": 1,
+    "penguins": 2,
+    "rows": [
+     ".#.a.",
+     "..#BA",
+     "..#.G",
+     ".b...",
      "....."
     ]
    }
