@@ -516,7 +516,8 @@
       }else{if(!state||!state.alive[i])continue;pos=state.pos[i];}
       var inert=st.win==='select'&&st.collectable&&!st.collectable[i];
       this.pushCommand('penguin',pos[0],pos[1],.035,4,
-        {index:i,pos:pos,squash:squash,colour:st.colour?st.colour[i]:0,inert:inert});
+        {index:i,pos:pos,squash:squash,colour:st.colour?st.colour[i]:0,inert:inert,
+         drifter:st.colour?st.colour[i]===E.GRAY:false});
     }
     for(i=0;i<this.ripples.length;i++){var r=this.ripples[i];
       this.pushCommand('ripple',r.x-.5,r.y-.5,r.z,2,r);}
@@ -539,7 +540,11 @@
     'wall-smooth':{top:['#FFFFFF','#EAF5FA'],south:['#79C8E2','#43A0CB'],east:['#62B5D8','#347FB1']},
     'wall-brick':{top:['#FFFFFF','#EDF7FC'],south:['#A9D9F3','#629FC6'],east:['#88C2E2','#4E89B5']},
     'penguin-orange':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
-    'penguin-purple':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']}
+    'penguin-purple':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
+    /* Deliberately the only desaturated thing on the board. The walls are
+       white-blue and the penguins are near-black; a mid grey slab reads as
+       "movable, but not yours" against both. */
+    drifter:{top:['#C3C9D2','#9AA3AF'],south:['#A8B0BC','#7D8794'],east:['#98A1AE','#6C7683']}
   };
 
   Renderer.prototype.boxGeometry=function(o){
@@ -657,6 +662,7 @@
   };
 
   Renderer.prototype.drawPenguin=function(g,d){
+    if(d.drifter)return this.drawDrifter(g,d);
     var p=d.pos,sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
     var sx=sq&&sq.axis==='x'?1+q*.045:1-q*.018;
     var sy=sq&&sq.axis==='y'?1+q*.045:1-q*.018;
@@ -671,6 +677,32 @@
       eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
     this.drawPenguinBeak(g,f.top,paletteOf(d.colour));
     if(!this.textureBank.face(material,'south'))this.drawPenguinFallback(g,f);
+  };
+  /**
+   * A drifting ice block: it slides with everything else, but no aurora wants
+   * it. Drawn a little shorter than a penguin and with no face at all, so a
+   * glance is enough to tell what the board is asking you to deliver and what
+   * it is only asking you to shove out of the way.
+   */
+  Renderer.prototype.drawDrifter=function(g,d){
+    var p=d.pos,sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
+    var sx=sq&&sq.axis==='x'?1+q*.045:1-q*.018;
+    var sy=sq&&sq.axis==='y'?1+q*.045:1-q*.018;
+    var h=PENGUIN_HEIGHT*.86,inset=.085;
+    var x0=p[0]+.5-(.5-inset)*sx,x1=p[0]+.5+(.5-inset)*sx;
+    var y0=p[1]+.5-(.5-inset)*sy,y1=p[1]+.5+(.5-inset)*sy;
+    this.drawContactShadow(g,p[0]+.5,p[1]+.5,.36,.19,false);
+    var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+h,
+      material:'drifter',radius:this.cell*.09,textures:{top:null,south:null,east:null},
+      topShade:'rgba(255,255,255,.05)',southShade:'rgba(24,32,46,.05)',
+      eastShade:'rgba(18,26,40,.11)'});
+    /* A chamfer on the top face. It is the only decoration, and it is what
+       makes the slab read as a solid object rather than a grey hole. */
+    g.save();roundedPoly(g,f.top,this.cell*.09);g.clip();faceTransform(g,f.top,256);
+    g.strokeStyle='rgba(255,255,255,.55)';g.lineWidth=13;g.lineJoin='round';
+    g.strokeRect(30,30,196,196);
+    g.strokeStyle='rgba(58,68,84,.22)';g.lineWidth=7;g.strokeRect(52,52,152,152);
+    g.restore();
   };
   Renderer.prototype.drawPenguinBeak=function(g,top,pal){
     g.save();roundedPoly(g,top,this.cell*.1);g.clip();faceTransform(g,top,FACE_SIZE);
@@ -752,9 +784,12 @@
   };
 
   Renderer.prototype.celebrate=function(){
-    var st=this.stage,x=st.w/2,y=st.h/2;
+    var st=this.stage,x=st.w/2,y=st.h/2,lead=0;
+    /* Colour the burst after a penguin, never after a drifter: a board can
+       list the drifter first, and a grey firework for a clear is a shrug. */
+    if(st.colour)for(var i=0;i<st.colour.length;i++){if(st.colour[i]!==E.GRAY){lead=st.colour[i];break;}}
     if(!this.reduceMotion){this.ripple(x,y,.08,THEME.clearRing,.28,Math.max(st.w,st.h)*.72,640);
-      this.burst(x,y,.28,paletteOf(st.colour?st.colour[0]:0).mid,16,1.5);this.addShake(1.6,3.4);}
+      this.burst(x,y,.28,paletteOf(lead).mid,16,1.5);this.addShake(1.6,3.4);}
     this.clearGlow=1;
   };
   Renderer.prototype.rebuff=function(dir){

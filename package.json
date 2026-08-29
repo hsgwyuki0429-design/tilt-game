@@ -11,7 +11,9 @@
     "test:render": "node tools/render-test.js",
     "test": "node tools/test.js",
     "serve": "node tools/serve.js",
-    "campaign": "node tools/campaign.js"
+    "campaign": "node tools/campaign.js",
+    "levels:search": "node tools/level-search.js",
+    "levels:build": "node tools/build-stages.js"
   },
   "devDependencies": {
     "playwright": "^1.49.0"

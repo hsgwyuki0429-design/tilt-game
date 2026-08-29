@@ -31,6 +31,17 @@
  * Blocks may stop each other, but contact itself never resolves or clears.
  *
  * ---------------------------------------------------------------------------
+ * DRIFTERS
+ * ---------------------------------------------------------------------------
+ *
+ * A drifter ('G') is a block with no colour and no goal of its own. It obeys
+ * gravity like everything else, but no goal ever accepts it, so it is never
+ * collected and never has to be. It exists to be in the way: it can brake a
+ * penguin mid-board, and — because a goal only collects a block it accepts —
+ * it can come to rest ON an aurora and plug it until something shifts it off
+ * again. A drifter left anywhere on the board does not stop a stage clearing.
+ *
+ * ---------------------------------------------------------------------------
  * IDENTICAL BLOCKS ARE IDENTICAL
  * ---------------------------------------------------------------------------
  *
@@ -51,10 +62,14 @@
   var FLOOR = 0, WALL = 1, HAZARD = 2;
 
   var ANY = 0;
+  // A colour no goal will ever carry, so `accepts` rejects a drifter everywhere
+  // without a single special case anywhere else in the simulation.
+  var GRAY = 9;
 
-  var BLOCK_CHARS = { 'A': 1, 'B': 2 };
+  var BLOCK_CHARS = { 'A': 1, 'B': 2, 'G': GRAY };
   var GOAL_CHARS  = { 'a': 1, 'b': 2 };
   var COLOUR_NAME = ['any', 'A', 'B', 'C'];
+  COLOUR_NAME[GRAY] = 'drifter';
 
   // The campaign has one win condition: both blocks reach their own goals.
   var WINS = ['allin'];
@@ -71,7 +86,7 @@
   //     '.'  floor            '#'  wall
   //     'a'  goal A           'A'  block A
   //     'b'  goal B           'B'  block B
-  //     'c'  goal C           'C'  block C
+  //     'x'  cracked ice      'G'  drifter (moves, is never collected)
   //
   // On a FORM board the goal characters mark TARGET cells rather than holes:
   // nothing is collected, and a block has to be left standing on each of them.
@@ -131,22 +146,27 @@
     for (i = 0; i < collectable.length; i++) mustCollect += collectable[i];
 
     // Every stage is deliberately the same small ruleset: one or two uniquely
-    // coloured blocks, with exactly one matching goal each. Plain or wildcard
-    // pieces are not accepted.
-    if (blocks.length < 1 || blocks.length > 2) fail(def, 'needs one or two movable blocks');
-    if (goalCells.length !== blocks.length) fail(def, 'needs exactly one goal per block');
+    // coloured penguins with exactly one matching aurora each, plus any number
+    // of colourless drifters. Wildcard pieces are still not accepted.
+    var penguinCount = 0, drifterCount = 0;
     var blockCounts = { 1: 0, 2: 0 };
+    for (i = 0; i < colour.length; i++) {
+      if (colour[i] === GRAY) { drifterCount++; continue; }
+      if (colour[i] !== 1 && colour[i] !== 2) fail(def, 'blocks must be A/B penguins or G drifters');
+      blockCounts[colour[i]]++;
+      penguinCount++;
+    }
+    if (penguinCount < 1 || penguinCount > 2) fail(def, 'needs one or two movable penguins');
+    if (blockCounts[1] > 1 || blockCounts[2] > 1) fail(def, 'a colour carries at most one penguin');
+    if (goalCells.length !== penguinCount) fail(def, 'needs exactly one goal per penguin');
     var goalCounts = { 1: 0, 2: 0 };
-    for (i = 0; i < colour.length; i++) blockCounts[colour[i]] = (blockCounts[colour[i]] || 0) + 1;
     for (i = 0; i < goalCells.length; i++) {
       var gc = goalColour[goalCells[i]];
-      goalCounts[gc] = (goalCounts[gc] || 0) + 1;
+      if (gc !== 1 && gc !== 2) fail(def, 'a goal must belong to a penguin colour');
+      goalCounts[gc]++;
     }
-    if (blockCounts[1] > 1 || blockCounts[2] > 1 || blockCounts[0] || blockCounts[3]) {
-      fail(def, 'blocks must be unique A/B colours');
-    }
-    if (goalCounts[1] !== blockCounts[1] || goalCounts[2] !== blockCounts[2] || goalCounts[0] || goalCounts[3]) {
-      fail(def, 'each block needs exactly one matching goal');
+    if (goalCounts[1] !== blockCounts[1] || goalCounts[2] !== blockCounts[2]) {
+      fail(def, 'each penguin needs exactly one matching goal');
     }
 
     var usesHazard = false;
@@ -180,6 +200,8 @@
       colour: colour,
       collectable: collectable,
       mustCollect: mustCollect,
+      penguins: penguinCount,
+      drifters: drifterCount,
       win: win,
       collects: collects,
       rules: { hazard: usesHazard, colour: usesColour, win: win },
@@ -251,10 +273,15 @@
   /** A non-zero lost count is retained for compatibility with saved states. */
   function isBroken(s) { return (s.lost || 0) > 0; }
 
-  /** A position is clear only after every starting block reached its own goal. */
+  /**
+   * A position is clear only after every penguin reached its own goal.
+   *
+   * Drifters are not counted: nothing accepts them, so waiting for them would
+   * make every board with one unclearable. Where they end up is irrelevant.
+   */
   function isClear(stage, s) {
     if (isBroken(s)) return false;
-    return s.collected === s.pos.length;
+    return s.collected === stage.mustCollect;
   }
 
   function isTerminal(stage, s) { return isClear(stage, s) || isBroken(s); }
@@ -529,7 +556,7 @@
 
   return {
     DIRS: DIRS, DV: DV,
-    FLOOR: FLOOR, WALL: WALL, HAZARD: HAZARD, ANY: ANY,
+    FLOOR: FLOOR, WALL: WALL, HAZARD: HAZARD, ANY: ANY, GRAY: GRAY,
     BLOCK_CHARS: BLOCK_CHARS, GOAL_CHARS: GOAL_CHARS, COLOUR_NAME: COLOUR_NAME,
     WINS: WINS,
     accepts: accepts,
