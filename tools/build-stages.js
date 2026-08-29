@@ -147,10 +147,28 @@ function footprint(rows) {
   return (footprintCache[flat] = Object.keys(keys));
 }
 
+/**
+ * The skeleton: what is left once every movable piece is lifted off, which is
+ * the immovable blocks and the auroras.
+ *
+ * Two boards with the same skeleton are the same room with the furniture moved.
+ * They can be genuinely different puzzles — the piece positions decide that —
+ * but they LOOK alike, and a player meeting the fourth board this month with a
+ * wall in that corner and auroras on those two cells has stopped seeing a new
+ * level. The shipped campaign had a hundred boards standing on twenty-eight
+ * skeletons.
+ */
+function skeletonKey(rows) {
+  return canonical(rows.join('').replace(/[ABG]/g, '.'));
+}
+
 var chosenOpenings = Object.create(null);   // canonical opening -> stage id
 var chosenPositions = Object.create(null);  // every position any chosen board reaches
+var chosenSkeletons = Object.create(null);  // walls + auroras -> stage id
 
 function collides(rows) {
+  var skeleton = skeletonKey(rows);
+  if (chosenSkeletons[skeleton]) return chosenSkeletons[skeleton];
   var opening = canonical(rows.join(''));
   if (chosenPositions[opening]) return chosenPositions[opening];
   var reach = footprint(rows);
@@ -160,6 +178,7 @@ function collides(rows) {
   return 0;
 }
 function claim(id, rows) {
+  chosenSkeletons[skeletonKey(rows)] = id;
   chosenOpenings[canonical(rows.join(''))] = id;
   footprint(rows).forEach(function (k) { chosenPositions[k] = id; });
 }

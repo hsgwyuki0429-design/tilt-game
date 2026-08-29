@@ -241,9 +241,8 @@ function boardRows(wallMask, hazMask, goals, blocks) {
 
 var SWAP = { '.': '.', '#': '#', 'x': 'x', 'G': 'G', 'A': 'B', 'B': 'A', 'a': 'b', 'b': 'a' };
 
-/** The board's identity: smallest of its 8 symmetries × 2 colour namings. */
-function canonBoard(rows) {
-  var flat = rows.join(''), best = null;
+function canonFlat(flat) {
+  var best = null;
   for (var swap = 0; swap < 2; swap++) {
     var src = swap ? flat.split('').map(function (ch) { return SWAP[ch]; }).join('') : flat;
     for (var i = 0; i < 8; i++) {
@@ -255,15 +254,26 @@ function canonBoard(rows) {
   }
   return best;
 }
+/** The board's identity: smallest of its 8 symmetries × 2 colour namings. */
+function canonBoard(rows) { return canonFlat(rows.join('')); }
+/** The same, with every movable piece lifted off: walls and auroras only. */
+function skeleton(rows) { return canonFlat(rows.join('').replace(/[ABG]/g, '.')); }
 
 // ---------------------------------------------------------------------------
 // the shortlist
 // ---------------------------------------------------------------------------
 /* Deep enough that tools/build-stages.js can walk past a candidate it has to
    reject. It rejects a lot: a board whose opening position turns up inside
-   another board's play is the same puzzle twice, and at some lengths most of
-   the shortlist shares one terrain and collides. */
-var KEEP = 40;
+   another board's play is the same puzzle twice, and two boards may not share a
+   skeleton — the same walls and auroras under some symmetry — which at several
+   lengths rules out all but a handful of an entire shortlist. Raise it with
+   --keep when a length runs dry; it costs bookkeeping, not search. */
+var KEEP = 120;
+/* Only lengths at or above this are shortlisted. The bookkeeping, not the
+   enumeration, is what a deep shortlist costs, so aiming a rerun at the top of
+   the range buys hundreds of long boards for roughly the price of the original
+   pass. */
+var MINPAR = 1;
 var best = new Map();                              // par -> { list, seen }
 
 function better(a, b) {
@@ -274,7 +284,7 @@ function better(a, b) {
 }
 function slotFor(moves) {
   var slot = best.get(moves);
-  if (!slot) { slot = { list: [], seen: new Set() }; best.set(moves, slot); }
+  if (!slot) { slot = { list: [], seen: new Set(), skeletons: Object.create(null) }; best.set(moves, slot); }
   return slot;
 }
 /* The cheap gate. Most candidates lose on obstacle count alone, and building a
@@ -285,15 +295,35 @@ function worthBuilding(slot, statics, grays, penguins) {
   if (statics !== tail.statics) return statics < tail.statics;
   if (grays !== tail.grays) return grays < tail.grays;
   if (penguins !== tail.penguins) return penguins < tail.penguins;
-  return true;
+  return true;                                 // offer() decides on the skeleton
 }
+/**
+ * Trimming drops a REPEAT before it drops the worst board.
+ *
+ * Ranking by emptiness clusters skeletons — the same walls and auroras with the
+ * pieces moved — so a shortlist cut off at its tail keeps forty boards standing
+ * in one room. tools/build-stages.js will not put two of those in one campaign,
+ * so a shortlist that offers it forty of them has offered it one. Dropping the
+ * worst entry whose skeleton something better already covers keeps the same
+ * count while covering far more of the space.
+ */
 function offer(slot, entry) {
   if (slot.seen.has(entry.canon)) return;
-  if (slot.list.length >= KEEP && better(entry, slot.list[slot.list.length - 1]) >= 0) return;
+  if (slot.list.length >= KEEP && better(entry, slot.list[slot.list.length - 1]) >= 0 &&
+      slot.skeletons[entry.skeleton]) return;
   slot.seen.add(entry.canon);
   slot.list.push(entry);
+  slot.skeletons[entry.skeleton] = (slot.skeletons[entry.skeleton] || 0) + 1;
   slot.list.sort(better);
-  while (slot.list.length > KEEP) slot.seen.delete(slot.list.pop().canon);
+  while (slot.list.length > KEEP) {
+    var drop = slot.list.length - 1;
+    for (var i = slot.list.length - 1; i >= 0; i--) {
+      if (slot.skeletons[slot.list[i].skeleton] > 1) { drop = i; break; }
+    }
+    var gone = slot.list.splice(drop, 1)[0];
+    slot.seen.delete(gone.canon);
+    slot.skeletons[gone.skeleton]--;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +393,7 @@ function run(plan) {
             if (moves <= 0) return;
             boards++;
             if (moves > maxSeen) maxSeen = moves;
+            if (moves < MINPAR) return;
             var slot = slotFor(moves);
             if (!worthBuilding(slot, set.length, nGray, nPenguin)) return;
             var blocks = [], t = code;
@@ -372,7 +403,7 @@ function run(plan) {
             offer(slot, {
               moves: moves, statics: set.length, grays: nGray, penguins: nPenguin,
               walls: popcount(wallMask), hazards: popcount(hazMask),
-              rows: rows, canon: canonBoard(rows)
+              rows: rows, canon: canonBoard(rows), skeleton: skeleton(rows)
             });
             return;
           }
@@ -395,11 +426,15 @@ function arg(name, dflt) {
   return i < 0 ? dflt : argv[i + 1];
 }
 var flag = function (name) { return argv.indexOf('--' + name) >= 0; };
+if (arg('keep', null)) KEEP = Number(arg('keep'));
+if (arg('minpar', null)) MINPAR = Number(arg('minpar'));
 
 var plans = [];
 var spec = arg('plans', null);
-if (spec) {
-  spec.split(';').forEach(function (part) {
+if (spec !== null) {
+  // --plans "" measures nothing: useful with --merge, to fold existing runs
+  // together through the same shortlist rules.
+  spec.split(';').filter(Boolean).forEach(function (part) {
     var v = part.split(',').map(Number);
     plans.push({ penguins: v[0], gray: v[1], statics: v[2], hazards: flag('hazards') });
   });
@@ -413,14 +448,17 @@ if (spec) {
 var covered = [];
 var merge = arg('merge', null);
 if (merge) {
-  // fold an existing index back in, so several runs can be accumulated
-  var prev = JSON.parse(fs.readFileSync(merge, 'utf8'));
-  if (prev.plans) covered = prev.plans.slice();
-  Object.keys(prev.pars || prev).forEach(function (m) {
-    var list = (prev.pars || prev)[m];
-    list.forEach(function (e) {
-      e.canon = e.canon || canonBoard(e.rows);
-      offer(slotFor(Number(m)), e);
+  // fold existing runs back in, so several passes can be accumulated. Comma
+  // separate them; they go through the same shortlist rules as a fresh search.
+  merge.split(',').forEach(function (file) {
+    var prev = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (prev.plans) covered = covered.concat(prev.plans);
+    Object.keys(prev.pars || prev).forEach(function (m) {
+      (prev.pars || prev)[m].forEach(function (e) {
+        e.canon = e.canon || canonBoard(e.rows);
+        e.skeleton = e.skeleton || skeleton(e.rows);
+        offer(slotFor(Number(m)), e);
+      });
     });
   });
 }
