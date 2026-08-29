@@ -15,7 +15,7 @@ Every board obeys the same rules:
 - Cracked ice is safe to cross, but ending a move on it breaks the run.
 - Blocks can stop each other, but touching never clears a level.
 - A position you can no longer win from is a dead end, not a loss: it stands where you put it and the game never takes a move back for you.
-- No stage is another stage in disguise — not by rotation or reflection, and not by opening on a position another stage passes through.
+- No stage is another stage in disguise — not by rotation or reflection, not by opening on a position another stage passes through, and not by standing on the same walls and auroras.
 - Swipe and keyboard controls keep the same movement behaviour.
 
 The Canvas renderer keeps those rules on the original 2D grid and draws a flat,
@@ -35,11 +35,18 @@ node tools/level-search.js --plans "2,1,2" --merge tools/level-index.json --out 
 node tools/build-stages.js
 ```
 
-`--plans` takes `penguins,drifters,immovable` triples separated by `;`. The
-index that ships in `tools/level-index.json` names the twenty combinations it
-was measured from, and how long the longest board in each turned out to be —
-1.9 billion boards in total. Widen the budget, re-run the build, and the whole
-campaign moves onto the new line.
+`--plans` takes `penguins,drifters,immovable` triples separated by `;`; `--keep`
+sets how many boards to shortlist per length and `--minpar` aims a rerun at the
+top of the range. `--plans ""` with a comma-separated `--merge` folds several
+runs together without searching, which is how the shipped index was assembled
+(at `--keep 40`).
+
+`tools/level-index.json` names the combinations it was measured from and how
+long the longest board in each turned out to be — 3.3 billion boards across
+twenty-one of them. The build does not simply take the longest: skeletons run
+out at the top, so it walks the ceiling down from the longest board in the index
+until all hundred stages fit. Widen the budget, re-run the build, and both the
+ceiling and the whole line move.
 
 Nothing in the build is trusted: `tools/build-stages.js` recompiles and
 re-solves every board with `src/engine.js` before writing it out, and `npm test`

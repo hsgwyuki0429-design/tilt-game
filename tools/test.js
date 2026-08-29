@@ -103,6 +103,18 @@ STAGES.forEach(function (def) {
   assert(!openings[key], 'stage ' + def.id + ' opens on the same board as stage ' + openings[key]);
   openings[key] = def.id;
 });
+
+// And no two stages stand in the same room. A board's skeleton is what is left
+// once every movable piece is lifted off it: the immovable blocks and the
+// auroras. Two boards sharing one can be different puzzles and still look like
+// the same level twice.
+var skeletons = Object.create(null);
+STAGES.forEach(function (def) {
+  var key = canonical(def.board.join('').replace(/[ABG]/g, '.'));
+  assert(!skeletons[key], 'stage ' + def.id + ' has the same walls and auroras as stage ' +
+    skeletons[key]);
+  skeletons[key] = def.id;
+});
 STAGES.forEach(function (def) {
   var stage = E.compile(def);
   E.reachable(stage, null, 80000).forEach(function (st) {
