@@ -21,6 +21,28 @@ Every row and column uses the same scale.
 Every floor, hazard, goal, wall, and penguin is a softly rounded top-down tile.
 The board uses a pale blue rounded tray like the home-screen preview.
 
+## The drifter
+
+The drifter has no supplied artwork; it is drawn procedurally in
+`Renderer.drawFloeTop`. Because the view is strictly top-down, its side faces
+have no area, so the whole piece has to read off one square, and it has to
+answer two questions at once:
+
+- **Is it mine?** It is the only desaturated thing on the board. The walls are
+  white-blue and the penguins near-black, so a mid blue-grey belongs to neither.
+  It carries no face, no beak, and no colour an aurora could match.
+- **Can I push it?** It sits *on* the tray rather than being part of it: inset
+  from its cell, rounded, with a contact shadow, where a wall fills its cell
+  edge to edge and casts none. A wide bevel around a raised inner panel supplies
+  the rest, and is sized to stay several pixels wide at the 39px cell an
+  iPhone SE gets.
+
+Its ice quality comes from a diagonal sweep and one soft highlight rather than
+from drawn frost lines. At cell size any small, countable set of strokes stops
+reading as texture and starts reading as a glyph — two frost lines looked like a
+slash — so the surface detail is all gradients, which have no shape to misread.
+The north-west lighting matches the floor tiles and wall caps.
+
 ## Supplied face assets
 
 The renderer loads the 16 individual 512×512 PNGs in

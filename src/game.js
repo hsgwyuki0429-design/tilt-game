@@ -1228,8 +1228,9 @@
         '<circle cx="29" cy="36" r="3.4" fill="rgba(255,255,255,0.92)"/>' +
         '<rect x="44" y="24" width="24" height="24" rx="6" fill="rgba(60,70,120,0.09)" ' +
         'stroke="#5C6484" stroke-width="2.4"/>' +
-        '<rect x="48" y="28" width="16" height="16" rx="4" fill="#A8B0BC"/>' +
-        '<rect x="51" y="31" width="10" height="10" rx="2" fill="rgba(255,255,255,0.45)"/>'),
+        '<rect x="48" y="28" width="16" height="16" rx="4" fill="#8D9CAA"/>' +
+        '<rect x="50.6" y="30.6" width="10.8" height="10.8" rx="2.4" ' +
+        'fill="rgba(255,255,255,0.42)"/>'),
       hazard: frame(
         '<clipPath id="hzc"><rect x="26" y="26" width="20" height="20" rx="5"/></clipPath>' +
         '<rect x="26" y="26" width="20" height="20" rx="5" fill="#F8E1E5"/>' +
