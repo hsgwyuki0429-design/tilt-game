@@ -272,12 +272,12 @@ function spread(rows) {
  * direction, and nothing happens. Two boards can want the same walls for the
  * same length and differ in how many of your four swipes ever do anything.
  *
- * Measured over every position the board can reach, weighted by none of them:
- * the opening position gets no special say. It is worth knowing that walls do
- * not cost live directions on this measure — three-wall boards answer 61% of
- * swipes and wall-less ones 56%, because a wall gives a block something to
- * stop against in the middle of the tray, where otherwise everything piles
- * into the corners and sits there.
+ * Counted, not averaged: every position the board can reach contributes the
+ * number of directions that do something, and the total is what ranks. A share
+ * would call a cramped board generous as long as the few positions it has each
+ * answer three swipes; the count only goes up when there is somewhere to go
+ * and something to do when you get there. The opening position gets no special
+ * say — it contributes once, like every other.
  *
  * This is a tie-break. It never overrules a board being emptier.
  */
@@ -286,12 +286,12 @@ function responsiveness(rows) {
   var flat = rows.join('');
   if (responseCache[flat] !== undefined) return responseCache[flat];
   var stage = E.compile({ id: 'response', board: rows });
-  var live = 0, total = 0;
+  var live = 0;
   E.reachable(stage, null, 80000).forEach(function (st) {
     if (E.isTerminal(stage, st)) return;
-    for (var i = 0; i < 4; i++) { total++; if (E.step(stage, st, E.DIRS[i])) live++; }
+    for (var i = 0; i < 4; i++) if (E.step(stage, st, E.DIRS[i])) live++;
   });
-  return (responseCache[flat] = total ? live / total : 0);
+  return (responseCache[flat] = live);
 }
 function response(entry) {
   return entry._response !== undefined
