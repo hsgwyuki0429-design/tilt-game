@@ -33,14 +33,18 @@ var Y = function (s) { return '\u001b[33m' + s + '\u001b[0m'; };
 var CY = function (s) { return '\u001b[36m' + s + '\u001b[0m'; };
 var MG = function (s) { return '\u001b[35m' + s + '\u001b[0m'; };
 
-// Colour 0 is the plain block, 1 and 2 are the two coloured ones. The terminal
-// palette mirrors the game's — cyan / amber / violet — and each carries its own
-// letter, so a strip piped to a file is still readable.
+// Colour 0 is the plain block, 1 and 2 are the two coloured ones, and the
+// drifter is dim because it is the one piece the board never asks you to
+// deliver. The terminal palette mirrors the game's — cyan / amber / violet —
+// and each carries its own letter, so a strip piped to a file is still
+// readable.
 var BLOCK_INK = [function (s) { return CY(BD(s)); },
                  function (s) { return Y(BD(s)); },
                  function (s) { return MG(BD(s)); }];
+BLOCK_INK[E.GRAY] = function (s) { return D(BD(s)); };
 var GOAL_INK = [G, Y, MG];
 var BLOCK_CH = ['@', 'A', 'B'];
+BLOCK_CH[E.GRAY] = 'G';
 var GOAL_CH = ['o', 'a', 'b'];
 
 function render(stage, state) {

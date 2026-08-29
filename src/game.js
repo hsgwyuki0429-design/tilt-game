@@ -121,6 +121,9 @@
     r3h: { ja: 'くっついてもクリアではない', en: 'Touching is not a win' },
     r3p: { ja: 'ペンギン同士が触れても消えません。互いを止める、動かせる壁として使えます。',
           en: 'Penguins do not clear when they touch. They can stop each other like movable walls.' },
+    r4h: { ja: '灰色の流氷', en: 'The grey drifter' },
+    r4p: { ja: '灰色の流氷も同じ重力で滑りますが、どのオーロラも受け取りません。動かせる壁として使えますが、渦の上で止まるとその渦をふさぎます。',
+          en: 'A grey drifter slides with the same gravity, and no aurora will take it. Use it as a movable wall — but if it stops on a vortex, it plugs it.' },
     r5:  { ja: '手数に制限はありません。いつでも何手でも戻せます。まず試してみるのが正しい遊び方です。',
           en: 'There is no move limit and undo is free. Trying something to see what it does is how this game is meant to be played.' }
   };
@@ -376,14 +379,20 @@
    * than no demonstration at all.
    *
    * Horizontal is preferred because a sideways sweep is what a swipe looks like,
-   * but correctness comes first: whatever is shown has to actually move.
+   * but correctness comes first: whatever is shown has to actually move, and it
+   * has to leave the stage winnable. Demonstrating a move the game immediately
+   * takes back as a dead end is the same failure in a politer costume.
    */
   Game.prototype.demoDirection = function () {
     var order = ['L', 'R', 'D', 'U'];
-    for (var i = 0; i < order.length; i++) {
-      if (E.simulate(this.stage, this.state, order[i], { frames: false }).moved) return order[i];
+    var moved = null, i, r;
+    for (i = 0; i < order.length; i++) {
+      r = E.simulate(this.stage, this.state, order[i], { frames: false });
+      if (!r.moved) continue;
+      if (moved === null) moved = order[i];
+      if (!r.broken && E.solve(this.stage, r.state, 20000).solvable) return order[i];
     }
-    return 'L';
+    return moved || 'L';
   };
 
   /**
@@ -1158,7 +1167,8 @@
     var rules = [
       ['r1h', 'r1p', F.gravity],
       ['r2h', 'r2p', F.stop],
-      ['r3h', 'r3p', F.brake]
+      ['r3h', 'r3p', F.brake],
+      ['r4h', 'r4p', F.drifter]
     ];
     var html = rules.map(function (r) {
       return '<div class="rule">' +
@@ -1207,6 +1217,20 @@
         '<rect x="30" y="26" width="20" height="20" rx="5" fill="#7A4AE8"/>' +
         '<rect x="36" y="32" width="8" height="8" fill="rgba(255,255,255,0.92)"/>' +
         '<rect x="52" y="21" width="19" height="30" rx="2" fill="#78829F"/>'),
+      // The grey slab has come to rest ON the socket and the penguin is stacked
+      // up behind it. Drawn as the situation rather than as the piece, because
+      // the piece on its own looks like a wall and the whole point is that it
+      // is not one.
+      drifter: frame(
+        '<path d="M6 36h9" stroke="#616986" stroke-width="2.4" stroke-linecap="round" ' +
+        'stroke-dasharray="4 4"/>' +
+        '<rect x="18" y="25" width="22" height="22" rx="6" fill="#0B8DAE"/>' +
+        '<circle cx="29" cy="36" r="3.4" fill="rgba(255,255,255,0.92)"/>' +
+        '<rect x="44" y="24" width="24" height="24" rx="6" fill="rgba(60,70,120,0.09)" ' +
+        'stroke="#5C6484" stroke-width="2.4"/>' +
+        '<rect x="48" y="28" width="16" height="16" rx="4" fill="#8D9CAA"/>' +
+        '<rect x="50.6" y="30.6" width="10.8" height="10.8" rx="2.4" ' +
+        'fill="rgba(255,255,255,0.42)"/>'),
       hazard: frame(
         '<clipPath id="hzc"><rect x="26" y="26" width="20" height="20" rx="5"/></clipPath>' +
         '<rect x="26" y="26" width="20" height="20" rx="5" fill="#F8E1E5"/>' +

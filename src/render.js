@@ -516,7 +516,8 @@
       }else{if(!state||!state.alive[i])continue;pos=state.pos[i];}
       var inert=st.win==='select'&&st.collectable&&!st.collectable[i];
       this.pushCommand('penguin',pos[0],pos[1],.035,4,
-        {index:i,pos:pos,squash:squash,colour:st.colour?st.colour[i]:0,inert:inert});
+        {index:i,pos:pos,squash:squash,colour:st.colour?st.colour[i]:0,inert:inert,
+         drifter:st.colour?st.colour[i]===E.GRAY:false});
     }
     for(i=0;i<this.ripples.length;i++){var r=this.ripples[i];
       this.pushCommand('ripple',r.x-.5,r.y-.5,r.z,2,r);}
@@ -539,7 +540,13 @@
     'wall-smooth':{top:['#FFFFFF','#EAF5FA'],south:['#79C8E2','#43A0CB'],east:['#62B5D8','#347FB1']},
     'wall-brick':{top:['#FFFFFF','#EDF7FC'],south:['#A9D9F3','#629FC6'],east:['#88C2E2','#4E89B5']},
     'penguin-orange':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
-    'penguin-purple':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']}
+    'penguin-purple':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
+    /* Old drift ice. Deliberately the only desaturated thing on the board: the
+       walls are white-blue and the penguins near-black, so a cold blue-grey
+       reads as "movable, but not yours" against both. The top-to-side falloff
+       is wide on purpose — it is what makes the slab read as a solid object at
+       39px rather than a grey square. */
+    drifter:{top:['#B2C1CF','#71818F'],south:['#A3AFBB','#76828F'],east:['#8F9CA9','#64717F']}
   };
 
   Renderer.prototype.boxGeometry=function(o){
@@ -657,6 +664,7 @@
   };
 
   Renderer.prototype.drawPenguin=function(g,d){
+    if(d.drifter)return this.drawDrifter(g,d);
     var p=d.pos,sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
     var sx=sq&&sq.axis==='x'?1+q*.045:1-q*.018;
     var sy=sq&&sq.axis==='y'?1+q*.045:1-q*.018;
@@ -671,6 +679,76 @@
       eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
     this.drawPenguinBeak(g,f.top,paletteOf(d.colour));
     if(!this.textureBank.face(material,'south'))this.drawPenguinFallback(g,f);
+  };
+  /**
+   * A drifting floe: a slab of old, dense ice that gravity moves and no aurora
+   * will take.
+   *
+   * The board is drawn strictly top-down (Z_X and Z_Y are zero), so a block's
+   * side faces have no area and every bit of the read has to come off the top.
+   * Two questions have to be answered from that one square. IS IT MINE — it is
+   * the only desaturated thing on the board: no face, no beak, no colour for an
+   * aurora to match. CAN I PUSH IT — it sits ON the tray rather than being part
+   * of it: inset from the cell, rounded, with a contact shadow underneath,
+   * where a wall fills its cell edge to edge and casts nothing. The bevel does
+   * most of that second job, which is why it is drawn wide enough to survive at
+   * the 39px cell an iPhone SE gets: a flat grey square with no rim reads as a
+   * hole cut in the ice, not a block resting on it.
+   */
+  Renderer.prototype.drawDrifter=function(g,d){
+    var p=d.pos,sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
+    var sx=sq&&sq.axis==='x'?1+q*.05:1-q*.02;
+    var sy=sq&&sq.axis==='y'?1+q*.05:1-q*.02;
+    var inset=.10;
+    var x0=p[0]+.5-(.5-inset)*sx,x1=p[0]+.5+(.5-inset)*sx;
+    var y0=p[1]+.5-(.5-inset)*sy,y1=p[1]+.5+(.5-inset)*sy;
+    this.drawContactShadow(g,p[0]+.5,p[1]+.5,.37,.21,true);
+    var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+PENGUIN_HEIGHT,
+      material:'drifter',radius:this.cell*.12,
+      textures:{top:null,south:null,east:null}});
+    this.drawFloeTop(g,f.top);
+  };
+  Renderer.prototype.drawFloeTop=function(g,face){
+    var r=this.cell*.12;
+    g.save();roundedPoly(g,face,r);g.clip();faceTransform(g,face,256);
+    /* The raised inner panel. The band left around it is the bevel, and at 17%
+       of the block it stays several pixels wide on the smallest board. */
+    var panel=[{x:44,y:44},{x:212,y:44},{x:212,y:212},{x:44,y:212}];
+    var lift=g.createLinearGradient(44,44,212,212);
+    lift.addColorStop(0,'rgba(255,255,255,.46)');
+    lift.addColorStop(.52,'rgba(255,255,255,.14)');
+    lift.addColorStop(1,'rgba(30,44,60,.13)');
+    roundedPoly(g,panel,26);g.fillStyle=lift;g.fill();
+    /* Glass, not marking. Anything with a countable number of strokes on it
+       turns into a glyph at 39px — two frost lines here read as a slash — so
+       the ice quality comes from a wide diagonal sweep and one soft highlight,
+       which have no shape to misread. */
+    roundedPoly(g,panel,26);g.save();g.clip();
+    var sweep=g.createLinearGradient(60,196,196,60);
+    sweep.addColorStop(0,'rgba(255,255,255,0)');
+    sweep.addColorStop(.44,'rgba(255,255,255,.26)');
+    sweep.addColorStop(.58,'rgba(255,255,255,.05)');
+    sweep.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=sweep;g.fillRect(0,0,256,256);
+    var gloss=g.createRadialGradient(96,92,4,96,92,86);
+    gloss.addColorStop(0,'rgba(255,255,255,.34)');
+    gloss.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=gloss;g.fillRect(0,0,256,256);
+    g.restore();
+    /* Lit from the north-west, like every floor tile and wall cap on the board:
+       bright along the two near edges, shaded along the two far ones. */
+    g.strokeStyle='rgba(240,252,255,.82)';g.lineWidth=9;g.lineJoin='round';
+    g.beginPath();g.moveTo(6,238);g.lineTo(6,6);g.lineTo(238,6);g.stroke();
+    g.strokeStyle='rgba(28,58,84,.27)';g.lineWidth=9;
+    g.beginPath();g.moveTo(250,18);g.lineTo(250,250);g.lineTo(18,250);g.stroke();
+    g.restore();
+    /* One crisp outline, outside the clip, so the block keeps a hard edge
+       against a pale floor tile at any size. Saved and restored like every
+       other draw here: the command list shares one context, and a stroke style
+       left behind leaks into whatever paints next. */
+    g.save();roundedPoly(g,face,r);
+    g.strokeStyle='rgba(46,66,88,.42)';g.lineWidth=Math.max(1,this.cell*.02);
+    g.lineJoin='round';g.stroke();g.restore();
   };
   Renderer.prototype.drawPenguinBeak=function(g,top,pal){
     g.save();roundedPoly(g,top,this.cell*.1);g.clip();faceTransform(g,top,FACE_SIZE);
@@ -752,9 +830,12 @@
   };
 
   Renderer.prototype.celebrate=function(){
-    var st=this.stage,x=st.w/2,y=st.h/2;
+    var st=this.stage,x=st.w/2,y=st.h/2,lead=0;
+    /* Colour the burst after a penguin, never after a drifter: a board can
+       list the drifter first, and a grey firework for a clear is a shrug. */
+    if(st.colour)for(var i=0;i<st.colour.length;i++){if(st.colour[i]!==E.GRAY){lead=st.colour[i];break;}}
     if(!this.reduceMotion){this.ripple(x,y,.08,THEME.clearRing,.28,Math.max(st.w,st.h)*.72,640);
-      this.burst(x,y,.28,paletteOf(st.colour?st.colour[0]:0).mid,16,1.5);this.addShake(1.6,3.4);}
+      this.burst(x,y,.28,paletteOf(lead).mid,16,1.5);this.addShake(1.6,3.4);}
     this.clearGlow=1;
   };
   Renderer.prototype.rebuff=function(dir){

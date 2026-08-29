@@ -1163,10 +1163,12 @@ body::before {
 .guide-row p { margin: 0; color: #2D3D5D; font-size: 12px; font-weight: 560; line-height: 1.55; }
 .guide-row p strong { color: #D52E35; font-weight: 850; }
 .guide-row:nth-of-type(3) p strong { color: #0587E7; }
+.guide-row:nth-of-type(5) p strong { color: #5C6884; }
 .guide-wall { min-height: 112px; }
 
 .tile-art,
-.wall-art {
+.wall-art,
+.drifter-art {
   position: relative;
   display: block;
   width: 104px;
@@ -1290,6 +1292,38 @@ body::before {
 }
 .wall-art i { position: absolute; inset: 47% 8% 8%; border-top: 1px solid rgba(255,255,255,.45); }
 
+/* The drifter. Deliberately the only grey thing in the guide: the walls are
+   white-blue and the penguins near-black, so desaturation alone carries
+   "movable, but not yours" without a label. */
+/* Same construction as the piece on the board: a mid grey slab with a raised
+   inner panel, lit from the north-west. */
+.drifter-art {
+  height: 92px;
+  margin-top: 10px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #B2C1CF 0%, #8B99A7 52%, #71818F 100%);
+  box-shadow:
+    inset 1.5px 1.5px 0 rgba(240,252,255,.82),
+    inset -1.5px -1.5px 0 rgba(28,58,84,.27),
+    0 12px 20px rgba(70,86,102,.24);
+}
+.drifter-art::before {
+  content: '';
+  position: absolute;
+  inset: 17%;
+  border-radius: 9px;
+  background:
+    radial-gradient(circle at 30% 28%, rgba(255,255,255,.34), transparent 62%),
+    linear-gradient(135deg, rgba(255,255,255,.46) 0%, rgba(255,255,255,.14) 52%, rgba(30,44,60,.13) 100%);
+}
+.drifter-art i {
+  content: '';
+  position: absolute;
+  inset: 17%;
+  border-radius: 9px;
+  background: linear-gradient(45deg, transparent 38%, rgba(255,255,255,.26) 46%, rgba(255,255,255,.05) 56%, transparent 62%);
+}
+
 .reference-panels,
 .design-strip {
   display: grid;
@@ -1346,7 +1380,7 @@ body::before {
   .guide-row { grid-template-columns: 90px minmax(0,1fr); min-height: 112px; }
   .guide-row + .guide-row { border-top: 0; }
   .guide-row:nth-of-type(n+3) { border-top: 1px solid rgba(111,145,193,.15); }
-  .guide-row .tile-art, .guide-row .wall-art { width: 86px; }
+  .guide-row .tile-art, .guide-row .wall-art, .guide-row .drifter-art { width: 86px; }
   .reference-panels, .design-strip { grid-template-columns: 1fr; }
 }
 

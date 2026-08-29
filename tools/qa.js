@@ -241,7 +241,7 @@ async function swipe(page, x, y, dx, dy) {
   // board whose definition of "done" is not the usual one says so on screen.
   console.log('\n\u001b[1mDEVICES\u001b[0m');
   var vocabulary = await page.evaluate(function () {
-    var LEGAL = '.#xo@abcABC';
+    var LEGAL = '.#xo@abcABCG';
     var allowed = ['id', 'name', 'par', 'win', 'idea', 'purpose', 'note', 'hint', 'board'];
     var CHAPTERS = window.TiltStages.CHAPTERS || [];
     var extreme = function (id) {
@@ -302,12 +302,29 @@ async function swipe(page, x, y, dx, dy) {
     unlabelled.map(function (o) { return o.id + ':' + o.win; }).join(' '));
 
   // Destroy a block on purpose and watch what the game does about it.
+  //
+  // The campaign is generated to be as empty a board as each length allows, so
+  // it may contain no cracked ice at all. The rule is still in the engine and
+  // the UI still has to answer for it, so rather than skip the test we append a
+  // board built for the purpose and take it away again afterwards.
   var killed = await page.evaluate(function () {
     var g = window.game, E = window.TiltEngine, S = window.TiltStages.STAGES;
-    for (var idx = 0; idx < S.length; idx++) {
-      var st = E.compile(S[idx]);
-      if (!st.rules.hazard) continue;
-      g.save.data.unlocked = 99;
+    var order = [], idx;
+    for (idx = 0; idx < S.length; idx++) {
+      if (E.compile(S[idx]).rules.hazard) order.push(idx);
+    }
+    var probed = false;
+    if (!order.length) {
+      S.push({
+        id: 'hazard-probe', name: 'PROBE', par: 1,
+        board: ['A...x', '.....', '.....', '.....', 'a....']
+      });
+      order.push(S.length - 1);
+      probed = true;
+    }
+    for (var k = 0; k < order.length; k++) {
+      idx = order[k];
+      g.save.data.unlocked = 999;
       g.loadStage(idx);
       // Find any reachable position with a tilt that costs a block.
       var states = E.reachable(g.stage, null, 2000);
@@ -319,11 +336,12 @@ async function swipe(page, x, y, dx, dy) {
           g.state = E.cloneState(states[i]);
           g.history = [E.initialState(g.stage)];
           g.renderer.showState(g.state);
-          return { stage: S[idx].id, dir: E.DIRS[d], ready: true };
+          return { stage: S[idx].id, dir: E.DIRS[d], ready: true, probed: probed };
         }
       }
     }
-    return { ready: false };
+    if (probed) S.pop();
+    return { ready: false, probed: probed };
   });
 
   if (killed.ready) {
@@ -373,7 +391,16 @@ async function swipe(page, x, y, dx, dy) {
       !/show/.test(recovered.overlay), JSON.stringify(recovered));
     if (SHOTS) await page.screenshot({ path: path.join(SHOT_DIR, 'hazard.png') });
   } else {
-    ok('a hazard stage exists to test', false, 'no stage in the campaign uses a hazard');
+    ok('a board that can lose a block exists to test', false,
+      'neither the campaign nor the probe board could reach a losing move');
+  }
+
+  if (killed.probed) {
+    await page.evaluate(function () {
+      var S = window.TiltStages.STAGES;
+      if (S.length && S[S.length - 1].name === 'PROBE') S.pop();
+      window.game.loadStage(0);
+    });
   }
 
   // A goal that will not take a block has to LOOK different from one that will.
