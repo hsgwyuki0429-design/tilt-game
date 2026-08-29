@@ -264,13 +264,48 @@ function spread(rows) {
   return Object.keys(xs).length + Object.keys(ys).length + far / 100;
 }
 
+/**
+ * How much of the board answers a swipe.
+ *
+ * A wall in the wrong place does not make a board harder, it makes it deaf:
+ * you swipe, everything is already pressed against something in that
+ * direction, and nothing happens. Two boards can want the same walls for the
+ * same length and differ entirely in how many of your four swipes do anything,
+ * and the difference shows most on the opening position, which is the one
+ * every player meets.
+ *
+ * Measured as the number of live directions at the opening, then the share of
+ * live directions over every position the board can reach. Both want to be
+ * high. This is a tie-break: it never overrules a board being emptier.
+ */
+var responseCache = Object.create(null);
+function responsiveness(rows) {
+  var flat = rows.join('');
+  if (responseCache[flat]) return responseCache[flat];
+  var stage = E.compile({ id: 'response', board: rows });
+  var opening = 0, live = 0, total = 0, d;
+  for (d = 0; d < 4; d++) if (E.step(stage, E.initialState(stage), E.DIRS[d])) opening++;
+  E.reachable(stage, null, 80000).forEach(function (st) {
+    if (E.isTerminal(stage, st)) return;
+    for (var i = 0; i < 4; i++) { total++; if (E.step(stage, st, E.DIRS[i])) live++; }
+  });
+  return (responseCache[flat] = { opening: opening, share: total ? live / total : 0 });
+}
+function response(entry) {
+  return entry._response || (entry._response = responsiveness(entry.rows));
+}
+
 var ranked = {};
 function candidates(par) {
   if (ranked[par]) return ranked[par];
   var list = (index[par] || []).slice();
   list.forEach(function (e) { e._spread = spread(e.rows); });
+  // Emptiness first — that is the brief. Everything after it is a tie-break,
+  // and the expensive ones are only reached when a pair ties on emptiness.
   list.sort(function (a, b) {
     return a.statics - b.statics || a.grays - b.grays ||
+           response(b).opening - response(a).opening ||
+           response(b).share - response(a).share ||
            a.penguins - b.penguins || b._spread - a._spread;
   });
   ranked[par] = list;
