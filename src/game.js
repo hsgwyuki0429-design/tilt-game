@@ -77,7 +77,8 @@
     back:       { ja: 'もどる', en: 'Back' },
     howto:      { ja: 'あそびかた', en: 'How to play' },
     showRules:  { ja: 'ルールを見る', en: 'Show the rules' },
-    rewound:    { ja: '手づまり。1手もどしました', en: 'Dead end — that move was taken back' },
+    stuck:      { ja: '手づまり。もどすか、最初からやり直せます',
+                  en: 'Dead end — undo, or restart the stage' },
     restarted:  { ja: '最初にもどしました', en: 'Stage restarted' },
     gameOver:   { ja: 'ここで終わり', en: 'Run ended' },
     overBody:   { ja: 'ヒビ氷の上で止まると氷が割れます。1手もどせば続けられます。',
@@ -181,6 +182,7 @@
     this.animStart = 0;
     this.animLen = 1;
     this.restorePoint = null;   // what an undoable restart would put back
+    this.stuck = false;         // this position can no longer be won, and was said so
     this.sheets = [];           // presentation stack, topmost last
     this.homeOpen = true;
 
@@ -341,6 +343,7 @@
     this.history = [];
     this.queued = null;
     this.restorePoint = null;
+    this.stuck = false;
     this.phase = 'play';
 
     this.renderer.setStage(this.stage, this.state);
@@ -558,7 +561,7 @@
     }
 
     this.setPhase('play');
-    if (this.rewindIfStuck()) return;
+    this.noticeIfStuck();
 
     if (this.queued) {
       var d = this.queued;
@@ -568,38 +571,35 @@
   };
 
   /**
-   * A jammed board takes itself back.
+   * A jammed board says so, and stays where it is.
    *
-   * The old behaviour was a DEAD END badge on the undo button: correct
-   * information, and the wrong shape for it. It asks the player to notice a
-   * label, understand what it means, and then perform the only move the game was
-   * ever going to accept — three steps to arrive somewhere there was no choice
-   * about. Worse, a player who does not read it keeps swiping a board that
-   * cannot be won, and the game says nothing while they do.
+   * The game used to undo the move that jammed the board. That takes a move
+   * away from the player to save them a tap, and on this campaign it fires
+   * constantly — a fifth of the positions on a median board are unwinnable, and
+   * on the short opening boards it is most of them. A move you made being
+   * quietly rolled back is worse than being stuck, because it leaves you unsure
+   * what the board actually does.
    *
-   * So the game does it: the move that jammed the board is undone, and a toast
-   * says that is what happened. The position it lands on is guaranteed winnable,
-   * because every position is checked the moment it is reached — so one step
-   * back is always enough, and there is no risk of unwinding a run.
+   * So the position stands and the game just tells you. Undo and restart are
+   * both one tap away and always have been; the toast exists so that nobody
+   * keeps swiping a board that cannot be won without being told.
+   *
+   * Said once, not once per move: an unwinnable position stays unwinnable no
+   * matter what you do next, so repeating it every move would be noise. The
+   * flag clears on undo, restart and stage load — the only ways back out.
    *
    * A truncated search means "we could not tell in time", and the board is given
-   * the benefit of the doubt. Refusing a legal position because the solver ran
-   * out of nodes would be far worse than missing a jam.
+   * the benefit of the doubt. Calling a legal position a dead end because the
+   * solver ran out of nodes would be far worse than missing a jam.
    */
-  Game.prototype.rewindIfStuck = function () {
-    if (!this.history.length) return false;
+  Game.prototype.noticeIfStuck = function () {
+    if (this.stuck) return true;
     var r = E.solve(this.stage, this.state, 40000);
     if (r.solvable || r.truncated) return false;
 
-    this.state = this.history.pop();
-    this.queued = null;
-    this.renderer.showState(this.state);
-    this.renderer.gravity = null;
-    this.audio.undo();
+    this.stuck = true;
     this.haptics.blocked();
-    this.setPhase('play');
-    this.showToast(t('rewound'), { icon: 'undo' });
-    this.wake();
+    this.showToast(t('stuck'), { icon: 'undo' });
     return true;
   };
 
@@ -633,6 +633,7 @@
     if (this.phase === 'busy') {
       this.cancelSlide();
       if (this.history.length) this.history.pop();
+      this.stuck = false;
       this.renderer.showState(this.state);
       this.renderer.gravity = null;
       this.audio.undo();
@@ -647,6 +648,7 @@
     this.state = this.history.pop();
     this.queued = null;
     this.restorePoint = null;
+    this.stuck = false;
     this.setPhase('play');
     this.renderer.showState(this.state);
     this.renderer.gravity = null;
@@ -684,6 +686,7 @@
     this.state = E.initialState(this.stage);
     this.history = [];
     this.queued = null;
+    this.stuck = false;
     this.phase = 'play';
     this.renderer.setStage(this.stage, this.state);
     this.hideOverlay();
@@ -707,6 +710,7 @@
     var rp = this.restorePoint;
     if (!rp) return;
     this.restorePoint = null;
+    this.stuck = false;
     this.state = rp.state;
     this.history = rp.history;
     this.renderer.showState(this.state);

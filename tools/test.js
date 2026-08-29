@@ -41,6 +41,78 @@ STAGES.forEach(function (def, index) {
 });
 
 // ---------------------------------------------------------------------------
+// no stage is another stage's leftovers
+// ---------------------------------------------------------------------------
+// Matching openings is the easy half. The hard half is a short board that IS a
+// position a longer board passes through: solve the long one and you have
+// already solved the short one from there, so meeting it later is replaying a
+// stage rather than playing one. A board is therefore identified by every
+// position it can reach that could itself be an opening — nothing collected,
+// nothing lost, no block on an aurora — compared up to the square's eight
+// symmetries and renaming the two colours.
+var PERMS = (function () {
+  var fns = [
+    function (x, y) { return [x, y]; }, function (x, y) { return [4 - x, y]; },
+    function (x, y) { return [x, 4 - y]; }, function (x, y) { return [4 - x, 4 - y]; },
+    function (x, y) { return [y, x]; }, function (x, y) { return [4 - y, x]; },
+    function (x, y) { return [y, 4 - x]; }, function (x, y) { return [4 - y, 4 - x]; }
+  ];
+  return fns.map(function (f) {
+    var p = new Array(25);
+    for (var y = 0; y < 5; y++) for (var x = 0; x < 5; x++) {
+      var r = f(x, y); p[y * 5 + x] = r[1] * 5 + r[0];
+    }
+    return p;
+  });
+})();
+var SWAP = { '.': '.', '#': '#', 'x': 'x', 'G': 'G', 'A': 'B', 'B': 'A', 'a': 'b', 'b': 'a' };
+
+function canonical(flat) {
+  var best = null, swap, i, c;
+  for (swap = 0; swap < 2; swap++) {
+    var src = swap ? flat.split('').map(function (ch) { return SWAP[ch]; }).join('') : flat;
+    for (i = 0; i < 8; i++) {
+      var p = PERMS[i], out = new Array(25);
+      for (c = 0; c < 25; c++) out[p[c]] = src[c];
+      var s = out.join('');
+      if (best === null || s < best) best = s;
+    }
+  }
+  return best;
+}
+function positionKey(stage, st) {
+  if (st.collected || (st.lost || 0)) return null;
+  var cells = new Array(25), c, i;
+  for (c = 0; c < 25; c++) {
+    cells[c] = stage.terrain[c] === E.WALL ? '#'
+      : stage.terrain[c] === E.HAZARD ? 'x'
+      : stage.goal[c] ? (stage.goalColour[c] === 1 ? 'a' : 'b') : '.';
+  }
+  for (i = 0; i < st.pos.length; i++) {
+    if (!st.alive[i]) return null;
+    c = st.pos[i][1] * 5 + st.pos[i][0];
+    if (cells[c] !== '.') return null;
+    cells[c] = stage.colour[i] === 1 ? 'A' : stage.colour[i] === 2 ? 'B' : 'G';
+  }
+  return canonical(cells.join(''));
+}
+
+var openings = Object.create(null);
+STAGES.forEach(function (def) {
+  var key = canonical(def.board.join(''));
+  assert(!openings[key], 'stage ' + def.id + ' opens on the same board as stage ' + openings[key]);
+  openings[key] = def.id;
+});
+STAGES.forEach(function (def) {
+  var stage = E.compile(def);
+  E.reachable(stage, null, 80000).forEach(function (st) {
+    var key = positionKey(stage, st);
+    if (!key || openings[key] === undefined || openings[key] === def.id) return;
+    assert.fail('stage ' + def.id + ' passes through the opening position of stage ' + openings[key]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // every obstacle earns its place
 // ---------------------------------------------------------------------------
 // The campaign is built by ranking boards of equal par by how empty they are,
@@ -162,4 +234,5 @@ assert.strictEqual(broken.broken, true, 'stopping on cracked ice must end the ru
 assert.strictEqual(broken.state.lost, 1, 'the stopped penguin must be marked lost');
 
 console.log('ok - ' + STAGES.length + ' stages, par ' + first + '…' + last +
-  ' on a straight line (' + step.toFixed(3) + ' moves per stage), rules verified');
+  ' on a straight line (' + step.toFixed(3) + ' moves per stage), no stage inside\n'  +
+  '     another, every obstacle load-bearing, rules verified');

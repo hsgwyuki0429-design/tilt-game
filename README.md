@@ -14,6 +14,8 @@ Every board obeys the same rules:
 - A grey drifter slides with everything else but is never collected. It is a movable wall, and it plugs an aurora it stops on.
 - Cracked ice is safe to cross, but ending a move on it breaks the run.
 - Blocks can stop each other, but touching never clears a level.
+- A position you can no longer win from is a dead end, not a loss: it stands where you put it and the game never takes a move back for you.
+- No stage is another stage in disguise — not by rotation or reflection, and not by opening on a position another stage passes through.
 - Swipe and keyboard controls keep the same movement behaviour.
 
 The Canvas renderer keeps those rules on the original 2D grid and draws a flat,
