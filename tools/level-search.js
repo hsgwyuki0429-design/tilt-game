@@ -259,7 +259,11 @@ function canonBoard(rows) {
 // ---------------------------------------------------------------------------
 // the shortlist
 // ---------------------------------------------------------------------------
-var KEEP = 12;
+/* Deep enough that tools/build-stages.js can walk past a candidate it has to
+   reject. It rejects a lot: a board whose opening position turns up inside
+   another board's play is the same puzzle twice, and at some lengths most of
+   the shortlist shares one terrain and collides. */
+var KEEP = 40;
 var best = new Map();                              // par -> { list, seen }
 
 function better(a, b) {

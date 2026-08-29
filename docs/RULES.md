@@ -18,6 +18,13 @@ It is on the board to be in the way. It can brake a penguin in the middle of the
 
 A block may glide across cracked ice. If it comes to rest there — penguin or drifter — the tile breaks and the run ends. Undo returns to the state before that move.
 
+## Dead ends
+
+Most boards have positions from which the level can no longer be won. Reaching
+one is not a loss and does not end the run: the position stands exactly where
+you put it, the game says so once, and undo and restart are both available. It
+never takes a move back for you.
+
 ## Clear condition
 
 A level clears after every penguin has been collected by its matching aurora. Blocks touching each other is not a clear condition. Contact only matters because one block can stop another.

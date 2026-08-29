@@ -40,6 +40,22 @@ boards of the same par, the emptier board wins:
 4. **more of the tray actually used** — a pure tie-break, so that a board whose
    pieces all sit in one column loses to one that reads as a designed layout
 
+A board also has to be a puzzle the campaign has not already asked. Matching
+openings is the easy half of that; the hard half is that the search ranks by
+emptiness, so a run of consecutive lengths comes back on the same terrain, and a
+short board on that terrain is routinely the exact position a longer one passes
+through. Before the rule below, stage 43's opening sat on the shortest line of
+eleven other stages: solve any of them and you have already solved 43 from
+there, so meeting it later is replaying a stage rather than playing one.
+
+So a board is identified by every position it can reach that could **itself be
+an opening** — nothing collected, nothing lost, no block standing on an aurora,
+which is exactly what a starting board looks like. Two boards conflict when
+either one's opening appears in the other's set, compared up to the square's
+eight symmetries and renaming the two colours. `tools/build-stages.js` walks
+past a candidate that conflicts with one already placed, and `npm test` checks
+the shipped hundred the same way.
+
 The first two criteria are the reason no board in the campaign uses cracked ice:
 a hazard is an immovable obstacle, so it can only ever lose a tie, and adding it
 to the search never raised the longest par reachable. The rule is still in the

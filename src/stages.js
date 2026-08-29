@@ -128,19 +128,19 @@
     },
     {
       id: 3, name: 'GLIDE', par: 2,
-      idea: 'one penguin, an empty tray; 2 moves.',
-      hint: { ja: 'オーロラの上で止まって初めて回収される。最短2手。', en: 'A penguin is collected only when it stops on its aurora. Best: 2.' },
+      idea: 'two penguins, an empty tray; 2 moves.',
+      hint: { ja: '止められるのは盤の端ともう一羽だけ。最短2手。', en: 'The only brakes here are the edge and the other penguin. Best: 2.' },
       board: ['.....',
-              '....A',
               '.....',
               '.....',
-              'a....']
+              '...Bb',
+              'aA...']
     },
     {
       id: 4, name: 'FLOE', par: 3,
       idea: 'two penguins, an empty tray; 3 moves.',
       hint: { ja: '止められるのは盤の端ともう一羽だけ。最短3手。', en: 'The only brakes here are the edge and the other penguin. Best: 3.' },
-      board: ['...b.',
+      board: ['....b',
               '...B.',
               '.....',
               '...A.',
@@ -153,7 +153,7 @@
       board: ['b....',
               '.A...',
               '.....',
-              '.a...',
+              'a....',
               '.B...']
     },
     {
@@ -171,9 +171,9 @@
       idea: 'two penguins, an empty tray; 4 moves.',
       hint: { ja: '止められるのは盤の端ともう一羽だけ。最短4手。', en: 'The only brakes here are the edge and the other penguin. Best: 4.' },
       board: ['...b.',
-              '.B...',
               '..A..',
               '.....',
+              '.B...',
               'a....']
     },
     {
@@ -184,14 +184,14 @@
               '.....',
               '.....',
               'aG...',
-              'A..bB']
+              '..AbB']
     },
     {
       id: 9, name: 'CRISP', par: 6,
       idea: 'two penguins, 1 drifter; 6 moves.',
       hint: { ja: '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。最短6手。', en: 'The grey drifter slides with the same gravity — and it can sit on an aurora. Best: 6.' },
-      board: ['.a..B',
-              'bA.G.',
+      board: ['a.GbB',
+              '.A...',
               '.....',
               '.....',
               '.....']
@@ -201,10 +201,10 @@
       idea: 'two penguins, 1 drifter; 6 moves.',
       hint: { ja: '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。最短6手。', en: 'The grey drifter slides with the same gravity — and it can sit on an aurora. Best: 6.' },
       board: ['....a',
-              '...G.',
-              '.....',
-              '...AB',
-              '...b.']
+              '....G',
+              '...A.',
+              '....b',
+              '....B']
     },
     {
       id: 11, name: 'RIME', par: 7,
@@ -212,37 +212,37 @@
       hint: { ja: '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。最短7手。', en: 'The grey drifter slides with the same gravity — and it can sit on an aurora. Best: 7.' },
       board: ['.....',
               '.....',
-              '.....',
-              'B.G.a',
-              '.b.A.']
+              '.B...',
+              '.G...',
+              'b..aA']
     },
     {
       id: 12, name: 'THAW', par: 7,
       idea: 'two penguins, 1 drifter; 7 moves.',
       hint: { ja: '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。最短7手。', en: 'The grey drifter slides with the same gravity — and it can sit on an aurora. Best: 7.' },
-      board: ['..G.A',
-              '.....',
-              '.....',
-              '...Bb',
-              '...a.']
+      board: ['...a.',
+              '....A',
+              '...G.',
+              '....b',
+              '...B.']
     },
     {
       id: 13, name: 'SLEET', par: 8,
       idea: 'two penguins, 1 drifter; 8 moves.',
       hint: { ja: '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。最短8手。', en: 'The grey drifter slides with the same gravity — and it can sit on an aurora. Best: 8.' },
       board: ['a....',
-              '.BG..',
               '.....',
-              '.A...',
-              '.b...']
+              '..A..',
+              'b....',
+              '.GB..']
     },
     {
       id: 14, name: 'BERG', par: 8,
       idea: 'two penguins, 1 drifter; 8 moves.',
       hint: { ja: '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。最短8手。', en: 'The grey drifter slides with the same gravity — and it can sit on an aurora. Best: 8.' },
-      board: ['....b',
-              'a.BA.',
+      board: ['.a..b',
               '...G.',
+              'AB...',
               '.....',
               '.....']
     },
@@ -250,11 +250,11 @@
       id: 15, name: 'CRAG', par: 9,
       idea: 'two penguins, 1 drifter; 9 moves.',
       hint: { ja: '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。最短9手。', en: 'The grey drifter slides with the same gravity — and it can sit on an aurora. Best: 9.' },
-      board: ['.a...',
-              '.B...',
-              '.A...',
+      board: ['G.A..',
+              'a....',
               '.....',
-              'b.G..']
+              '.B...',
+              'b....']
     },
     {
       id: 16, name: 'PALE', par: 9,
@@ -262,16 +262,16 @@
       hint: { ja: '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。最短9手。', en: 'The grey drifter slides with the same gravity — and it can sit on an aurora. Best: 9.' },
       board: ['.....',
               '.....',
-              'G....',
-              'bA.B.',
-              '....a']
+              '....G',
+              'b....',
+              '.AB.a']
     },
     {
       id: 17, name: 'HUSH', par: 10,
       idea: 'two penguins, 1 drifter; 10 moves.',
       hint: { ja: '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。最短10手。', en: 'The grey drifter slides with the same gravity — and it can sit on an aurora. Best: 10.' },
       board: ['b...B',
-              '...G.',
+              '.G...',
               '....A',
               '....a',
               '.....']
@@ -283,7 +283,7 @@
       board: ['....b',
               '..A..',
               '..G..',
-              '...B.',
+              '....B',
               '...a.']
     },
     {
@@ -292,8 +292,8 @@
       hint: { ja: '灰色の流氷も同じ重力で滑る。オーロラをふさぐこともある。最短11手。', en: 'The grey drifter slides with the same gravity — and it can sit on an aurora. Best: 11.' },
       board: ['.....',
               '.....',
-              '.B.G.',
-              '..A.b',
+              '.BG..',
+              '...Ab',
               'a....']
     },
     {
@@ -330,10 +330,10 @@
       id: 23, name: 'RIDGE', par: 13,
       idea: 'two penguins, 2 drifters; 13 moves.',
       hint: { ja: '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。最短13手。', en: 'Two grey drifters. Neither is ever collected; both work only as movable walls. Best: 13.' },
-      board: ['b....',
-              'AG...',
+      board: ['AG...',
+              'b....',
+              'G....',
               '.B...',
-              '.G...',
               'a....']
     },
     {
@@ -350,9 +350,9 @@
       id: 25, name: 'FJORD', par: 15,
       idea: 'two penguins, 2 drifters; 15 moves.',
       hint: { ja: '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。最短15手。', en: 'Two grey drifters. Neither is ever collected; both work only as movable walls. Best: 15.' },
-      board: ['a.AGb',
-              '.B...',
-              'G....',
+      board: ['aAB..',
+              '...Gb',
+              '....G',
               '.....',
               '.....']
     },
@@ -360,9 +360,9 @@
       id: 26, name: 'SHARD', par: 15,
       idea: 'two penguins, 2 drifters; 15 moves.',
       hint: { ja: '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。最短15手。', en: 'Two grey drifters. Neither is ever collected; both work only as movable walls. Best: 15.' },
-      board: ['..GAa',
+      board: ['..G.a',
               '...B.',
-              '.....',
+              '....A',
               '....G',
               '....b']
     },
@@ -372,37 +372,37 @@
       hint: { ja: '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。最短16手。', en: 'Two grey drifters. Neither is ever collected; both work only as movable walls. Best: 16.' },
       board: ['.....',
               '.....',
-              '.....',
-              'GGA..',
-              'b..aB']
+              'G....',
+              '..A..',
+              'ba.BG']
     },
     {
       id: 28, name: 'GLINT', par: 16,
       idea: 'two penguins, 2 drifters; 16 moves.',
       hint: { ja: '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。最短16手。', en: 'Two grey drifters. Neither is ever collected; both work only as movable walls. Best: 16.' },
-      board: ['...aB',
+      board: ['....G',
               '...G.',
-              '...A.',
-              '...G.',
-              '....b']
+              '.....',
+              '....a',
+              '..ABb']
     },
     {
       id: 29, name: 'HOAR', par: 17,
       idea: 'two penguins, 2 drifters; 17 moves.',
       hint: { ja: '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。最短17手。', en: 'Two grey drifters. Neither is ever collected; both work only as movable walls. Best: 17.' },
-      board: ['a.G..',
-              '.AB..',
-              '.....',
-              'G....',
-              '.b...']
+      board: ['a....',
+              '..G..',
+              'AG...',
+              'b....',
+              'B....']
     },
     {
       id: 30, name: 'BLUE', par: 17,
       idea: 'two penguins, 2 drifters; 17 moves.',
       hint: { ja: '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。最短17手。', en: 'Two grey drifters. Neither is ever collected; both work only as movable walls. Best: 17.' },
-      board: ['....b',
-              'aB.G.',
-              'GA...',
+      board: ['.G..b',
+              'a...B',
+              '...AG',
               '.....',
               '.....']
     },
@@ -412,8 +412,8 @@
       hint: { ja: '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。最短18手。', en: 'Two grey drifters. Neither is ever collected; both work only as movable walls. Best: 18.' },
       board: ['G..a.',
               '..A..',
+              'B....',
               '.G...',
-              '.B...',
               'b....']
     },
     {
@@ -440,21 +440,21 @@
       id: 34, name: 'PACK', par: 20,
       idea: 'two penguins, 1 wall; 20 moves.',
       hint: { ja: '壁ともう一羽、どちらもストッパーになる。最短20手。', en: 'The wall and the other penguin are both brakes. Best: 20.' },
-      board: ['.b...',
+      board: ['.....',
               '....#',
               'a...A',
               '.....',
-              '....B']
+              '.b..B']
     },
     {
       id: 35, name: 'TIDE', par: 20,
-      idea: 'two penguins, 1 wall; 20 moves.',
-      hint: { ja: '壁ともう一羽、どちらもストッパーになる。最短20手。', en: 'The wall and the other penguin are both brakes. Best: 20.' },
-      board: ['..b..',
-              '....a',
+      idea: 'two penguins, 1 drifter, 1 wall; 20 moves.',
+      hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短20手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 20.' },
+      board: ['G.B.b',
+              '....A',
               '.....',
-              '.....',
-              '.#BA.']
+              '...a.',
+              '.#...']
     },
     {
       id: 36, name: 'SPIRE', par: 21,
@@ -471,10 +471,10 @@
       idea: 'two penguins, 1 drifter, 1 wall; 21 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短21手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 21.' },
       board: ['#....',
-              '....G',
               '...A.',
-              '..B.a',
-              '..b..']
+              '..B..',
+              '....a',
+              '..b.G']
     },
     {
       id: 38, name: 'CROWN', par: 22,
@@ -483,18 +483,18 @@
       board: ['...#.',
               '.a...',
               '.....',
-              '.....',
-              'bAG.B']
+              'B....',
+              'A.b.G']
     },
     {
       id: 39, name: 'STILL', par: 22,
       idea: 'two penguins, 1 drifter, 1 wall; 22 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短22手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 22.' },
-      board: ['....A',
-              '.a...',
-              '....G',
-              '#...b',
-              '....B']
+      board: ['...B.',
+              '.a..A',
+              '....b',
+              '#....',
+              '....G']
     },
     {
       id: 40, name: 'FLARE', par: 23,
@@ -513,25 +513,25 @@
       board: ['.#...',
               '...a.',
               '.....',
-              '..BAb',
-              'G....']
+              'b....',
+              '.GB.A']
     },
     {
       id: 42, name: 'LEDGE', par: 24,
       idea: 'two penguins, 1 drifter, 1 wall; 24 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短24手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 24.' },
-      board: ['B....',
+      board: ['GB...',
               '....#',
-              '.G...',
-              '.A.a.',
+              '.A...',
+              '...a.',
               '.b...']
     },
     {
       id: 43, name: 'SLATE', par: 25,
       idea: 'two penguins, 1 drifter, 1 wall; 25 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短25手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 25.' },
-      board: ['AGB..',
-              '....a',
+      board: ['GA...',
+              '..B.a',
               '.....',
               '...b.',
               '.#...']
@@ -540,11 +540,11 @@
       id: 44, name: 'MIST', par: 25,
       idea: 'two penguins, 1 drifter, 1 wall; 25 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短25手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 25.' },
-      board: ['Ba...',
+      board: ['.a...',
               '...b.',
-              '.....',
-              'G...#',
-              'A....']
+              'AB...',
+              '....#',
+              'G....']
     },
     {
       id: 45, name: 'ARCH', par: 26,
@@ -563,18 +563,18 @@
       board: ['...#.',
               '.b...',
               '.....',
-              'B....',
-              '..AaG']
+              'a....',
+              'B.A.G']
     },
     {
       id: 47, name: 'GLACE', par: 27,
       idea: 'two penguins, 1 drifter, 1 wall; 27 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短27手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 27.' },
-      board: ['...aB',
+      board: ['..BA.',
               '.b...',
-              '...A.',
+              '....G',
               '#....',
-              '....G']
+              '...a.']
     },
     {
       id: 48, name: 'SIREN', par: 28,
@@ -600,19 +600,19 @@
       id: 50, name: 'HALF', par: 29,
       idea: 'two penguins, 1 drifter, 1 wall; 29 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短29手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 29.' },
-      board: ['AG...',
-              'a...#',
+      board: ['G.A..',
+              'B...#',
               '.....',
               '...b.',
-              'B....']
+              '.a...']
     },
     {
       id: 51, name: 'AURORA', par: 29,
       idea: 'two penguins, 1 drifter, 1 wall; 29 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短29手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 29.' },
-      board: ['GA...',
+      board: ['G....',
               'B...b',
-              '.....',
+              '.A...',
               '...a.',
               '.#...']
     },
@@ -624,65 +624,65 @@
               '...a.',
               'G....',
               '....#',
-              '.A...']
+              '..A..']
     },
     {
       id: 53, name: 'BEACON', par: 30,
       idea: 'two penguins, 1 drifter, 1 wall; 30 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短30手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 30.' },
-      board: ['...B.',
+      board: ['..B.G',
               '#....',
-              '....G',
-              '.b..A',
+              '....A',
+              '.b...',
               '...a.']
     },
     {
       id: 54, name: 'LANTERN', par: 31,
       idea: 'two penguins, 1 drifter, 1 wall; 31 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短31手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 31.' },
-      board: ['...#.',
+      board: ['...#A',
               '.a...',
-              '....A',
-              'b.B..',
+              '..B..',
+              'b....',
               '....G']
     },
     {
       id: 55, name: 'HARBOUR', par: 32,
       idea: 'two penguins, 1 drifter, 1 wall; 32 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短32手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 32.' },
-      board: ['...b.',
-              '.a.B.',
+      board: ['...bB',
+              '.a...',
               '....G',
               '#....',
-              '...A.']
+              'A....']
     },
     {
       id: 56, name: 'KEEL', par: 32,
       idea: 'two penguins, 1 drifter, 1 wall; 32 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短32手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 32.' },
-      board: ['...G.',
-              'a.A.B',
+      board: ['.AG..',
+              'a....',
               '.....',
               '.b...',
-              '...#.']
+              '...#B']
     },
     {
       id: 57, name: 'ANCHOR', par: 33,
       idea: 'two penguins, 1 drifter, 1 wall; 33 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短33手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 33.' },
-      board: ['.#...',
+      board: ['A#...',
               '...a.',
-              'A....',
-              '..B.b',
+              '..B..',
+              '....b',
               '.G...']
     },
     {
       id: 58, name: 'MARINER', par: 33,
       idea: 'two penguins, 1 drifter, 1 wall; 33 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短33手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 33.' },
-      board: ['A....',
+      board: ['..A..',
               'G...#',
-              'B....',
+              '.B...',
               '...a.',
               '.b...']
     },
@@ -690,21 +690,21 @@
       id: 59, name: 'COMPASS', par: 34,
       idea: 'two penguins, 1 drifter, 1 wall; 34 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短34手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 34.' },
-      board: ['B.G.A',
+      board: ['..G..',
               '....a',
-              '.....',
+              '....A',
               '...b.',
-              '.#...']
+              'B#...']
     },
     {
       id: 60, name: 'MERIDIAN', par: 34,
       idea: 'two penguins, 1 drifter, 1 wall; 34 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短34手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 34.' },
       board: ['.a...',
-              'A..b.',
+              '..Ab.',
               'G....',
               '....#',
-              'B....']
+              '....B']
     },
     {
       id: 61, name: 'SOLSTICE', par: 35,
@@ -751,10 +751,10 @@
       idea: 'two penguins, 1 drifter, 2 walls; 37 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短37手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 37.' },
       board: ['#.#..',
-              '.b.Ba',
-              '.....',
-              '...A.',
-              '...G.']
+              '.b..a',
+              '.B...',
+              '.A...',
+              '.G...']
     },
     {
       id: 66, name: 'CAVERN', par: 38,
@@ -820,8 +820,8 @@
       id: 72, name: 'CREVASSE', par: 41,
       idea: 'two penguins, 2 drifters, 2 walls; 41 moves.',
       hint: { ja: '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。最短41手。', en: 'Two grey drifters. Neither is ever collected; both work only as movable walls. Best: 41.' },
-      board: ['BG..a',
-              'G.Ab.',
+      board: ['GAaB.',
+              'G..b.',
               '.....',
               '.....',
               '...##']
@@ -833,18 +833,18 @@
       board: ['##...',
               '.....',
               '.....',
-              '.a.BG',
-              'A.b.G']
+              '.a..G',
+              'AGbB.']
     },
     {
       id: 74, name: 'SUMMIT', par: 42,
       idea: 'two penguins, 2 drifters, 2 walls; 42 moves.',
       hint: { ja: '灰色の流氷が2つ。どちらも回収されず、動かせる壁としてだけ働く。最短42手。', en: 'Two grey drifters. Neither is ever collected; both work only as movable walls. Best: 42.' },
-      board: ['....#',
-              'Aa..#',
+      board: ['A...#',
+              'Ga..#',
               'b....',
               '.B...',
-              'GG...']
+              'G....']
     },
     {
       id: 75, name: 'TRAVERSE', par: 43,
@@ -1100,11 +1100,11 @@
       id: 100, name: 'TILT', par: 57,
       idea: 'two penguins, 1 drifter, 3 walls; 57 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短57手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 57.' },
-      board: ['GA...',
-              '.B..a',
+      board: ['.....',
+              'GA..a',
               '..##.',
               '.b..#',
-              '.....']
+              '.B...']
     }
   ];
 

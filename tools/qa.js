@@ -634,14 +634,16 @@ async function swipe(page, x, y, dx, dy) {
         g.history = [safe];
         g.renderer.showState(g.state);
         var key = E.makeStateKey(g.stage);
-        var rewound = g.rewindIfStuck();
+        var was = key(g.state);
+        var noticed = g.noticeIfStuck();
         return {
-          found: true, stage: S[idx].id, rewound: rewound,
-          landed: key(g.state) === key(safe),
+          found: true, stage: S[idx].id, noticed: noticed,
+          moved: key(g.state) !== was,
           history: g.history.length,
           phase: g.phase,
           toast: (document.getElementById('toast') || {}).textContent || '',
-          solvableNow: E.solve(g.stage, g.state, 20000).solvable
+          solvableNow: E.solve(g.stage, g.state, 20000).solvable,
+          again: g.noticeIfStuck() && (document.getElementById('toast') || {}).textContent
         };
       }
     }
@@ -649,28 +651,33 @@ async function swipe(page, x, y, dx, dy) {
   });
 
   if (jammed.found) {
-    ok('a jammed board undoes the move that jammed it  (stage ' + jammed.stage + ')',
-      jammed.rewound === true && jammed.landed === true, JSON.stringify(jammed));
-    ok('and lands somewhere that can still be won', jammed.solvableNow === true);
-    ok('and says what it did', jammed.toast.length > 0, 'toast="' + jammed.toast + '"');
-    ok('and leaves the board in play', jammed.phase === 'play' && jammed.history === 0,
+    ok('a jammed board is recognised  (stage ' + jammed.stage + ')',
+      jammed.noticed === true, JSON.stringify(jammed));
+    // The whole point of the change: the position the player reached is the
+    // position they keep. Taking a move back for them is what this must not do.
+    ok('and the position is left exactly where the player put it',
+      jammed.moved === false && jammed.history === 1 && jammed.solvableNow === false,
       JSON.stringify(jammed));
+    ok('and the board stays in play, with undo and restart both available',
+      jammed.phase === 'play', JSON.stringify(jammed));
+    ok('and the player is told once', jammed.toast.length > 0, 'toast="' + jammed.toast + '"');
   } else {
     ok('no sampled stage can be jammed at all', true, 'nothing reachable is unwinnable');
   }
 
-  // …and it must not fire on an ordinary position. A rewind the player did not
-  // earn is worse than no rewind at all: it takes moves away for no reason.
+  // …and it must not fire on an ordinary position. Calling a winnable board a
+  // dead end would send the player to undo a move that was fine.
   var quiet = await page.evaluate(function () {
     var g = window.game;
     g.loadStage(0);
     var E = window.TiltEngine;
     var before = E.makeStateKey(g.stage)(g.state);
     g.history = [E.initialState(g.stage)];
-    return { rewound: g.rewindIfStuck(), same: E.makeStateKey(g.stage)(g.state) === before };
+    g.stuck = false;
+    return { noticed: g.noticeIfStuck(), same: E.makeStateKey(g.stage)(g.state) === before };
   });
-  ok('a solvable board is never rewound', quiet.rewound === false && quiet.same === true,
-    JSON.stringify(quiet));
+  ok('a solvable board is never called a dead end',
+    quiet.noticed === false && quiet.same === true, JSON.stringify(quiet));
 
   // ── layout across viewports ────────────────────────────────────────────────
   console.log('\n\u001b[1mLAYOUT\u001b[0m');

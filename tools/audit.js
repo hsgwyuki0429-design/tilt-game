@@ -1034,7 +1034,7 @@ function auditStage(def) {
   // still worth counting, because each one is a tilt the player spent and got
   // taken back — an interruption rather than a trap.
   if (r.jam > 0.3) {
-    r.warnings.push('unwinnable from ' + pct(r.jam) + ' of positions — each one costs the player a rewound tilt');
+    r.warnings.push('unwinnable from ' + pct(r.jam) + ' of positions — each one is a dead end the player has to undo');
   }
   return r;
 }

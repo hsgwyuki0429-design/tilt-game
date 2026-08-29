@@ -82,6 +82,88 @@ function present(rows, variant) {
   return res;
 }
 
+// ---------------------------------------------------------------------------
+// no stage may be another stage's leftovers
+// ---------------------------------------------------------------------------
+/**
+ * Two boards are the same puzzle when one of them opens where the other one
+ * passes through.
+ *
+ * Deduplicating the opening positions is not enough. The search ranks by
+ * emptiness, so a whole run of lengths comes back on the same terrain, and a
+ * short board on that terrain is routinely the exact position a longer one
+ * reaches after a few moves — stage 43's opening used to sit on the shortest
+ * line of eleven other stages. Reaching it again, having already solved it from
+ * there, is replaying a stage rather than playing one.
+ *
+ * So a board is identified by every position it can reach that could ITSELF be
+ * an opening: nothing collected, nothing lost, no block standing on an aurora.
+ * Those are exactly the positions expressible as a starting board, and the only
+ * ones another stage could open on. Two boards conflict when either one's
+ * opening appears in the other's set — compared, like everything else here, up
+ * to the square's eight symmetries and renaming the two colours.
+ */
+function positionKey(stage, st) {
+  if (st.collected || (st.lost || 0)) return null;
+  var cells = new Array(25), c, i;
+  for (c = 0; c < 25; c++) {
+    cells[c] = stage.terrain[c] === E.WALL ? '#'
+      : stage.terrain[c] === E.HAZARD ? 'x'
+      : stage.goal[c] ? (stage.goalColour[c] === 1 ? 'a' : 'b') : '.';
+  }
+  for (i = 0; i < st.pos.length; i++) {
+    if (!st.alive[i]) return null;
+    c = st.pos[i][1] * 5 + st.pos[i][0];
+    if (cells[c] !== '.') return null;              // on an aurora: not an opening
+    cells[c] = stage.colour[i] === 1 ? 'A' : stage.colour[i] === 2 ? 'B' : 'G';
+  }
+  return canonical(cells.join(''));
+}
+function canonical(flat) {
+  var best = null, swap, i, c;
+  for (swap = 0; swap < 2; swap++) {
+    var src = swap ? flat.split('').map(function (ch) { return SWAP[ch]; }).join('') : flat;
+    for (i = 0; i < 8; i++) {
+      var p = PERMS[i], out = new Array(25);
+      for (c = 0; c < 25; c++) out[p[c]] = src[c];
+      var s = out.join('');
+      if (best === null || s < best) best = s;
+    }
+  }
+  return best;
+}
+
+var footprintCache = Object.create(null);
+/** Every opening-shaped position a board can reach, its own included. */
+function footprint(rows) {
+  var flat = rows.join('');
+  if (footprintCache[flat]) return footprintCache[flat];
+  var stage = E.compile({ id: 'footprint', board: rows });
+  var keys = Object.create(null);
+  E.reachable(stage, null, 80000).forEach(function (st) {
+    var k = positionKey(stage, st);
+    if (k) keys[k] = 1;
+  });
+  return (footprintCache[flat] = Object.keys(keys));
+}
+
+var chosenOpenings = Object.create(null);   // canonical opening -> stage id
+var chosenPositions = Object.create(null);  // every position any chosen board reaches
+
+function collides(rows) {
+  var opening = canonical(rows.join(''));
+  if (chosenPositions[opening]) return chosenPositions[opening];
+  var reach = footprint(rows);
+  for (var i = 0; i < reach.length; i++) {
+    if (chosenOpenings[reach[i]]) return chosenOpenings[reach[i]];
+  }
+  return 0;
+}
+function claim(id, rows) {
+  chosenOpenings[canonical(rows.join(''))] = id;
+  footprint(rows).forEach(function (k) { chosenPositions[k] = id; });
+}
+
 /** The first symmetry of a board whose shortest solution opens sideways. */
 function horizontalOpening(rows, fallback) {
   for (var v = 0; v < 16; v++) {
@@ -136,7 +218,6 @@ function targetPar(n) {
   return Math.round(SHORTEST + (n - 1) * (LONGEST - SHORTEST) / (COUNT - 1));
 }
 
-var used = Object.create(null);
 var taken = Object.create(null);
 
 /**
@@ -260,6 +341,7 @@ function ideaFor(stage, par) {
 // ---------------------------------------------------------------------------
 var stages = [];
 var failures = [];
+var rejectedTotal = 0;
 
 for (var n = 1; n <= COUNT; n++) {
   var want = targetPar(n);
@@ -269,35 +351,46 @@ for (var n = 1; n <= COUNT; n++) {
   var offsets = [0];
   for (var o = 1; o <= 3; o++) { offsets.push(o); offsets.push(-o); }
 
+  var rejected = 0;
   for (var oi = 0; oi < offsets.length && !entry; oi++) {
     var par = want + offsets[oi];
     if (par < SHORTEST || par > LONGEST) continue;
-    var candidate = pick(par);
-    if (!candidate) continue;
+    for (;;) {
+      var candidate = pick(par);
+      if (!candidate) break;
 
-    // Present it under a rotation that depends on the stage number, then prove
-    // with the real engine that the rotation changed nothing.
-    var variant = (n * 5 + 3) % 16;
-    // Stage 1 is the one board the game demonstrates the gesture on, and a
-    // sideways sweep is what a swipe looks like. Turn it so the opening move
-    // is horizontal.
-    if (n === 1) variant = horizontalOpening(candidate.rows, variant);
-    rows = present(candidate.rows, variant);
-    var seen = rows.join('|');
-    if (used[seen]) { continue; }
+      // Symmetry does not change what a board is, so the collision test runs on
+      // the raw candidate and the presentation is chosen independently.
+      var clash = collides(candidate.rows);
+      if (clash) { rejected++; rejectedTotal++; continue; }
 
-    stage = E.compile({ id: n, board: rows });
-    solved = E.solve(stage, null, 400000);
-    if (!solved.solvable || solved.moves !== candidate.moves) {
-      failures.push('stage ' + n + ': index says ' + candidate.moves +
-        ', engine says ' + (solved.solvable ? solved.moves : 'unsolvable'));
-      continue;
+      // Present it under a rotation that depends on the stage number, then prove
+      // with the real engine that the rotation changed nothing.
+      var variant = (n * 5 + 3) % 16;
+      // Stage 1 is the one board the game demonstrates the gesture on, and a
+      // sideways sweep is what a swipe looks like. Turn it so the opening move
+      // is horizontal.
+      if (n === 1) variant = horizontalOpening(candidate.rows, variant);
+      rows = present(candidate.rows, variant);
+
+      stage = E.compile({ id: n, board: rows });
+      solved = E.solve(stage, null, 400000);
+      if (!solved.solvable || solved.moves !== candidate.moves) {
+        failures.push('stage ' + n + ': index says ' + candidate.moves +
+          ', engine says ' + (solved.solvable ? solved.moves : 'unsolvable'));
+        continue;
+      }
+      claim(n, candidate.rows);
+      entry = candidate;
+      break;
     }
-    used[seen] = true;
-    entry = candidate;
   }
 
-  if (!entry) { failures.push('stage ' + n + ': no board of par ' + want + ' left'); continue; }
+  if (!entry) {
+    failures.push('stage ' + n + ': no board of par ' + want +
+      ' left (' + rejected + ' rejected as another stage’s position)');
+    continue;
+  }
 
   stages.push({
     id: n,
@@ -409,3 +502,4 @@ var withStatic = stages.filter(function (s) { return s.statics > 0; }).length;
 var withGray = stages.filter(function (s) { return s.grays > 0; }).length;
 console.log('boards with an immovable obstacle: ' + withStatic + '/' + stages.length);
 console.log('boards with a drifter:             ' + withGray + '/' + stages.length);
+console.log('candidates rejected as another stage\u2019s position: ' + rejectedTotal);
