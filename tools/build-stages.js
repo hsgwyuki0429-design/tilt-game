@@ -147,10 +147,28 @@ function footprint(rows) {
   return (footprintCache[flat] = Object.keys(keys));
 }
 
+/**
+ * The skeleton: what is left once every movable piece is lifted off, which is
+ * the immovable blocks and the auroras.
+ *
+ * Two boards with the same skeleton are the same room with the furniture moved.
+ * They can be genuinely different puzzles — the piece positions decide that —
+ * but they LOOK alike, and a player meeting the fourth board this month with a
+ * wall in that corner and auroras on those two cells has stopped seeing a new
+ * level. The shipped campaign had a hundred boards standing on twenty-eight
+ * skeletons.
+ */
+function skeletonKey(rows) {
+  return canonical(rows.join('').replace(/[ABG]/g, '.'));
+}
+
 var chosenOpenings = Object.create(null);   // canonical opening -> stage id
 var chosenPositions = Object.create(null);  // every position any chosen board reaches
+var chosenSkeletons = Object.create(null);  // walls + auroras -> stage id
 
 function collides(rows) {
+  var skeleton = skeletonKey(rows);
+  if (chosenSkeletons[skeleton]) return chosenSkeletons[skeleton];
   var opening = canonical(rows.join(''));
   if (chosenPositions[opening]) return chosenPositions[opening];
   var reach = footprint(rows);
@@ -160,6 +178,7 @@ function collides(rows) {
   return 0;
 }
 function claim(id, rows) {
+  chosenSkeletons[skeletonKey(rows)] = id;
   chosenOpenings[canonical(rows.join(''))] = id;
   footprint(rows).forEach(function (k) { chosenPositions[k] = id; });
 }
@@ -211,7 +230,12 @@ var CHAPTER_DEFS = [
 // selection
 // ---------------------------------------------------------------------------
 var pars = Object.keys(index).map(Number).sort(function (a, b) { return a - b; });
-var LONGEST = pars[pars.length - 1];
+/* The top of the ladder. It defaults to the longest board in the index, which
+   is what "the last stage is the longest board found" means — but the index can
+   reach lengths the campaign cannot use, because a board still needs a skeleton
+   no other stage has taken, and the longest lengths have the fewest. --longest
+   caps it at the highest rung that can actually be filled. */
+var LONGEST = Number(arg('longest', 0)) || pars[pars.length - 1];
 var SHORTEST = pars[0];
 
 function targetPar(n) {
@@ -245,22 +269,62 @@ function spread(rows) {
   return Object.keys(xs).length + Object.keys(ys).length + far / 100;
 }
 
+/**
+ * How much of the board answers a swipe.
+ *
+ * A wall in the wrong place does not make a board harder, it makes it deaf:
+ * you swipe, everything is already pressed against something in that
+ * direction, and nothing happens. Two boards can want the same walls for the
+ * same length and differ in how many of your four swipes ever do anything.
+ *
+ * Counted, not averaged: every position the board can reach contributes the
+ * number of directions that do something, and the total is what ranks. A share
+ * would call a cramped board generous as long as the few positions it has each
+ * answer three swipes; the count only goes up when there is somewhere to go
+ * and something to do when you get there. The opening position gets no special
+ * say — it contributes once, like every other.
+ *
+ * This is a tie-break. It never overrules a board being emptier.
+ */
+var responseCache = Object.create(null);
+function responsiveness(rows) {
+  var flat = rows.join('');
+  if (responseCache[flat] !== undefined) return responseCache[flat];
+  var stage = E.compile({ id: 'response', board: rows });
+  var live = 0;
+  E.reachable(stage, null, 80000).forEach(function (st) {
+    if (E.isTerminal(stage, st)) return;
+    for (var i = 0; i < 4; i++) if (E.step(stage, st, E.DIRS[i])) live++;
+  });
+  return (responseCache[flat] = live);
+}
+function response(entry) {
+  return entry._response !== undefined
+    ? entry._response : (entry._response = responsiveness(entry.rows));
+}
+
 var ranked = {};
 function candidates(par) {
   if (ranked[par]) return ranked[par];
   var list = (index[par] || []).slice();
   list.forEach(function (e) { e._spread = spread(e.rows); });
+  // Emptiness first — that is the brief. Everything after it is a tie-break,
+  // and the expensive ones are only reached when a pair ties on emptiness.
   list.sort(function (a, b) {
     return a.statics - b.statics || a.grays - b.grays ||
+           response(b) - response(a) ||
            a.penguins - b.penguins || b._spread - a._spread;
   });
   ranked[par] = list;
   return list;
 }
 
-/* `taken` keeps one board from being handed to two stages; `used` keeps it
-   from reappearing under a rotation, which reads as a repeat even though the
-   string differs. */
+/* Emptiest first, and then straight on into the less empty ones. Fewer
+   obstacles is a preference; a unique skeleton is a requirement, so when a
+   length runs out of skeletons at its emptiest the walk keeps going and takes
+   a board carrying another wall. `taken` stops one board being handed to two
+   stages, including one already rejected — a collision with a board that is
+   already placed does not go away later. */
 function pick(par) {
   var list = candidates(par);
   for (var i = 0; i < list.length; i++) {
@@ -339,69 +403,112 @@ function ideaFor(stage, par) {
 // ---------------------------------------------------------------------------
 // build
 // ---------------------------------------------------------------------------
-var stages = [];
-var failures = [];
-var rejectedTotal = 0;
+/**
+ * Build the ladder to a given top rung, or report which rung it failed on.
+ *
+ * The top is not a free choice. The last stage should be the longest board the
+ * search found, but a board also needs a skeleton no other stage has taken, and
+ * the longest lengths have the fewest to go round - often exactly one at the
+ * very top. So the ceiling starts at the longest board in the index and walks
+ * down until the whole hundred fits, and the campaign tops out at the longest
+ * rung that can be FILLED rather than the longest that exists. Which rung that
+ * is moves with the search: measure more boards and it rises.
+ */
+function attempt(longest) {
+  LONGEST = longest;
+  ranked = {};
+  taken = Object.create(null);
+  chosenOpenings = Object.create(null);
+  chosenPositions = Object.create(null);
+  chosenSkeletons = Object.create(null);
+  var stages = [];
+  var failures = [];
+  var rejectedTotal = 0;
 
-for (var n = 1; n <= COUNT; n++) {
-  var want = targetPar(n);
-  var entry = null, rows = null, stage = null, solved = null;
+  for (var n = 1; n <= COUNT; n++) {
+    var want = targetPar(n);
+    var entry = null, rows = null, stage = null, solved = null;
 
-  // walk outwards from the wanted par only if that length ran dry
-  var offsets = [0];
-  for (var o = 1; o <= 3; o++) { offsets.push(o); offsets.push(-o); }
+    // walk outwards from the wanted par only if that length ran dry
+    var offsets = [0];
+    for (var o = 1; o <= 3; o++) { offsets.push(o); offsets.push(-o); }
 
-  var rejected = 0;
-  for (var oi = 0; oi < offsets.length && !entry; oi++) {
-    var par = want + offsets[oi];
-    if (par < SHORTEST || par > LONGEST) continue;
-    for (;;) {
-      var candidate = pick(par);
-      if (!candidate) break;
+    var rejected = 0;
+    for (var oi = 0; oi < offsets.length && !entry; oi++) {
+      var par = want + offsets[oi];
+      if (par < SHORTEST || par > LONGEST) continue;
+      for (;;) {
+        var candidate = pick(par);
+        if (!candidate) break;
 
-      // Symmetry does not change what a board is, so the collision test runs on
-      // the raw candidate and the presentation is chosen independently.
-      var clash = collides(candidate.rows);
-      if (clash) { rejected++; rejectedTotal++; continue; }
+        // Symmetry does not change what a board is, so the collision test runs on
+        // the raw candidate and the presentation is chosen independently.
+        var clash = collides(candidate.rows);
+        if (clash) { rejected++; rejectedTotal++; continue; }
 
-      // Present it under a rotation that depends on the stage number, then prove
-      // with the real engine that the rotation changed nothing.
-      var variant = (n * 5 + 3) % 16;
-      // Stage 1 is the one board the game demonstrates the gesture on, and a
-      // sideways sweep is what a swipe looks like. Turn it so the opening move
-      // is horizontal.
-      if (n === 1) variant = horizontalOpening(candidate.rows, variant);
-      rows = present(candidate.rows, variant);
+        // Present it under a rotation that depends on the stage number, then prove
+        // with the real engine that the rotation changed nothing.
+        var variant = (n * 5 + 3) % 16;
+        // Stage 1 is the one board the game demonstrates the gesture on, and a
+        // sideways sweep is what a swipe looks like. Turn it so the opening move
+        // is horizontal.
+        if (n === 1) variant = horizontalOpening(candidate.rows, variant);
+        rows = present(candidate.rows, variant);
 
-      stage = E.compile({ id: n, board: rows });
-      solved = E.solve(stage, null, 400000);
-      if (!solved.solvable || solved.moves !== candidate.moves) {
-        failures.push('stage ' + n + ': index says ' + candidate.moves +
-          ', engine says ' + (solved.solvable ? solved.moves : 'unsolvable'));
-        continue;
+        stage = E.compile({ id: n, board: rows });
+        solved = E.solve(stage, null, 400000);
+        if (!solved.solvable || solved.moves !== candidate.moves) {
+          failures.push('stage ' + n + ': index says ' + candidate.moves +
+            ', engine says ' + (solved.solvable ? solved.moves : 'unsolvable'));
+          continue;
+        }
+        claim(n, candidate.rows);
+        entry = candidate;
+        break;
       }
-      claim(n, candidate.rows);
-      entry = candidate;
-      break;
     }
+
+    if (!entry) {
+      failures.push('stage ' + n + ': no board of par ' + want +
+        ' left (' + rejected + ' rejected as another stage’s position)');
+      continue;
+    }
+
+    stages.push({
+      id: n,
+      name: NAMES[n - 1] || ('ICE ' + n),
+      par: solved.moves,
+      idea: ideaFor(stage, solved.moves),
+      hint: hintFor(stage, solved.moves),
+      board: rows,
+      statics: entry.statics,
+      grays: entry.grays
+    });
   }
 
-  if (!entry) {
-    failures.push('stage ' + n + ': no board of par ' + want +
-      ' left (' + rejected + ' rejected as another stage’s position)');
-    continue;
-  }
+  return { stages: stages, failures: failures, rejected: rejectedTotal };
+}
 
-  stages.push({
-    id: n,
-    name: NAMES[n - 1] || ('ICE ' + n),
-    par: solved.moves,
-    idea: ideaFor(stage, solved.moves),
-    hint: hintFor(stage, solved.moves),
-    board: rows,
-    statics: entry.statics,
-    grays: entry.grays
-  });
+var attempted = [];
+var built = null;
+for (var top = LONGEST; top > SHORTEST && !built; top--) {
+  var run = attempt(top);
+  attempted.push(top + ' fills ' + run.stages.length);
+  if (run.stages.length === COUNT) built = run;
+}
+if (!built) {
+  console.error('build failed: no ceiling fills ' + COUNT + ' stages (tried ' +
+    attempted.slice(0, 12).join('; ') + ')');
+  process.exit(1);
+}
+var stages = built.stages;
+var failures = built.failures;
+var rejectedTotal = built.rejected;
+LONGEST = stages[stages.length - 1].par;
+if (attempted.length > 1) {
+  console.log('ceiling: ' + LONGEST + ' moves (the index reaches ' +
+    pars[pars.length - 1] + ', but ' + (attempted.length - 1) +
+    ' longer ceiling(s) could not be filled with unique skeletons)');
 }
 
 if (failures.length) {

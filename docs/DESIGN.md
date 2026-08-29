@@ -52,9 +52,17 @@ So a board is identified by every position it can reach that could **itself be
 an opening** — nothing collected, nothing lost, no block standing on an aurora,
 which is exactly what a starting board looks like. Two boards conflict when
 either one's opening appears in the other's set, compared up to the square's
-eight symmetries and renaming the two colours. `tools/build-stages.js` walks
-past a candidate that conflicts with one already placed, and `npm test` checks
-the shipped hundred the same way.
+eight symmetries and renaming the two colours.
+
+A board also may not stand in a room another stage has taken. Its **skeleton**
+is what is left once every movable piece is lifted off it — the immovable
+blocks and the auroras. Two boards sharing one can be genuinely different
+puzzles, but they look alike, and a player meeting the fourth board with a wall
+in that corner and auroras on those two cells has stopped seeing a new level.
+The first hundred stood on twenty-eight skeletons; they now stand on a hundred.
+
+`tools/build-stages.js` walks past a candidate that breaks either rule, and
+`npm test` checks the shipped hundred both ways.
 
 The first two criteria are the reason no board in the campaign uses cracked ice:
 a hazard is an immovable obstacle, so it can only ever lose a tie, and adding it
@@ -93,6 +101,13 @@ than half a move off it, and `npm test` checks the same thing again. One or two
 stages share each par; each takes the next-best board of that length, so no
 puzzle ships twice.
 
+`longest` is not the longest board that exists — it is the longest that can be
+*filled*. Skeletons run out at the top: the very longest lengths have only a
+handful of boards and often a single skeleton between them, so the build starts
+at the longest board in the index and walks the ceiling down until the whole
+hundred fits. The index reaches 79 moves; the campaign tops out at 61, and that
+rung rises whenever the search measures more boards.
+
 ## The obstacle budget
 
 Longest par found, by how much was added to an empty tray. Two penguins unless
@@ -112,6 +127,7 @@ noted; `tools/level-index.json` carries the same table as data.
 | 0 | 2 | 18 |
 | 1 | 2 | 33 |
 | 2 | 2 | 55 |
+| 4 | 1 | **79** |
 
 Three things this table settles. Obstacles do not simply make boards longer — a
 *fourth* wall makes them shorter, because it starts taking away the room a long
