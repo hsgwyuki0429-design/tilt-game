@@ -277,9 +277,12 @@ function candidates(par) {
   return list;
 }
 
-/* `taken` keeps one board from being handed to two stages; `used` keeps it
-   from reappearing under a rotation, which reads as a repeat even though the
-   string differs. */
+/* Emptiest first, and then straight on into the less empty ones. Fewer
+   obstacles is a preference; a unique skeleton is a requirement, so when a
+   length runs out of skeletons at its emptiest the walk keeps going and takes
+   a board carrying another wall. `taken` stops one board being handed to two
+   stages, including one already rejected — a collision with a board that is
+   already placed does not go away later. */
 function pick(par) {
   var list = candidates(par);
   for (var i = 0; i < list.length; i++) {
