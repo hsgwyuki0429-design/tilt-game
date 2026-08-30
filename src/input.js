@@ -17,6 +17,18 @@
   var SWIPE_MIN = 18;        // px before a drag counts as aimed
   var FLICK_MIN = 10;        // px, if it was fast enough
   var FLICK_MS = 260;
+  var AIM_FULL = 90;         // px of travel that reaches a full aim preview
+
+  // How far along the aimed axis the finger has travelled, 0 at the moment the
+  // aim registers and 1 once the drag is unmistakable. The board answers this
+  // continuously — the penguins lean the way gravity is about to go — so the
+  // player sees the move building instead of only its result.
+  function progress(dir, dx, dy) {
+    if (!dir) return 0;
+    var d = (dir === 'L' || dir === 'R') ? Math.abs(dx) : Math.abs(dy);
+    var t = (d - SWIPE_MIN) / (AIM_FULL - SWIPE_MIN);
+    return t < 0 ? 0 : (t > 1 ? 1 : t);
+  }
 
   function Input(el, handlers) {
     this.el = el;
@@ -27,6 +39,7 @@
     this.on = handlers;
     this.start = null;
     this.aimed = null;
+    this.aimMag = 0;
     this.bind();
   }
 
@@ -39,14 +52,19 @@
       if (!p) return;
       self.start = { x: p.x, y: p.y, t: performance.now() };
       self.aimed = null;
+      self.aimMag = 0;
     };
     var move = function (e) {
       if (!self.start) return;
       if (e.cancelable) e.preventDefault();
       var p = point(e);
       if (!p) return;
-      var dir = self.classify(p.x - self.start.x, p.y - self.start.y, false);
-      if (dir !== self.aimed) { self.aimed = dir; self.on.aim(dir); }
+      var dx = p.x - self.start.x, dy = p.y - self.start.y;
+      var dir = self.classify(dx, dy, false);
+      var mag = progress(dir, dx, dy);
+      if (dir !== self.aimed || Math.abs(mag - self.aimMag) > .004) {
+        self.aimed = dir; self.aimMag = mag; self.on.aim(dir, mag);
+      }
     };
     var up = function (e) {
       if (!self.start) return;
@@ -58,14 +76,16 @@
       var still = Math.abs(dx) < 10 && Math.abs(dy) < 10;
       self.start = null;
       self.aimed = null;
-      self.on.aim(null);
+      self.aimMag = 0;
+      self.on.aim(null, 0);
       if (dir) self.on.commit(dir);
       else if (still && self.on.tap) self.on.tap();
     };
     var cancel = function () {
       self.start = null;
       self.aimed = null;
-      self.on.aim(null);
+      self.aimMag = 0;
+      self.on.aim(null, 0);
     };
 
     var point = function (e) {

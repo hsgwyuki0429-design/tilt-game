@@ -77,6 +77,10 @@
   var TICK = 54;
   var TAIL = 48;
   var SQUASH = 150;
+  /* How far, in cells, a block creeps while a swipe is still being made. Far
+     enough to read as movement, short enough that it cannot be mistaken for
+     the move itself having happened. */
+  var AIM_SLIDE = .3;
   var MAX_CELL = 112;
   /* A strictly top-down basis. Supplied square textures remain square and the
      live board uses the same visual language as the home-screen tile preview. */
@@ -177,7 +181,7 @@
     this.stage=null; this.state=null; this.anim=null;
     this.particles=[]; this.ripples=[]; this.flashes=[]; this.grazes=[];
     this.commands=[]; this.cells=[]; this.ring=[]; this.baseCache=null; this.staticSprites={};
-    this.gravity=null; this.aimDir=null; this.clearGlow=0; this.time=0;
+    this.gravity=null; this.aimDir=null; this.aimAmount=0; this.aimSlide=0; this.clearGlow=0; this.time=0;
     this.reduceMotion=false; this.gesture=false; this.gestureDir='L'; this.gestureT=0;
     this.shift={x:0,y:0}; this.nudge=null; this.shake=0;
     this.dpr=1; this.cell=40; this.ox=0; this.oy=0;
@@ -207,7 +211,8 @@
   Renderer.prototype.setStage=function(stage,state){
     this.stage=stage; this.state=state; this.anim=null;
     this.particles.length=0; this.ripples.length=0; this.flashes.length=0; this.grazes.length=0;
-    this.gravity=null; this.aimDir=null; this.clearGlow=0; this.shake=0; this.nudge=null;
+    this.gravity=null; this.aimDir=null; this.aimAmount=0; this.aimSlide=0;
+    this.clearGlow=0; this.shake=0; this.nudge=null;
     this.shift.x=this.shift.y=0; this.onEvent=null; this.layout();
   };
   Renderer.prototype.showState=function(state){
@@ -445,7 +450,7 @@
     }
     var want={x:0,y:0};
     if(this.aimDir&&!this.reduceMotion){
-      var lean=Math.min(6,this.cell*.05);
+      var lean=Math.min(60,this.cell*.5);
       if(this.aimDir==='L')want.x=-lean;else if(this.aimDir==='R')want.x=lean;
       else if(this.aimDir==='U')want.y=-lean;else want.y=lean;
     }
@@ -453,6 +458,14 @@
     if(Math.abs(this.shift.x-want.x)>.05||Math.abs(this.shift.y-want.y)>.05){
       this.shift.x=lerp(this.shift.x,want.x,k);this.shift.y=lerp(this.shift.y,want.y,k);busy=true;
     }else{this.shift.x=want.x;this.shift.y=want.y;}
+    /* The board leans as a whole; the blocks that gravity would actually move
+       also creep, in cells, the way they are about to go. Both track the swipe
+       as it happens, so a move that is still being made already reads. */
+    var wantSlide=(this.aimDir&&!this.reduceMotion&&!this.anim)
+      ?AIM_SLIDE*Math.max(0,Math.min(1,this.aimAmount||0)):0;
+    if(Math.abs(this.aimSlide-wantSlide)>.0015){
+      this.aimSlide=lerp(this.aimSlide,wantSlide,k);busy=true;
+    }else this.aimSlide=wantSlide;
     var nx=0,ny=0;
     if(this.nudge){
       this.nudge.life+=dt;var np=this.nudge.life/this.nudge.max;
@@ -498,6 +511,36 @@
     this.commands.push({kind:kind,x:x,y:y,z:z||0,layer:layer,pass:pass,
       depth:p.y,tie:p.x,data:data});
   };
+  /**
+   * Which blocks would actually get to move if the aim being held were
+   * committed? A block moves when the next cell is open, or when the block
+   * standing in it moves too. Previewing a slide for a penguin wedged against
+   * a wall would promise a move the board is not going to make, and the whole
+   * point of the preview is that it never lies about the rules.
+   */
+  Renderer.prototype.aimMovers=function(dir){
+    var st=this.stage,s=this.state;
+    if(!st||!s||!dir||!E.DV[dir])return null;
+    if(this.moverDir===dir&&this.moverState===s)return this.movers;
+    var d=E.DV[dir],dx=d[0],dy=d[1],w=st.w,h=st.h,n=s.pos.length,i;
+    var occ={};
+    for(i=0;i<n;i++)if(s.alive[i])occ[s.pos[i][1]*w+s.pos[i][0]]=i;
+    var out=new Array(n),seen=new Array(n);
+    var can=function(idx){
+      if(seen[idx])return out[idx];
+      seen[idx]=true;out[idx]=false;
+      var nx=s.pos[idx][0]+dx,ny=s.pos[idx][1]+dy;
+      if(nx<0||ny<0||nx>=w||ny>=h)return false;
+      if(st.terrain[ny*w+nx]===E.WALL)return false;
+      var o=occ[ny*w+nx];
+      out[idx]=(o===undefined||o===idx)?true:can(o);
+      return out[idx];
+    };
+    for(i=0;i<n;i++){out[i]=false;seen[i]=false;}
+    for(i=0;i<n;i++)if(s.alive[i])can(i);
+    this.moverDir=dir;this.moverState=s;this.movers=out;
+    return out;
+  };
   Renderer.prototype.collectCommands=function(elapsed){
     var st=this.stage;this.commands.length=0;var i,c;
     for(i=0;i<this.ring.length;i++){c=this.ring[i];this.pushCommand('wall',c.x,c.y,-.01,3,c);}
@@ -507,13 +550,21 @@
       if(c.terrain===E.WALL)this.pushCommand('wall',c.x,c.y,.025,3,c);
     }
     var frames=this.anim?this.anim.frames:null,state=this.anim?null:this.state;
+    var slideX=0,slideY=0,movers=null;
+    if(state&&this.aimDir&&this.aimSlide>.001){
+      movers=this.aimMovers(this.aimDir);
+      if(movers){var dv=E.DV[this.aimDir];slideX=dv[0]*this.aimSlide;slideY=dv[1]*this.aimSlide;}
+    }
     for(i=0;i<st.blocks.length;i++){
       var pos,squash=0;
       if(this.anim){
         var gone=-1;for(var j=0;j<frames.length;j++)if(!frames[j].alive[i]){gone=j;break;}
         if(gone>=0&&elapsed>=gone*TICK+TICK*.55)continue;
         pos=this.animPos(i,elapsed);squash=this.impactOf(i,elapsed);
-      }else{if(!state||!state.alive[i])continue;pos=state.pos[i];}
+      }else{
+        if(!state||!state.alive[i])continue;pos=state.pos[i];
+        if(movers&&movers[i])pos=[pos[0]+slideX,pos[1]+slideY];
+      }
       var inert=st.win==='select'&&st.collectable&&!st.collectable[i];
       this.pushCommand('penguin',pos[0],pos[1],.035,4,
         {index:i,pos:pos,squash:squash,colour:st.colour?st.colour[i]:0,inert:inert,

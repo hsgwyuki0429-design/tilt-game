@@ -286,7 +286,7 @@
     this.closeAllSheets();
     this.homeOpen = true;
     this.renderHome();
-    this.renderer.aimDir = null;
+    this.renderer.aimDir = null; this.renderer.aimAmount = 0;
     this.dom.home.classList.remove('hidden');
     this.dom.home.setAttribute('aria-hidden', 'false');
     this.dom.app.setAttribute('aria-hidden', 'true');
@@ -425,10 +425,16 @@
 
   // -- input ------------------------------------------------------------------
 
-  Game.prototype.aim = function (dir) {
-    if (this.homeOpen || this.phase === 'clear' || this.sheets.length) { this.renderer.aimDir = null; return; }
+  Game.prototype.aim = function (dir, mag) {
+    if (this.homeOpen || this.phase === 'clear' || this.sheets.length) {
+      this.renderer.aimDir = null; this.renderer.aimAmount = 0; return;
+    }
     if (dir && dir !== this.renderer.aimDir) this.haptics.select();
     this.renderer.aimDir = dir;
+    // How far into the swipe we are. The renderer walks the penguins that
+    // gravity would actually move part of the way there, so a half-finished
+    // swipe already shows what it is about to do.
+    this.renderer.aimAmount = dir ? (mag == null ? 1 : mag) : 0;
     this.wake();
   };
 
@@ -922,7 +928,7 @@
     el.setAttribute('aria-hidden', 'false');
     this.dom.scrim.classList.add('show');
     this.dom.app.setAttribute('aria-hidden', 'true');
-    this.renderer.aimDir = null;
+    this.renderer.aimDir = null; this.renderer.aimAmount = 0;
     this.audio.ui(true);
     this.wake();
   };
