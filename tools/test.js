@@ -19,8 +19,9 @@ STAGES.forEach(function (def, index) {
   var where = 'stage ' + def.id;
 
   assert.strictEqual(def.id, index + 1, 'stage ids must be sequential');
-  assert.strictEqual(stage.w, 5, where + ': boards are five cells wide');
-  assert.strictEqual(stage.h, 5, where + ': boards are five cells tall');
+  assert.strictEqual(stage.w, stage.h, where + ': boards are square');
+  assert(stage.w === 4 || stage.w === 5,
+    where + ': boards are 4x4 or 5x5, got ' + stage.w + 'x' + stage.h);
 
   // One penguin per colour, at most two colours, one matching aurora each.
   assert(stage.penguins >= 1 && stage.penguins <= 2, where + ': one or two penguins');
@@ -50,21 +51,27 @@ STAGES.forEach(function (def, index) {
 // position it can reach that could itself be an opening — nothing collected,
 // nothing lost, no block on an aurora — compared up to the square's eight
 // symmetries and renaming the two colours.
-var PERMS = (function () {
+/* Sized from the board rather than from a constant: the campaign holds more
+   than one tray, and a key that assumed 5x5 would read a 4x4 as a short one. */
+var permCache = Object.create(null);
+function permsFor(n) {
+  if (permCache[n]) return permCache[n];
+  var e = n - 1;
   var fns = [
-    function (x, y) { return [x, y]; }, function (x, y) { return [4 - x, y]; },
-    function (x, y) { return [x, 4 - y]; }, function (x, y) { return [4 - x, 4 - y]; },
-    function (x, y) { return [y, x]; }, function (x, y) { return [4 - y, x]; },
-    function (x, y) { return [y, 4 - x]; }, function (x, y) { return [4 - y, 4 - x]; }
+    function (x, y) { return [x, y]; }, function (x, y) { return [e - x, y]; },
+    function (x, y) { return [x, e - y]; }, function (x, y) { return [e - x, e - y]; },
+    function (x, y) { return [y, x]; }, function (x, y) { return [e - y, x]; },
+    function (x, y) { return [y, e - x]; }, function (x, y) { return [e - y, e - x]; }
   ];
-  return fns.map(function (f) {
-    var p = new Array(25);
-    for (var y = 0; y < 5; y++) for (var x = 0; x < 5; x++) {
-      var r = f(x, y); p[y * 5 + x] = r[1] * 5 + r[0];
+  return (permCache[n] = fns.map(function (f) {
+    var p = new Array(n * n);
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+      var r = f(x, y); p[y * n + x] = r[1] * n + r[0];
     }
     return p;
-  });
-})();
+  }));
+}
+function sideOf(flat) { return Math.round(Math.sqrt(flat.length)); }
 var SWAP = { '.': '.', '#': '#', 'x': 'x', 'G': 'G', 'A': 'B', 'B': 'A', 'a': 'b', 'b': 'a' };
 
 function canonical(flat) {
@@ -72,8 +79,8 @@ function canonical(flat) {
   for (swap = 0; swap < 2; swap++) {
     var src = swap ? flat.split('').map(function (ch) { return SWAP[ch]; }).join('') : flat;
     for (i = 0; i < 8; i++) {
-      var p = PERMS[i], out = new Array(25);
-      for (c = 0; c < 25; c++) out[p[c]] = src[c];
+      var p = permsFor(sideOf(flat))[i], out = new Array(flat.length);
+      for (c = 0; c < flat.length; c++) out[p[c]] = src[c];
       var s = out.join('');
       if (best === null || s < best) best = s;
     }
@@ -82,15 +89,15 @@ function canonical(flat) {
 }
 function positionKey(stage, st) {
   if (st.collected || (st.lost || 0)) return null;
-  var cells = new Array(25), c, i;
-  for (c = 0; c < 25; c++) {
+  var cells = new Array(stage.w * stage.h), c, i;
+  for (c = 0; c < cells.length; c++) {
     cells[c] = stage.terrain[c] === E.WALL ? '#'
       : stage.terrain[c] === E.HAZARD ? 'x'
       : stage.goal[c] ? (stage.goalColour[c] === 1 ? 'a' : 'b') : '.';
   }
   for (i = 0; i < st.pos.length; i++) {
     if (!st.alive[i]) return null;
-    c = st.pos[i][1] * 5 + st.pos[i][0];
+    c = st.pos[i][1] * stage.w + st.pos[i][0];
     if (cells[c] !== '.') return null;
     cells[c] = stage.colour[i] === 1 ? 'A' : stage.colour[i] === 2 ? 'B' : 'G';
   }
@@ -131,8 +138,8 @@ STAGES.forEach(function (def) {
 function symmetryKey(flat) {
   var best = null;
   for (var i = 0; i < 8; i++) {
-    var p = PERMS[i], out = new Array(25);
-    for (var c = 0; c < 25; c++) out[p[c]] = flat[c];
+    var p = permsFor(sideOf(flat))[i], out = new Array(flat.length);
+    for (var c = 0; c < flat.length; c++) out[p[c]] = flat[c];
     var t = out.join('');
     if (best === null || t < best) best = t;
   }
@@ -142,12 +149,13 @@ var plainWalls = Object.create(null), realWalls = Object.create(null);
 var inertWalls = 0;
 STAGES.forEach(function (def) {
   var flat = def.board.join(''), cells = flat.split(''), c;
-  for (c = 0; c < 25; c++) {
+  for (c = 0; c < flat.length; c++) {
     if (cells[c] !== '#' && cells[c] !== 'x') { cells[c] = '.'; continue; }
     var probe = flat.split('');
     probe[c] = '.';
     var rows = [];
-    for (var y = 0; y < 5; y++) rows.push(probe.slice(y * 5, y * 5 + 5).join(''));
+    var n = sideOf(flat);
+    for (var y = 0; y < n; y++) rows.push(probe.slice(y * n, y * n + n).join(''));
     var without = E.solve(E.compile({ id: def.id, board: rows }), null, 400000);
     if (without.solvable && without.moves === def.par) { cells[c] = '.'; inertWalls++; }
   }

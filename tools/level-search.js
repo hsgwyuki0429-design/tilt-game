@@ -349,16 +349,23 @@ function slotFor(moves) {
 /* The cheap gate. Most candidates lose on obstacle count alone, and building a
    board plus its sixteen symmetry images is by far the expensive part.
  *
- * The exception is a wall plan the length has never seen. offer() is willing to
- * keep a board that loses on emptiness when it brings a new layout — that is
- * the whole reason the campaign can give a hundred stages a hundred different
- * rooms — but this gate ran first and refused it before it was ever built, so
- * the concession was unreachable in a fresh pass. It cost exactly where it
- * hurts: the long lengths fill up with two-wall boards, a four-wall board is
- * then "less empty than the tail" forever, and the two thousand four-wall
- * layouts never get in. Par 55 held two hundred boards standing on ten plans,
- * and tools/build-stages.js needs one plan per stage — so the campaign's
- * ceiling was set by a shortcut rather than by the search.
+ * The exception is a wall plan the length has never seen. offer() is willing
+ * to keep a board that loses on emptiness when it brings a new layout — that
+ * is how a hundred stages get a hundred different rooms — but this gate runs
+ * first, so without the check below the concession is unreachable whenever the
+ * candidate is less empty than everything already kept. That is a real gap at
+ * the SHORT lengths, where a slot fills with one-wall boards and no four-wall
+ * layout can follow, and it matters more now that a 4x4 board must get into a
+ * length already full of 5x5 ones.
+ *
+ * It is not what caps the campaign's ceiling. The list is sorted emptiest
+ * first, so the tail is the LEAST empty board kept — at par 45 and up the tail
+ * already carries four walls and four-wall candidates were passing this gate
+ * all along. Par 55 holds two hundred boards on ten wall plans because ten is
+ * close to all there are at that length, not because the shortlist refused the
+ * rest: the same pass measured with and without this check produces an
+ * identical shortlist there. Raising the ceiling needs a wider search, not a
+ * deeper one.
  *
  * The plan is a property of the layout, not of the board, so it is known
  * before any board is built and costs nothing to check. Once a plan is in the
