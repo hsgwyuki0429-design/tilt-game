@@ -258,6 +258,17 @@ function canonFlat(flat) {
 function canonBoard(rows) { return canonFlat(rows.join('')); }
 /** The same, with every movable piece lifted off: walls and auroras only. */
 function skeleton(rows) { return canonFlat(rows.join('').replace(/[ABG]/g, '.')); }
+/** Coarser still: only the immovable blocks, in no particular colour. */
+function wallPlan(rows) {
+  var flat = rows.join('').replace(/[^#x]/g, '.'), best = null;
+  for (var i = 0; i < 8; i++) {
+    var p = PERMS[i], out = new Array(25);
+    for (var c = 0; c < 25; c++) out[p[c]] = flat[c];
+    var t = out.join('');
+    if (best === null || t < best) best = t;
+  }
+  return best;
+}
 
 // ---------------------------------------------------------------------------
 // the shortlist
@@ -284,7 +295,11 @@ function better(a, b) {
 }
 function slotFor(moves) {
   var slot = best.get(moves);
-  if (!slot) { slot = { list: [], seen: new Set(), skeletons: Object.create(null) }; best.set(moves, slot); }
+  if (!slot) {
+    slot = { list: [], seen: new Set(), skeletons: Object.create(null),
+             walls: Object.create(null) };
+    best.set(moves, slot);
+  }
   return slot;
 }
 /* The cheap gate. Most candidates lose on obstacle count alone, and building a
@@ -300,29 +315,48 @@ function worthBuilding(slot, statics, grays, penguins) {
 /**
  * Trimming drops a REPEAT before it drops the worst board.
  *
- * Ranking by emptiness clusters skeletons — the same walls and auroras with the
- * pieces moved — so a shortlist cut off at its tail keeps forty boards standing
- * in one room. tools/build-stages.js will not put two of those in one campaign,
- * so a shortlist that offers it forty of them has offered it one. Dropping the
- * worst entry whose skeleton something better already covers keeps the same
- * count while covering far more of the space.
+ * Ranking by emptiness clusters boards onto the same few layouts, so a
+ * shortlist cut off at its tail keeps forty boards standing in one room.
+ * tools/build-stages.js will not put two of those in one campaign, so a
+ * shortlist that offers it forty of them has offered it one.
+ *
+ * Two layouts matter, and the coarser one is by far the scarcer. There are
+ * 2041 ways to place up to four immovable blocks on a 5×5 up to rotation and
+ * reflection, but only ONE with none and six with one, so a wall plan is the
+ * first thing to keep distinct; the skeleton — the same walls plus where the
+ * auroras sit — comes second. Dropping the most-repeated tail entry keeps the
+ * same count while covering far more of the space.
  */
 function offer(slot, entry) {
   if (slot.seen.has(entry.canon)) return;
   if (slot.list.length >= KEEP && better(entry, slot.list[slot.list.length - 1]) >= 0 &&
-      slot.skeletons[entry.skeleton]) return;
+      slot.walls[entry.wallPlan] && slot.skeletons[entry.skeleton]) return;
   slot.seen.add(entry.canon);
   slot.list.push(entry);
   slot.skeletons[entry.skeleton] = (slot.skeletons[entry.skeleton] || 0) + 1;
+  slot.walls[entry.wallPlan] = (slot.walls[entry.wallPlan] || 0) + 1;
   slot.list.sort(better);
   while (slot.list.length > KEEP) {
-    var drop = slot.list.length - 1;
-    for (var i = slot.list.length - 1; i >= 0; i--) {
-      if (slot.skeletons[slot.list[i].skeleton] > 1) { drop = i; break; }
+    // Take from the biggest crowd, not from the tail. The emptiest boards all
+    // share one wall plan and there can be a hundred and eighty of them, so
+    // dropping merely the last DUPLICATE spends the whole shortlist keeping
+    // that one plan and evicts the rare layouts instead of the common one.
+    var drop = -1, worst = 1, i, n;
+    for (i = slot.list.length - 1; i >= 0; i--) {
+      n = slot.walls[slot.list[i].wallPlan];
+      if (n > worst) { worst = n; drop = i; }
     }
+    if (drop < 0) {
+      for (i = slot.list.length - 1; i >= 0; i--) {
+        n = slot.skeletons[slot.list[i].skeleton];
+        if (n > worst) { worst = n; drop = i; }
+      }
+    }
+    if (drop < 0) drop = slot.list.length - 1;
     var gone = slot.list.splice(drop, 1)[0];
     slot.seen.delete(gone.canon);
     slot.skeletons[gone.skeleton]--;
+    slot.walls[gone.wallPlan]--;
   }
 }
 
@@ -403,7 +437,8 @@ function run(plan) {
             offer(slot, {
               moves: moves, statics: set.length, grays: nGray, penguins: nPenguin,
               walls: popcount(wallMask), hazards: popcount(hazMask),
-              rows: rows, canon: canonBoard(rows), skeleton: skeleton(rows)
+              rows: rows, canon: canonBoard(rows), skeleton: skeleton(rows),
+              wallPlan: wallPlan(rows)
             });
             return;
           }
@@ -457,6 +492,7 @@ if (merge) {
       (prev.pars || prev)[m].forEach(function (e) {
         e.canon = e.canon || canonBoard(e.rows);
         e.skeleton = e.skeleton || skeleton(e.rows);
+        e.wallPlan = e.wallPlan || wallPlan(e.rows);
         offer(slotFor(Number(m)), e);
       });
     });

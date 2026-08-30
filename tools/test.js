@@ -115,6 +115,25 @@ STAGES.forEach(function (def) {
     skeletons[key]);
   skeletons[key] = def.id;
 });
+
+// Coarser still, and by far the scarcest: the immovable blocks alone. Only one
+// arrangement has none and six have one, so at most seven stages can be that
+// open — the rest of the ladder is built out of walls, and no two stages may
+// stand on the same ones. Colour plays no part here, so the canonical form is
+// taken over the eight symmetries only.
+var wallPlans = Object.create(null);
+STAGES.forEach(function (def) {
+  var flat = def.board.join('').replace(/[^#x]/g, '.'), best = null;
+  for (var i = 0; i < 8; i++) {
+    var p = PERMS[i], out = new Array(25);
+    for (var c = 0; c < 25; c++) out[p[c]] = flat[c];
+    var t = out.join('');
+    if (best === null || t < best) best = t;
+  }
+  assert(!wallPlans[best], 'stage ' + def.id + ' stands on the same walls as stage ' +
+    wallPlans[best]);
+  wallPlans[best] = def.id;
+});
 STAGES.forEach(function (def) {
   var stage = E.compile(def);
   E.reachable(stage, null, 80000).forEach(function (st) {
@@ -125,12 +144,19 @@ STAGES.forEach(function (def) {
 });
 
 // ---------------------------------------------------------------------------
-// every obstacle earns its place
+// obstacles that earn their place, and the few the wall rule forces
 // ---------------------------------------------------------------------------
-// The campaign is built by ranking boards of equal par by how empty they are,
-// so a board carrying an obstacle it does not need means the search measured
-// something other than the game. Take each wall, hazard and drifter away in
-// turn: the par has to change, or the board has to stop being solvable.
+// Take each wall, hazard and drifter off in turn: if the par is unchanged and
+// the board still solvable, that obstacle does nothing.
+//
+// Drifters are held to it absolutely. Walls cannot be, and the reason is the
+// uniqueness rule above rather than a slack search: a hundred stages need a
+// hundred wall plans, only seven arrangements have fewer than two walls, and a
+// two-move board has no use for three of them. Something has to give, and the
+// campaign gives here — but the count is asserted rather than ignored, so the
+// price stays visible and cannot quietly grow.
+var INERT_WALL_BUDGET = 25;
+var inertWalls = 0;
 STAGES.forEach(function (def) {
   def.board.forEach(function (row, y) {
     for (var x = 0; x < row.length; x++) {
@@ -138,12 +164,16 @@ STAGES.forEach(function (def) {
       var board = def.board.slice();
       board[y] = row.slice(0, x) + '.' + row.slice(x + 1);
       var without = E.solve(E.compile({ id: def.id, board: board }), null, 400000);
-      assert(!without.solvable || without.moves !== def.par,
-        'stage ' + def.id + ': the ' + row[x] + ' at ' + x + ',' + y +
+      if (!without.solvable || without.moves !== def.par) continue;
+      assert.notStrictEqual(row[x], 'G',
+        'stage ' + def.id + ': the drifter at ' + x + ',' + y +
         ' changes nothing — par is still ' + def.par + ' without it');
+      inertWalls++;
     }
   });
 });
+assert(inertWalls <= INERT_WALL_BUDGET,
+  inertWalls + ' walls change nothing, over the budget of ' + INERT_WALL_BUDGET);
 
 // ---------------------------------------------------------------------------
 // the difficulty curve
@@ -247,4 +277,4 @@ assert.strictEqual(broken.state.lost, 1, 'the stopped penguin must be marked los
 
 console.log('ok - ' + STAGES.length + ' stages, par ' + first + '…' + last +
   ' on a straight line (' + step.toFixed(3) + ' moves per stage), no stage inside\n'  +
-  '     another, every obstacle load-bearing, rules verified');
+  '     another and none on shared walls, ' + inertWalls + ' inert walls, rules verified');
