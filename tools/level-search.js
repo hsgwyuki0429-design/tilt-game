@@ -1,14 +1,14 @@
 'use strict';
 /*
- * TILT — exhaustive 5×5 level search.
+ * TILT — exhaustive level search, on a square tray of any side.
  *
  *   node tools/level-search.js --plans "2,1,1;2,0,2" --out tools/level-index.json
- *   node tools/level-search.js --statics 2 --gray 1 --hazards
+ *   node tools/level-search.js --size 4 --plans "2,1,2" --out tools/index-4.json
  *
  * The campaign wants a board of an EXACT length, over and over, a hundred
  * times. That is a different question from "find me a good board", and it is
  * answered by enumeration rather than by search: inside the budget it is given
- * this tool measures every 5×5 board that satisfies the campaign's rules —
+ * this tool measures every board of the given size that satisfies the rules —
  * one or two penguins, one aurora each, some obstacles — and keeps the best
  * few at every length it finds.
  *
@@ -48,34 +48,57 @@ var DV = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 var GRAY = 9;
 
 // ---------------------------------------------------------------------------
-// the eight symmetries of the square
+// the tray
 // ---------------------------------------------------------------------------
-var PERMS = (function () {
+/* The board is square but its side is not fixed. A smaller tray is a different
+   space rather than a subset of a bigger one — a wall on a 4×4 is against a
+   different set of edges — and it is enormously cheaper to enumerate, so the
+   campaign is free to spend the short lengths there. N is set once, from
+   --size, before anything is measured. */
+var N = 5, NN = 25, LAST = 4;
+/* A position is k digits, one per block: a cell, or NN for "collected". So the
+   digits are base NN+1. */
+var BASE = NN + 1;
+
+/** The eight symmetries of the square, as cell permutations, for a given side. */
+var permCache = Object.create(null);
+function permsFor(n) {
+  if (permCache[n]) return permCache[n];
+  var e = n - 1;
   var fns = [
-    function (x, y) { return [x, y]; }, function (x, y) { return [4 - x, y]; },
-    function (x, y) { return [x, 4 - y]; }, function (x, y) { return [4 - x, 4 - y]; },
-    function (x, y) { return [y, x]; }, function (x, y) { return [4 - y, x]; },
-    function (x, y) { return [y, 4 - x]; }, function (x, y) { return [4 - y, 4 - x]; }
+    function (x, y) { return [x, y]; }, function (x, y) { return [e - x, y]; },
+    function (x, y) { return [x, e - y]; }, function (x, y) { return [e - x, e - y]; },
+    function (x, y) { return [y, x]; }, function (x, y) { return [e - y, x]; },
+    function (x, y) { return [y, e - x]; }, function (x, y) { return [e - y, e - x]; }
   ];
-  return fns.map(function (f) {
-    var p = new Int8Array(25);
-    for (var y = 0; y < 5; y++) for (var x = 0; x < 5; x++) {
-      var r = f(x, y); p[y * 5 + x] = r[1] * 5 + r[0];
+  return (permCache[n] = fns.map(function (f) {
+    var p = new Int8Array(n * n);
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+      var r = f(x, y); p[y * n + x] = r[1] * n + r[0];
     }
     return p;
-  });
-})();
+  }));
+}
+var PERMS = permsFor(N);
+
+/* Everything sized by the tray, in one place, so --size cannot half-apply. */
+var occ, ctx;
+function setSize(n) {
+  N = n; NN = n * n; LAST = n - 1; BASE = NN + 1;
+  PERMS = permsFor(n);
+  occ = new Int8Array(NN);
+  ctx = { wall: new Uint8Array(NN), haz: new Uint8Array(NN), gcol: new Int8Array(NN) };
+}
 
 function permMask(mask, p) {
   var m = 0;
-  for (var c = 0; c < 25; c++) if ((mask >>> c) & 1) m |= 1 << p[c];
+  for (var c = 0; c < NN; c++) if ((mask >>> c) & 1) m |= 1 << p[c];
   return m;
 }
 
 // ---------------------------------------------------------------------------
 // simulation
 // ---------------------------------------------------------------------------
-var occ = new Int8Array(25);
 var order = new Int8Array(8);
 
 /**
@@ -99,26 +122,26 @@ function tilt(ctx, col, k, pos, d) {
     for (i = 0; i < k; i++) if (pos[i] >= 0) order[live++] = i;
     for (var a = 1; a < live; a++) {
       var v = order[a];
-      var lv = (pos[v] % 5) * dx + ((pos[v] / 5) | 0) * dy;
+      var lv = (pos[v] % N) * dx + ((pos[v] / N) | 0) * dy;
       var b = a - 1;
       while (b >= 0) {
         var u = order[b];
-        if ((pos[u] % 5) * dx + ((pos[u] / 5) | 0) * dy >= lv) break;
+        if ((pos[u] % N) * dx + ((pos[u] / N) | 0) * dy >= lv) break;
         order[b + 1] = u; b--;
       }
       order[b + 1] = v;
     }
     for (var q = 0; q < live; q++) {
       i = order[q];
-      var c = pos[i], x = c % 5, y = (c / 5) | 0;
+      var c = pos[i], x = c % N, y = (c / N) | 0;
       for (;;) {
         var nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx > 4 || ny > 4) break;
-        var nc = ny * 5 + nx;
+        if (nx < 0 || ny < 0 || nx > LAST || ny > LAST) break;
+        var nc = ny * N + nx;
         if (wall[nc] || occ[nc] !== -1) break;
         x = nx; y = ny;
       }
-      var end = y * 5 + x;
+      var end = y * N + x;
       if (end !== c) { occ[c] = -1; occ[end] = i; pos[i] = end; moved = 1; }
     }
     // ── RESOLVE ───────────────────────────────────────────────────────────
@@ -137,9 +160,9 @@ function tilt(ctx, col, k, pos, d) {
 // ---------------------------------------------------------------------------
 // every start position's exact par, in one traversal
 // ---------------------------------------------------------------------------
-// A position is k base-26 digits, one per block: 0..24 a cell, 25 collected.
+// A position is k base-(NN+1) digits, one per block: a cell, or NN collected.
 function makeSolver(k) {
-  var n = Math.pow(26, k);
+  var n = Math.pow(BASE, k);
   var dist = new Int16Array(n);
   var next = new Int32Array(n * 4);
   var deg = new Int32Array(n + 1);
@@ -149,7 +172,7 @@ function makeSolver(k) {
   var digits = new Int8Array(k);
   var work = new Int8Array(k);
   var POW = [];
-  for (var i = 0, p = 1; i < k; i++, p *= 26) POW.push(p);
+  for (var i = 0, p = 1; i < k; i++, p *= BASE) POW.push(p);
 
   return function solveAll(ctx, col, nPenguin) {
     dist.fill(-1);
@@ -159,10 +182,10 @@ function makeSolver(k) {
 
     for (s = 0; s < n; s++) {
       var ok = true, collected = 0, seen = 0, t = s;
-      for (j = 0; j < k; j++) { digits[j] = t % 26; t = (t / 26) | 0; }
+      for (j = 0; j < k; j++) { digits[j] = t % BASE; t = (t / BASE) | 0; }
       for (j = 0; j < k; j++) {
         var val = digits[j];
-        if (val === 25) {
+        if (val === NN) {
           if (col[j] === GRAY) { ok = false; break; }        // never collected
           collected++;
           continue;
@@ -180,10 +203,10 @@ function makeSolver(k) {
         continue;
       }
       for (d = 0; d < 4; d++) {
-        for (j = 0; j < k; j++) work[j] = digits[j] === 25 ? -1 : digits[j];
+        for (j = 0; j < k; j++) work[j] = digits[j] === NN ? -1 : digits[j];
         if (tilt(ctx, col, k, work, d) <= 0) { next[base + d] = -1; continue; }
         var ns = 0;
-        for (j = 0; j < k; j++) ns += (work[j] < 0 ? 25 : work[j]) * POW[j];
+        for (j = 0; j < k; j++) ns += (work[j] < 0 ? NN : work[j]) * POW[j];
         next[base + d] = ns;
       }
     }
@@ -226,8 +249,8 @@ function makeSolver(k) {
 // boards
 // ---------------------------------------------------------------------------
 function boardRows(wallMask, hazMask, goals, blocks) {
-  var cells = new Array(25);
-  for (var c = 0; c < 25; c++) {
+  var cells = new Array(NN);
+  for (var c = 0; c < NN; c++) {
     cells[c] = ((wallMask >>> c) & 1) ? '#' : (((hazMask >>> c) & 1) ? 'x' : '.');
   }
   goals.forEach(function (g) { cells[g.cell] = g.colour === 1 ? 'a' : 'b'; });
@@ -235,19 +258,21 @@ function boardRows(wallMask, hazMask, goals, blocks) {
     cells[b.cell] = b.colour === 1 ? 'A' : (b.colour === 2 ? 'B' : 'G');
   });
   var rows = [];
-  for (var y = 0; y < 5; y++) rows.push(cells.slice(y * 5, y * 5 + 5).join(''));
+  for (var y = 0; y < N; y++) rows.push(cells.slice(y * N, y * N + N).join(''));
   return rows;
 }
 
 var SWAP = { '.': '.', '#': '#', 'x': 'x', 'G': 'G', 'A': 'B', 'B': 'A', 'a': 'b', 'b': 'a' };
 
 function canonFlat(flat) {
-  var best = null;
+  // The side comes from the string, not from N: an index can hold boards of
+  // more than one size, and merging one must not read a 4x4 as a short 5x5.
+  var perms = permsFor(Math.round(Math.sqrt(flat.length))), best = null;
   for (var swap = 0; swap < 2; swap++) {
     var src = swap ? flat.split('').map(function (ch) { return SWAP[ch]; }).join('') : flat;
     for (var i = 0; i < 8; i++) {
-      var p = PERMS[i], out = new Array(25);
-      for (var c = 0; c < 25; c++) out[p[c]] = src[c];
+      var p = perms[i], out = new Array(flat.length);
+      for (var c = 0; c < flat.length; c++) out[p[c]] = src[c];
       var s = out.join('');
       if (best === null || s < best) best = s;
     }
@@ -261,9 +286,10 @@ function skeleton(rows) { return canonFlat(rows.join('').replace(/[ABG]/g, '.'))
 /** Coarser still: only the immovable blocks, in no particular colour. */
 function wallPlan(rows) {
   var flat = rows.join('').replace(/[^#x]/g, '.'), best = null;
+  var perms = permsFor(Math.round(Math.sqrt(flat.length)));
   for (var i = 0; i < 8; i++) {
-    var p = PERMS[i], out = new Array(25);
-    for (var c = 0; c < 25; c++) out[p[c]] = flat[c];
+    var p = perms[i], out = new Array(flat.length);
+    for (var c = 0; c < flat.length; c++) out[p[c]] = flat[c];
     var t = out.join('');
     if (best === null || t < best) best = t;
   }
@@ -273,8 +299,8 @@ function wallPlan(rows) {
    fixed before a single board is placed on it, so worthBuilding can ask whether
    a length has seen this room without building anything. */
 function wallPlanFromMask(wallMask, hazMask) {
-  var flat = new Array(25);
-  for (var c = 0; c < 25; c++) {
+  var flat = new Array(NN);
+  for (var c = 0; c < NN; c++) {
     flat[c] = (wallMask >>> c) & 1 ? '#' : (((hazMask >>> c) & 1) ? 'x' : '.');
   }
   return wallPlan([flat.join('')]);
@@ -398,8 +424,6 @@ function offer(slot, entry) {
 // ---------------------------------------------------------------------------
 // enumeration
 // ---------------------------------------------------------------------------
-var ctx = { wall: new Uint8Array(25), haz: new Uint8Array(25), gcol: new Int8Array(25) };
-
 function combinations(list, n) {
   var out = [], pick = new Array(n);
   (function rec(start, depth) {
@@ -416,9 +440,9 @@ function run(plan) {
   for (i = 0; i < nPenguin; i++) col[i] = i + 1;
   for (i = nPenguin; i < k; i++) col[i] = GRAY;
   var solveAll = makeSolver(k);
-  var POW = []; for (i = 0; i < k; i++) POW.push(Math.pow(26, i));
+  var POW = []; for (i = 0; i < k; i++) POW.push(Math.pow(BASE, i));
 
-  var allCells = []; for (i = 0; i < 25; i++) allCells.push(i);
+  var allCells = []; for (i = 0; i < NN; i++) allCells.push(i);
   var sets = combinations(allCells, plan.statics);
   var graphs = 0, boards = 0, maxSeen = 0;
 
@@ -426,7 +450,7 @@ function run(plan) {
     if (checkpoint && Date.now() - lastCheckpoint > CHECKPOINT_MS) {
       lastCheckpoint = Date.now();
       checkpoint({
-        penguins: nPenguin, drifters: nGray, statics: plan.statics,
+        size: N, penguins: nPenguin, drifters: nGray, statics: plan.statics,
         crackedIce: !!plan.hazards, longest: maxSeen, boards: boards,
         partial: setIndex + '/' + sets.length
       });
@@ -448,7 +472,7 @@ function run(plan) {
       var layoutPlan = wallPlanFromMask(wallMask, hazMask);
 
       var free = [];
-      for (var c = 0; c < 25; c++) {
+      for (var c = 0; c < NN; c++) {
         ctx.wall[c] = (wallMask >>> c) & 1;
         ctx.haz[c] = (hazMask >>> c) & 1;
         if (!ctx.wall[c] && !ctx.haz[c]) free.push(c);
@@ -469,6 +493,11 @@ function run(plan) {
         (function place(depth, used, code) {
           if (depth === k) {
             var moves = dist[code];
+            // A code past the end of dist means the tray size and the digit
+            // base disagree — a silent mis-encoding that would otherwise ship
+            // as a shortlist of undefined-length boards.
+            if (moves === undefined) throw new Error('position ' + code +
+              ' is outside a ' + N + 'x' + N + ' graph — size and base disagree');
             if (moves <= 0) return;
             boards++;
             if (moves > maxSeen) maxSeen = moves;
@@ -476,7 +505,7 @@ function run(plan) {
             var slot = slotFor(moves);
             if (!worthBuilding(slot, set.length, nGray, nPenguin, layoutPlan)) return;
             var blocks = [], t = code;
-            for (var b = 0; b < k; b++) { blocks.push({ cell: t % 26, colour: col[b] }); t = (t / 26) | 0; }
+            for (var b = 0; b < k; b++) { blocks.push({ cell: t % BASE, colour: col[b] }); t = (t / BASE) | 0; }
             var rows = boardRows(wallMask, hazMask,
               gp.map(function (cell, idx) { return { cell: cell, colour: idx + 1 }; }), blocks);
             offer(slot, {
@@ -508,6 +537,10 @@ function arg(name, dflt) {
 var flag = function (name) { return argv.indexOf('--' + name) >= 0; };
 if (arg('keep', null)) KEEP = Number(arg('keep'));
 if (arg('minpar', null)) MINPAR = Number(arg('minpar'));
+/* One side per run. Boards of different sizes live happily in one index — the
+   keys are all derived from the board's own string — but the enumeration is
+   sized once, up front. */
+setSize(Number(arg('size', 5)));
 
 var plans = [];
 var spec = arg('plans', null);
@@ -553,14 +586,16 @@ var out = arg('out', path.join(__dirname, 'level-index.json'));
 function writeIndex(inProgress) {
   var cov = covered.concat(inProgress ? [inProgress] : []), keep = Object.create(null);
   cov.forEach(function (e) {
-    var k = e.penguins + ',' + e.drifters + ',' + e.statics + ',' + (e.crackedIce ? 1 : 0);
+    var k = (e.size || 5) + ',' + e.penguins + ',' + e.drifters + ',' + e.statics +
+            ',' + (e.crackedIce ? 1 : 0);
     var held = keep[k];
     if (!held || (held.partial && !e.partial) ||
         (!held.partial === !e.partial && e.boards > held.boards)) keep[k] = e;
   });
   cov = Object.keys(keep).map(function (k) { return keep[k]; });
   cov.sort(function (a, b) {
-    return a.penguins - b.penguins || a.drifters - b.drifters || a.statics - b.statics;
+    return (a.size || 5) - (b.size || 5) || a.penguins - b.penguins ||
+           a.drifters - b.drifters || a.statics - b.statics;
   });
   var pars = {};
   Array.from(best.keys()).sort(function (a, b) { return a - b; }).forEach(function (m) {
@@ -587,12 +622,12 @@ checkpoint = function (progress) {
 plans.forEach(function (plan) {
   var t0 = Date.now();
   var r = run(plan);
-  console.log('penguins=' + plan.penguins + ' drifters=' + plan.gray +
+  console.log(N + 'x' + N + ' penguins=' + plan.penguins + ' drifters=' + plan.gray +
     ' statics=' + plan.statics + (plan.hazards ? ' +cracked-ice' : '') +
     '  graphs=' + r.graphs + ' boards=' + r.boards + ' longest=' + r.maxSeen +
     '  (' + ((Date.now() - t0) / 1000).toFixed(1) + 's)');
   covered.push({
-    penguins: plan.penguins, drifters: plan.gray, statics: plan.statics,
+    size: N, penguins: plan.penguins, drifters: plan.gray, statics: plan.statics,
     crackedIce: !!plan.hazards, longest: r.maxSeen, boards: r.boards
   });
   writeIndex();
