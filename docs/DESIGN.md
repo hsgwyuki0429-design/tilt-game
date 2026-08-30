@@ -54,9 +54,18 @@ which is exactly what a starting board looks like. Two boards conflict when
 either one's opening appears in the other's set, compared up to the square's
 eight symmetries and renaming the two colours.
 
-A board also may not stand in a room another stage has taken, at two levels of
-detail. Its **wall plan** is where the immovable blocks are and nothing else;
-its **skeleton** is the same walls plus where the auroras sit. Two boards sharing one can be genuinely different
+A board also may not stand in a room another stage has taken, at three levels
+of detail. Its **skeleton** is the immovable blocks plus where the auroras sit.
+Its **wall plan** is the immovable blocks alone. And its **working walls** are
+only those whose removal would change the par or break the board.
+
+The last of those exists because the second has a loophole: hand a board a wall
+that changes nothing and it counts as a new layout while playing exactly like
+the one it copied. Eight stages duplicated another's working walls that way
+before the rule came in. Neither key implies the other — the same walls with
+different pieces can leave different ones idle — so a stage has to be new under
+both: one stops two stages looking alike, the other stops them being the same
+puzzle. Two boards sharing one can be genuinely different
 puzzles, but they look alike, and a player meeting the fourth board with a wall
 in that corner and auroras on those two cells has stopped seeing a new level.
 The first hundred stood on twenty-eight skeletons and twenty-four wall plans;
@@ -69,12 +78,12 @@ with none and **six** with one — so at most seven of the hundred stages can be
 that open. The shipped ladder runs 1 board with no walls, 3 with one, 16 with
 two, 63 with three and 17 with four.
 
-That forces walls onto boards too short to need them: 18 of the 347 obstacles
-in the campaign, spread over 12 boards, can be removed without changing the
-par. A two-move board has no use for three walls, and a hundred stages need a
-hundred plans. `npm test` asserts that count stays under budget rather than
-ignoring it, and still holds drifters to the old standard — every one of them
-earns its place.
+That forces walls onto boards too short to need them: 15 of the 298 walls in
+the campaign can be removed without changing the par. A two-move board has no
+use for three walls, and a hundred stages need a hundred plans. `npm test`
+asserts that count stays under budget rather than ignoring it, and those walls
+buy nothing on the working-walls key — padding cannot manufacture a layout.
+Drifters are held to the old standard: every one of them earns its place.
 
 `tools/build-stages.js` walks past a candidate that breaks any of these rules,
 and `npm test` checks the shipped hundred every way.
