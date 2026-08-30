@@ -269,6 +269,16 @@ function wallPlan(rows) {
   }
   return best;
 }
+/* The same plan, from the masks the enumeration already has. A layout's plan is
+   fixed before a single board is placed on it, so worthBuilding can ask whether
+   a length has seen this room without building anything. */
+function wallPlanFromMask(wallMask, hazMask) {
+  var flat = new Array(25);
+  for (var c = 0; c < 25; c++) {
+    flat[c] = (wallMask >>> c) & 1 ? '#' : (((hazMask >>> c) & 1) ? 'x' : '.');
+  }
+  return wallPlan([flat.join('')]);
+}
 
 // ---------------------------------------------------------------------------
 // the shortlist
@@ -311,9 +321,26 @@ function slotFor(moves) {
   return slot;
 }
 /* The cheap gate. Most candidates lose on obstacle count alone, and building a
-   board plus its sixteen symmetry images is by far the expensive part. */
-function worthBuilding(slot, statics, grays, penguins) {
+   board plus its sixteen symmetry images is by far the expensive part.
+ *
+ * The exception is a wall plan the length has never seen. offer() is willing to
+ * keep a board that loses on emptiness when it brings a new layout — that is
+ * the whole reason the campaign can give a hundred stages a hundred different
+ * rooms — but this gate ran first and refused it before it was ever built, so
+ * the concession was unreachable in a fresh pass. It cost exactly where it
+ * hurts: the long lengths fill up with two-wall boards, a four-wall board is
+ * then "less empty than the tail" forever, and the two thousand four-wall
+ * layouts never get in. Par 55 held two hundred boards standing on ten plans,
+ * and tools/build-stages.js needs one plan per stage — so the campaign's
+ * ceiling was set by a shortcut rather than by the search.
+ *
+ * The plan is a property of the layout, not of the board, so it is known
+ * before any board is built and costs nothing to check. Once a plan is in the
+ * slot the old gate takes over again, which bounds this to a few extra builds
+ * per layout. */
+function worthBuilding(slot, statics, grays, penguins, plan) {
   if (slot.list.length < KEEP) return true;
+  if (plan !== undefined && !slot.walls[plan]) return true;
   var tail = slot.list[slot.list.length - 1];
   if (statics !== tail.statics) return statics < tail.statics;
   if (grays !== tail.grays) return grays < tail.grays;
@@ -418,6 +445,8 @@ function run(plan) {
       }
       if (skip) continue;
 
+      var layoutPlan = wallPlanFromMask(wallMask, hazMask);
+
       var free = [];
       for (var c = 0; c < 25; c++) {
         ctx.wall[c] = (wallMask >>> c) & 1;
@@ -445,7 +474,7 @@ function run(plan) {
             if (moves > maxSeen) maxSeen = moves;
             if (moves < MINPAR) return;
             var slot = slotFor(moves);
-            if (!worthBuilding(slot, set.length, nGray, nPenguin)) return;
+            if (!worthBuilding(slot, set.length, nGray, nPenguin, layoutPlan)) return;
             var blocks = [], t = code;
             for (var b = 0; b < k; b++) { blocks.push({ cell: t % 26, colour: col[b] }); t = (t / 26) | 0; }
             var rows = boardRows(wallMask, hazMask,

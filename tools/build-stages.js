@@ -576,10 +576,21 @@ function onTheLine(list) {
 
 var attempted = [];
 var built = null;
+/* --why reports what each rejected ceiling ran out of. The descent is silent
+   about it otherwise, which makes "the ceiling is 53" look like a property of
+   5×5 rather than a statement about which lengths the index can still supply a
+   fresh layout at — and that is the one thing worth knowing before spending
+   hours on another search. */
+var WHY = argv.indexOf('--why') >= 0;
 for (var top = LONGEST; top > SHORTEST && !built; top--) {
   var run = attempt(top);
   attempted.push(top + ' fills ' + run.stages.length +
     (run.stages.length === COUNT ? (onTheLine(run.stages) ? '' : ', off the line') : ''));
+  if (WHY && !onTheLine(run.stages)) {
+    console.log('ceiling ' + top + ': fills ' + run.stages.length + '/' + COUNT +
+      (run.stages.length === COUNT ? ', off the line' : '') +
+      (run.failures.length ? ' — ' + run.failures[0] : ''));
+  }
   if (onTheLine(run.stages)) built = run;
 }
 if (!built) {
