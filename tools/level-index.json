@@ -1,6 +1,86 @@
 {
  "plans": [
   {
+   "penguins": 1,
+   "drifters": 0,
+   "statics": 0,
+   "crackedIce": false,
+   "longest": 2,
+   "boards": 144
+  },
+  {
+   "penguins": 1,
+   "drifters": 0,
+   "statics": 1,
+   "crackedIce": false,
+   "longest": 5,
+   "boards": 1015
+  },
+  {
+   "penguins": 1,
+   "drifters": 0,
+   "statics": 2,
+   "crackedIce": false,
+   "longest": 8,
+   "boards": 9132
+  },
+  {
+   "penguins": 1,
+   "drifters": 1,
+   "statics": 0,
+   "crackedIce": false,
+   "longest": 2,
+   "boards": 4288
+  },
+  {
+   "penguins": 1,
+   "drifters": 1,
+   "statics": 1,
+   "crackedIce": false,
+   "longest": 14,
+   "boards": 38204
+  },
+  {
+   "penguins": 1,
+   "drifters": 1,
+   "statics": 2,
+   "crackedIce": false,
+   "longest": 17,
+   "boards": 328767
+  },
+  {
+   "penguins": 2,
+   "drifters": 0,
+   "statics": 0,
+   "crackedIce": false,
+   "longest": 4,
+   "boards": 13432
+  },
+  {
+   "penguins": 2,
+   "drifters": 0,
+   "statics": 1,
+   "crackedIce": false,
+   "longest": 20,
+   "boards": 135952
+  },
+  {
+   "penguins": 2,
+   "drifters": 0,
+   "statics": 2,
+   "crackedIce": false,
+   "longest": 25,
+   "boards": 1354761
+  },
+  {
+   "penguins": 2,
+   "drifters": 0,
+   "statics": 2,
+   "crackedIce": true,
+   "longest": 25,
+   "boards": 3334418
+  },
+  {
    "penguins": 2,
    "drifters": 0,
    "statics": 3,
@@ -19,6 +99,38 @@
   {
    "penguins": 2,
    "drifters": 1,
+   "statics": 0,
+   "crackedIce": false,
+   "longest": 12,
+   "boards": 390048
+  },
+  {
+   "penguins": 2,
+   "drifters": 1,
+   "statics": 1,
+   "crackedIce": false,
+   "longest": 36,
+   "boards": 5963931
+  },
+  {
+   "penguins": 2,
+   "drifters": 1,
+   "statics": 1,
+   "crackedIce": true,
+   "longest": 36,
+   "boards": 7618041
+  },
+  {
+   "penguins": 2,
+   "drifters": 1,
+   "statics": 2,
+   "crackedIce": false,
+   "longest": 38,
+   "boards": 53321899
+  },
+  {
+   "penguins": 2,
+   "drifters": 1,
    "statics": 3,
    "crackedIce": false,
    "longest": 57,
@@ -31,6 +143,22 @@
    "crackedIce": false,
    "longest": 79,
    "boards": 1378131423
+  },
+  {
+   "penguins": 2,
+   "drifters": 2,
+   "statics": 0,
+   "crackedIce": false,
+   "longest": 18,
+   "boards": 16892076
+  },
+  {
+   "penguins": 2,
+   "drifters": 2,
+   "statics": 1,
+   "crackedIce": false,
+   "longest": 33,
+   "boards": 168020626
   },
   {
    "penguins": 2,

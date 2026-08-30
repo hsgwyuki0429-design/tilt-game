@@ -286,6 +286,14 @@ var KEEP = 120;
    pass. */
 var MINPAR = 1;
 var best = new Map();                              // par -> { list, seen }
+/* A four-wall pass takes hours, and the index used to be written only once the
+   whole run finished — so a pass that had to be stopped left nothing at all
+   behind. The shortlist is complete as far as it got at every layout boundary,
+   so writing it out along the way costs a second and makes a stopped pass worth
+   what it measured. Set by the CLI section below, once --out is known. */
+var CHECKPOINT_MS = Number(process.env.TILT_CHECKPOINT_MS || 120000);
+var lastCheckpoint = Date.now();
+var checkpoint = null;
 
 function better(a, b) {
   if (a.statics !== b.statics) return a.statics - b.statics;
@@ -387,7 +395,15 @@ function run(plan) {
   var sets = combinations(allCells, plan.statics);
   var graphs = 0, boards = 0, maxSeen = 0;
 
-  sets.forEach(function (set) {
+  sets.forEach(function (set, setIndex) {
+    if (checkpoint && Date.now() - lastCheckpoint > CHECKPOINT_MS) {
+      lastCheckpoint = Date.now();
+      checkpoint({
+        penguins: nPenguin, drifters: nGray, statics: plan.statics,
+        crackedIce: !!plan.hazards, longest: maxSeen, boards: boards,
+        partial: setIndex + '/' + sets.length
+      });
+    }
     // each static cell is either an ice wall or cracked ice
     var splits = plan.hazards ? (1 << set.length) : 1;
     for (var split = 0; split < splits; split++) {
@@ -499,6 +515,46 @@ if (merge) {
   });
 }
 
+var out = arg('out', path.join(__dirname, 'level-index.json'));
+
+/* The index records exactly which corners of the space were measured, so a
+   claim about "the longest board there is" can be checked rather than taken on
+   trust. A pass still running is written with the fraction of layouts it had
+   reached; a completed pass over the same corner replaces it. */
+function writeIndex(inProgress) {
+  var cov = covered.concat(inProgress ? [inProgress] : []), keep = Object.create(null);
+  cov.forEach(function (e) {
+    var k = e.penguins + ',' + e.drifters + ',' + e.statics + ',' + (e.crackedIce ? 1 : 0);
+    var held = keep[k];
+    if (!held || (held.partial && !e.partial) ||
+        (!held.partial === !e.partial && e.boards > held.boards)) keep[k] = e;
+  });
+  cov = Object.keys(keep).map(function (k) { return keep[k]; });
+  cov.sort(function (a, b) {
+    return a.penguins - b.penguins || a.drifters - b.drifters || a.statics - b.statics;
+  });
+  var pars = {};
+  Array.from(best.keys()).sort(function (a, b) { return a - b; }).forEach(function (m) {
+    pars[m] = best.get(m).list.map(function (e) {
+      return {
+        moves: e.moves, statics: e.statics, walls: e.walls, hazards: e.hazards,
+        grays: e.grays, penguins: e.penguins, rows: e.rows
+      };
+    });
+  });
+  // written aside and renamed, so a run stopped mid-write leaves the previous
+  // checkpoint intact rather than a half-written file
+  fs.writeFileSync(out + '.tmp', JSON.stringify({ plans: cov, pars: pars }, null, 1));
+  fs.renameSync(out + '.tmp', out);
+  return Object.keys(pars).map(Number).sort(function (a, b) { return a - b; });
+}
+
+checkpoint = function (progress) {
+  writeIndex(progress);
+  console.log('  … ' + progress.partial + ' layouts, longest so far ' +
+    progress.longest + ' — checkpointed to ' + out);
+};
+
 plans.forEach(function (plan) {
   var t0 = Date.now();
   var r = run(plan);
@@ -506,28 +562,12 @@ plans.forEach(function (plan) {
     ' statics=' + plan.statics + (plan.hazards ? ' +cracked-ice' : '') +
     '  graphs=' + r.graphs + ' boards=' + r.boards + ' longest=' + r.maxSeen +
     '  (' + ((Date.now() - t0) / 1000).toFixed(1) + 's)');
-  // The index records exactly which corners of the space were measured, so a
-  // claim about "the longest board there is" can be checked rather than taken
-  // on trust.
   covered.push({
     penguins: plan.penguins, drifters: plan.gray, statics: plan.statics,
     crackedIce: !!plan.hazards, longest: r.maxSeen, boards: r.boards
   });
+  writeIndex();
 });
 
-var out = arg('out', path.join(__dirname, 'level-index.json'));
-var pars = {};
-Array.from(best.keys()).sort(function (a, b) { return a - b; }).forEach(function (m) {
-  pars[m] = best.get(m).list.map(function (e) {
-    return {
-      moves: e.moves, statics: e.statics, walls: e.walls, hazards: e.hazards,
-      grays: e.grays, penguins: e.penguins, rows: e.rows
-    };
-  });
-});
-covered.sort(function (a, b) {
-  return a.penguins - b.penguins || a.drifters - b.drifters || a.statics - b.statics;
-});
-fs.writeFileSync(out, JSON.stringify({ plans: covered, pars: pars }, null, 1));
-var keys = Object.keys(pars).map(Number).sort(function (a, b) { return a - b; });
+var keys = writeIndex();
 console.log('wrote ' + out + ' — par ' + keys[0] + '…' + keys[keys.length - 1]);
