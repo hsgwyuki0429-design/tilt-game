@@ -41,21 +41,29 @@ var index = JSON.parse(fs.readFileSync(INDEX, 'utf8')).pars;
 // ---------------------------------------------------------------------------
 // symmetry — used to vary how a board is presented, never what it is
 // ---------------------------------------------------------------------------
-var PERMS = (function () {
+/* The campaign holds boards of more than one side, so every key here takes its
+   geometry from the board it is given rather than from a constant. Two sizes
+   can never collide anyway — their flattened boards are different lengths —
+   which is what makes mixing them safe. */
+var permCache = Object.create(null);
+function permsFor(n) {
+  if (permCache[n]) return permCache[n];
+  var e = n - 1;
   var fns = [
-    function (x, y) { return [x, y]; }, function (x, y) { return [4 - x, y]; },
-    function (x, y) { return [x, 4 - y]; }, function (x, y) { return [4 - x, 4 - y]; },
-    function (x, y) { return [y, x]; }, function (x, y) { return [4 - y, x]; },
-    function (x, y) { return [y, 4 - x]; }, function (x, y) { return [4 - y, 4 - x]; }
+    function (x, y) { return [x, y]; }, function (x, y) { return [e - x, y]; },
+    function (x, y) { return [x, e - y]; }, function (x, y) { return [e - x, e - y]; },
+    function (x, y) { return [y, x]; }, function (x, y) { return [e - y, x]; },
+    function (x, y) { return [y, e - x]; }, function (x, y) { return [e - y, e - x]; }
   ];
-  return fns.map(function (f) {
-    var p = new Int8Array(25);
-    for (var y = 0; y < 5; y++) for (var x = 0; x < 5; x++) {
-      var r = f(x, y); p[y * 5 + x] = r[1] * 5 + r[0];
+  return (permCache[n] = fns.map(function (f) {
+    var p = new Int8Array(n * n);
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+      var r = f(x, y); p[y * n + x] = r[1] * n + r[0];
     }
     return p;
-  });
-})();
+  }));
+}
+function sideOf(flat) { return Math.round(Math.sqrt(flat.length)); }
 var SWAP = { '.': '.', '#': '#', 'x': 'x', 'G': 'G', 'A': 'B', 'B': 'A', 'a': 'b', 'b': 'a' };
 
 /**
@@ -75,10 +83,11 @@ function present(rows, variant) {
   if (flat.indexOf('B') >= 0 && flat.indexOf('A') < 0) {
     flat = flat.split('').map(function (ch) { return SWAP[ch]; }).join('');
   }
-  var p = PERMS[variant & 7], out = new Array(25);
-  for (var c = 0; c < 25; c++) out[p[c]] = flat[c];
+  var n = sideOf(flat);
+  var p = permsFor(n)[variant & 7], out = new Array(flat.length);
+  for (var c = 0; c < flat.length; c++) out[p[c]] = flat[c];
   var res = [];
-  for (var y = 0; y < 5; y++) res.push(out.slice(y * 5, y * 5 + 5).join(''));
+  for (var y = 0; y < n; y++) res.push(out.slice(y * n, y * n + n).join(''));
   return res;
 }
 
@@ -105,15 +114,15 @@ function present(rows, variant) {
  */
 function positionKey(stage, st) {
   if (st.collected || (st.lost || 0)) return null;
-  var cells = new Array(25), c, i;
-  for (c = 0; c < 25; c++) {
+  var cells = new Array(stage.w * stage.h), c, i;
+  for (c = 0; c < cells.length; c++) {
     cells[c] = stage.terrain[c] === E.WALL ? '#'
       : stage.terrain[c] === E.HAZARD ? 'x'
       : stage.goal[c] ? (stage.goalColour[c] === 1 ? 'a' : 'b') : '.';
   }
   for (i = 0; i < st.pos.length; i++) {
     if (!st.alive[i]) return null;
-    c = st.pos[i][1] * 5 + st.pos[i][0];
+    c = st.pos[i][1] * stage.w + st.pos[i][0];
     if (cells[c] !== '.') return null;              // on an aurora: not an opening
     cells[c] = stage.colour[i] === 1 ? 'A' : stage.colour[i] === 2 ? 'B' : 'G';
   }
@@ -123,9 +132,10 @@ function canonical(flat) {
   var best = null, swap, i, c;
   for (swap = 0; swap < 2; swap++) {
     var src = swap ? flat.split('').map(function (ch) { return SWAP[ch]; }).join('') : flat;
+    var perms = permsFor(sideOf(flat));
     for (i = 0; i < 8; i++) {
-      var p = PERMS[i], out = new Array(25);
-      for (c = 0; c < 25; c++) out[p[c]] = src[c];
+      var p = perms[i], out = new Array(flat.length);
+      for (c = 0; c < flat.length; c++) out[p[c]] = src[c];
       var s = out.join('');
       if (best === null || s < best) best = s;
     }
@@ -186,9 +196,10 @@ function skeletonKey(rows) {
  */
 function plainWalls(rows) {
   var flat = rows.join('').replace(/[^#x]/g, '.'), best = null;
+  var perms = permsFor(sideOf(flat));
   for (var i = 0; i < 8; i++) {
-    var p = PERMS[i], out = new Array(25);
-    for (var c = 0; c < 25; c++) out[p[c]] = flat[c];
+    var p = perms[i], out = new Array(flat.length);
+    for (var c = 0; c < flat.length; c++) out[p[c]] = flat[c];
     var t = out.join('');
     if (best === null || t < best) best = t;
   }
@@ -199,20 +210,20 @@ function wallKey(rows) {
   var flat = rows.join('');
   if (wallCache[flat]) return wallCache[flat];
   var par = E.solve(E.compile({ id: 'walls', board: rows }), null, 400000).moves;
-  var cells = flat.split('');
-  for (var c = 0; c < 25; c++) {
+  var cells = flat.split(''), n = sideOf(flat);
+  for (var c = 0; c < flat.length; c++) {
     if (cells[c] !== '#' && cells[c] !== 'x') { cells[c] = '.'; continue; }
     var probe = flat.split('');
     probe[c] = '.';
     var rest = [];
-    for (var y = 0; y < 5; y++) rest.push(probe.slice(y * 5, y * 5 + 5).join(''));
+    for (var y = 0; y < n; y++) rest.push(probe.slice(y * n, y * n + n).join(''));
     var without = E.solve(E.compile({ id: 'walls', board: rest }), null, 400000);
     if (without.solvable && without.moves === par) cells[c] = '.';   // changes nothing
   }
-  var bare = cells.join(''), best = null;
+  var bare = cells.join(''), best = null, perms = permsFor(n);
   for (var i = 0; i < 8; i++) {
-    var p = PERMS[i], out = new Array(25);
-    for (var j = 0; j < 25; j++) out[p[j]] = bare[j];
+    var p = perms[i], out = new Array(flat.length);
+    for (var j = 0; j < flat.length; j++) out[p[j]] = bare[j];
     var t = out.join('');
     if (best === null || t < best) best = t;
   }
@@ -288,7 +299,7 @@ var CHAPTER_DEFS = [
   ['LOCKS', '封鎖', 'A drifter resting on an aurora is a door. Open it in the right order.'],
   ['LONG ICE', '長氷', 'Nothing here is difficult to see. It is difficult to sequence.'],
   ['DEEP COLD', '極寒', 'The far end of the search. Every one of these was measured, not guessed.'],
-  ['MERIDIAN', '子午線', 'The longest boards a 5×5 ice tray can hold.']
+  ['MERIDIAN', '子午線', 'The longest boards the 5×5 ice tray can hold.']
 ];
 
 // ---------------------------------------------------------------------------
@@ -320,8 +331,8 @@ var taken = Object.create(null);
  * for and picks the board a person would have drawn.
  */
 function spread(rows) {
-  var xs = {}, ys = {}, pts = [], x, y, ch;
-  for (y = 0; y < 5; y++) for (x = 0; x < 5; x++) {
+  var xs = {}, ys = {}, pts = [], x, y, ch, n = rows.length;
+  for (y = 0; y < n; y++) for (x = 0; x < n; x++) {
     ch = rows[y][x];
     if (ch === '.' ) continue;
     xs[x] = ys[y] = 1;
@@ -372,11 +383,24 @@ var ranked = {};
 function candidates(par) {
   if (ranked[par]) return ranked[par];
   var list = (index[par] || []).slice();
-  list.forEach(function (e) { e._spread = spread(e.rows); });
-  // Emptiness first — that is the brief. Everything after it is a tie-break,
-  // and the expensive ones are only reached when a pair ties on emptiness.
+  list.forEach(function (e) { e._spread = spread(e.rows); e._side = e.rows.length; });
+  /* The smaller tray first, then emptiness.
+   *
+   * A four-move puzzle on a 5x5 spends most of the board on nothing: the
+   * pieces sit in one corner and the other seventeen cells are there to be
+   * looked at. The same puzzle on a 4x4 is the same puzzle with the empty
+   * space taken away, and it reads as a designed board rather than a sparse
+   * one. So the short lengths are played on the small tray wherever one
+   * exists, and the campaign grows into the 5x5 as the lengths outrun what
+   * sixteen cells can hold.
+   *
+   * This is deliberately ahead of emptiness rather than a tie-break: a 4x4
+   * with a wall beats an empty 5x5 at the same length. Below it the old order
+   * stands, and the expensive tie-breaks are still only reached by a pair that
+   * has already tied on everything cheaper. */
   list.sort(function (a, b) {
-    return a.statics - b.statics || a.grays - b.grays ||
+    return a._side - b._side ||
+           a.statics - b.statics || a.grays - b.grays ||
            response(b) - response(a) ||
            a.penguins - b.penguins || b._spread - a._spread;
   });
@@ -576,10 +600,21 @@ function onTheLine(list) {
 
 var attempted = [];
 var built = null;
+/* --why reports what each rejected ceiling ran out of. The descent is silent
+   about it otherwise, which makes "the ceiling is 53" look like a property of
+   5×5 rather than a statement about which lengths the index can still supply a
+   fresh layout at — and that is the one thing worth knowing before spending
+   hours on another search. */
+var WHY = argv.indexOf('--why') >= 0;
 for (var top = LONGEST; top > SHORTEST && !built; top--) {
   var run = attempt(top);
   attempted.push(top + ' fills ' + run.stages.length +
     (run.stages.length === COUNT ? (onTheLine(run.stages) ? '' : ', off the line') : ''));
+  if (WHY && !onTheLine(run.stages)) {
+    console.log('ceiling ' + top + ': fills ' + run.stages.length + '/' + COUNT +
+      (run.stages.length === COUNT ? ', off the line' : '') +
+      (run.failures.length ? ' — ' + run.failures[0] : ''));
+  }
   if (onTheLine(run.stages)) built = run;
 }
 if (!built) {
@@ -632,14 +667,25 @@ var chapters = CHAPTER_DEFS.map(function (c, i) {
 }).filter(function (c) { return c.from <= COUNT; });
 
 var out = [];
+/** "the 4x4 and 5x5 trays", or just the one, for the generated header. */
+function sizeSummary() {
+  var sides = {};
+  stages.forEach(function (s) { sides[s.board.length] = 1; });
+  var list = Object.keys(sides).map(Number).sort(function (a, b) { return a - b; })
+    .map(function (n) { return n + '\u00d7' + n; });
+  return list.length === 1 ? ('the ' + list[0] + ' ice tray')
+    : ('the ' + list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1] + ' ice trays');
+}
+
 out.push("'use strict';");
 out.push('/*');
 out.push(' * TILT — the ice campaign. GENERATED FILE: see tools/build-stages.js.');
 out.push(' *');
-out.push(' * ' + COUNT + ' boards, all 5×5, laid out along one straight difficulty line:');
-out.push(' * stage 1 is one swipe, stage ' + COUNT + ' is the longest board an exhaustive');
-out.push(' * search of the 5×5 space could find (' + LONGEST + ' moves), and each stage in');
-out.push(' * between sits on the line between them.');
+out.push(' * ' + COUNT + ' boards on ' + sizeSummary() + ', laid out along one straight');
+out.push(' * difficulty line: stage 1 is one swipe, stage ' + COUNT + ' is the longest board an');
+out.push(' * exhaustive search could find (' + LONGEST + ' moves), and each stage in between');
+out.push(' * sits on the line between them. The short lengths are played on the');
+out.push(' * smallest tray that can hold them.');
 out.push(' *');
 out.push(' * Every board obeys the same rules:');
 out.push(' *   - one or two penguins, never two of a colour');
