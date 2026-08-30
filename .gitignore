@@ -2,3 +2,7 @@ node_modules/
 package-lock.json
 .qa/
 tools/.campaign-cache/
+
+# Search output is measured data, not source: it belongs in a scratch directory.
+/rw-*.json
+/log-*.txt
