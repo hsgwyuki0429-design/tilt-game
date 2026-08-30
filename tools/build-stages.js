@@ -162,11 +162,37 @@ function skeletonKey(rows) {
   return canonical(rows.join('').replace(/[ABG]/g, '.'));
 }
 
+/**
+ * Coarser still: where the immovable blocks are, and nothing else.
+ *
+ * Two boards can differ in every piece and every aurora and still be the same
+ * room seen twice. This is the scarcest thing the campaign spends: there are
+ * 2041 ways to place up to four immovable blocks on a 5×5 up to rotation and
+ * reflection, but exactly ONE with none and six with one — so at most seven of
+ * the hundred stages can be that open, and the rest of the ladder has to be
+ * built out of walls. That is the trade this rule makes, and it is why boards
+ * carrying two and three walls now run the length of the campaign instead of
+ * clustering at the top.
+ */
+function wallKey(rows) {
+  var flat = rows.join('').replace(/[^#x]/g, '.'), best = null;
+  for (var i = 0; i < 8; i++) {
+    var p = PERMS[i], out = new Array(25);
+    for (var c = 0; c < 25; c++) out[p[c]] = flat[c];
+    var t = out.join('');
+    if (best === null || t < best) best = t;
+  }
+  return best;
+}
+
 var chosenOpenings = Object.create(null);   // canonical opening -> stage id
 var chosenPositions = Object.create(null);  // every position any chosen board reaches
 var chosenSkeletons = Object.create(null);  // walls + auroras -> stage id
+var chosenWalls = Object.create(null);      // walls alone -> stage id
 
 function collides(rows) {
+  var walls = wallKey(rows);
+  if (chosenWalls[walls]) return chosenWalls[walls];
   var skeleton = skeletonKey(rows);
   if (chosenSkeletons[skeleton]) return chosenSkeletons[skeleton];
   var opening = canonical(rows.join(''));
@@ -178,6 +204,7 @@ function collides(rows) {
   return 0;
 }
 function claim(id, rows) {
+  chosenWalls[wallKey(rows)] = id;
   chosenSkeletons[skeletonKey(rows)] = id;
   chosenOpenings[canonical(rows.join(''))] = id;
   footprint(rows).forEach(function (k) { chosenPositions[k] = id; });
@@ -421,6 +448,7 @@ function attempt(longest) {
   chosenOpenings = Object.create(null);
   chosenPositions = Object.create(null);
   chosenSkeletons = Object.create(null);
+  chosenWalls = Object.create(null);
   var stages = [];
   var failures = [];
   var rejectedTotal = 0;
