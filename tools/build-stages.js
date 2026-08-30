@@ -517,12 +517,31 @@ function attempt(longest) {
   return { stages: stages, failures: failures, rejected: rejectedTotal };
 }
 
+/**
+ * A ceiling is only usable if the ladder it produces is still a straight line.
+ *
+ * Filling all hundred is not enough. When a length runs dry the walk borrows
+ * from its neighbours, which fills the slot and bends the curve — and a bent
+ * curve is the one thing this tool exists to prevent. Checking it here rather
+ * than after the loop is what lets the descent keep going and find a ceiling
+ * that satisfies both.
+ */
+function onTheLine(list) {
+  if (list.length !== COUNT) return false;
+  var rise = (list[list.length - 1].par - list[0].par) / (list.length - 1);
+  for (var i = 0; i < list.length; i++) {
+    if (Math.abs(list[i].par - (list[0].par + i * rise)) > 0.5 + 1e-9) return false;
+  }
+  return true;
+}
+
 var attempted = [];
 var built = null;
 for (var top = LONGEST; top > SHORTEST && !built; top--) {
   var run = attempt(top);
-  attempted.push(top + ' fills ' + run.stages.length);
-  if (run.stages.length === COUNT) built = run;
+  attempted.push(top + ' fills ' + run.stages.length +
+    (run.stages.length === COUNT ? (onTheLine(run.stages) ? '' : ', off the line') : ''));
+  if (onTheLine(run.stages)) built = run;
 }
 if (!built) {
   console.error('build failed: no ceiling fills ' + COUNT + ' stages (tried ' +

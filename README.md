@@ -15,7 +15,7 @@ Every board obeys the same rules:
 - Cracked ice is safe to cross, but ending a move on it breaks the run.
 - Blocks can stop each other, but touching never clears a level.
 - A position you can no longer win from is a dead end, not a loss: it stands where you put it and the game never takes a move back for you.
-- No stage is another stage in disguise — not by rotation or reflection, not by opening on a position another stage passes through, and not by standing on the same walls and auroras.
+- No stage is another stage in disguise — not by rotation or reflection, not by opening on a position another stage passes through, and not by standing on the same walls, with or without the auroras.
 - Swipe and keyboard controls keep the same movement behaviour.
 
 The Canvas renderer keeps those rules on the original 2D grid and draws a flat,

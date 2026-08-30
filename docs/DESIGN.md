@@ -54,15 +54,30 @@ which is exactly what a starting board looks like. Two boards conflict when
 either one's opening appears in the other's set, compared up to the square's
 eight symmetries and renaming the two colours.
 
-A board also may not stand in a room another stage has taken. Its **skeleton**
-is what is left once every movable piece is lifted off it — the immovable
-blocks and the auroras. Two boards sharing one can be genuinely different
+A board also may not stand in a room another stage has taken, at two levels of
+detail. Its **wall plan** is where the immovable blocks are and nothing else;
+its **skeleton** is the same walls plus where the auroras sit. Two boards sharing one can be genuinely different
 puzzles, but they look alike, and a player meeting the fourth board with a wall
 in that corner and auroras on those two cells has stopped seeing a new level.
-The first hundred stood on twenty-eight skeletons; they now stand on a hundred.
+The first hundred stood on twenty-eight skeletons and twenty-four wall plans;
+they now stand on a hundred of each.
 
-`tools/build-stages.js` walks past a candidate that breaks either rule, and
-`npm test` checks the shipped hundred both ways.
+The wall plan is the scarcest thing the campaign spends, and it is what turns
+the emptiness preference on its head. There are 2041 ways to place up to four
+immovable blocks on a 5×5 up to rotation and reflection, but exactly **one**
+with none and **six** with one — so at most seven of the hundred stages can be
+that open. The shipped ladder runs 1 board with no walls, 3 with one, 16 with
+two, 63 with three and 17 with four.
+
+That forces walls onto boards too short to need them: 18 of the 347 obstacles
+in the campaign, spread over 12 boards, can be removed without changing the
+par. A two-move board has no use for three walls, and a hundred stages need a
+hundred plans. `npm test` asserts that count stays under budget rather than
+ignoring it, and still holds drifters to the old standard — every one of them
+earns its place.
+
+`tools/build-stages.js` walks past a candidate that breaks any of these rules,
+and `npm test` checks the shipped hundred every way.
 
 The first two criteria are the reason no board in the campaign uses cracked ice:
 a hazard is an immovable obstacle, so it can only ever lose a tie, and adding it
@@ -70,23 +85,10 @@ to the search never raised the longest par reachable. The rule is still in the
 engine, still documented, and still exercised — `tools/qa.js` builds a board for
 it.
 
-What the ranking produces is a footprint that grows only when the length forces
-it to:
-
-| par | the emptiest board of that length |
-|---|---|
-| 1–4 | nothing but penguins and auroras |
-| 5–12 | 1 drifter |
-| 13–18 | 2 drifters |
-| 19–20 | 1 wall |
-| 21–36 | 1 wall, 1 drifter |
-| 37–38 | 2 walls, 1 drifter |
-| 39–55 | 2 walls, 2 drifters |
-| 56–57 | 3 walls, 1 drifter |
-
-`npm test` re-checks this from the other direction: it takes every wall and
-every drifter off every shipped board in turn and requires the par to change.
-An obstacle that changes nothing is a board the search mis-measured.
+Drifters are still spent sparingly, because nothing forces them the way the
+wall plans force walls: 48 boards carry none, 49 carry one, and 3 carry two.
+`npm test` takes every drifter off every board in turn and requires the par to
+change, so each one that ships is doing work.
 
 ## The curve
 
@@ -102,11 +104,12 @@ stages share each par; each takes the next-best board of that length, so no
 puzzle ships twice.
 
 `longest` is not the longest board that exists — it is the longest that can be
-*filled*. Skeletons run out at the top: the very longest lengths have only a
-handful of boards and often a single skeleton between them, so the build starts
+*filled*. Layouts run out at the top: the very longest lengths have only a
+handful of boards and often a single wall plan between them, so the build starts
 at the longest board in the index and walks the ceiling down until the whole
-hundred fits. The index reaches 79 moves; the campaign tops out at 61, and that
-rung rises whenever the search measures more boards.
+hundred fits on the line. The index reaches 79 moves; the campaign tops out at
+53, and that rung rises whenever the search measures more boards. It fell from
+61 when the wall-plan rule came in — the cost of that rule, paid at the top.
 
 ## The obstacle budget
 
