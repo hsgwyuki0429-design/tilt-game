@@ -119,20 +119,47 @@ STAGES.forEach(function (def) {
 // Coarser still, and by far the scarcest: the immovable blocks alone. Only one
 // arrangement has none and six have one, so at most seven stages can be that
 // open — the rest of the ladder is built out of walls, and no two stages may
-// stand on the same ones. Colour plays no part here, so the canonical form is
-// taken over the eight symmetries only.
-var wallPlans = Object.create(null);
-STAGES.forEach(function (def) {
-  var flat = def.board.join('').replace(/[^#x]/g, '.'), best = null;
+// stand on the same ones. Colour plays no part, so these keys are taken over
+// the eight symmetries only.
+//
+// Two keys, and a stage has to be new under both. Counting every wall stops two
+// stages LOOKING alike; counting only the walls that change the par stops two
+// being the same puzzle behind a wall that does nothing. Neither implies the
+// other — the same walls with different pieces can leave different ones idle —
+// and with only the first, eight stages once duplicated another's real walls by
+// carrying a wall that did no work.
+function symmetryKey(flat) {
+  var best = null;
   for (var i = 0; i < 8; i++) {
     var p = PERMS[i], out = new Array(25);
     for (var c = 0; c < 25; c++) out[p[c]] = flat[c];
     var t = out.join('');
     if (best === null || t < best) best = t;
   }
-  assert(!wallPlans[best], 'stage ' + def.id + ' stands on the same walls as stage ' +
-    wallPlans[best]);
-  wallPlans[best] = def.id;
+  return best;
+}
+var plainWalls = Object.create(null), realWalls = Object.create(null);
+var inertWalls = 0;
+STAGES.forEach(function (def) {
+  var flat = def.board.join(''), cells = flat.split(''), c;
+  for (c = 0; c < 25; c++) {
+    if (cells[c] !== '#' && cells[c] !== 'x') { cells[c] = '.'; continue; }
+    var probe = flat.split('');
+    probe[c] = '.';
+    var rows = [];
+    for (var y = 0; y < 5; y++) rows.push(probe.slice(y * 5, y * 5 + 5).join(''));
+    var without = E.solve(E.compile({ id: def.id, board: rows }), null, 400000);
+    if (without.solvable && without.moves === def.par) { cells[c] = '.'; inertWalls++; }
+  }
+  var plain = symmetryKey(flat.replace(/[^#x]/g, '.'));
+  assert(!plainWalls[plain], 'stage ' + def.id + ' stands on the same walls as stage ' +
+    plainWalls[plain]);
+  plainWalls[plain] = def.id;
+
+  var real = symmetryKey(cells.join(''));
+  assert(!realWalls[real], 'stage ' + def.id + ' solves against the same walls as stage ' +
+    realWalls[real]);
+  realWalls[real] = def.id;
 });
 STAGES.forEach(function (def) {
   var stage = E.compile(def);
@@ -156,19 +183,16 @@ STAGES.forEach(function (def) {
 // campaign gives here — but the count is asserted rather than ignored, so the
 // price stays visible and cannot quietly grow.
 var INERT_WALL_BUDGET = 25;
-var inertWalls = 0;
 STAGES.forEach(function (def) {
   def.board.forEach(function (row, y) {
     for (var x = 0; x < row.length; x++) {
-      if ('#xG'.indexOf(row[x]) < 0) continue;
+      if (row[x] !== 'G') continue;
       var board = def.board.slice();
       board[y] = row.slice(0, x) + '.' + row.slice(x + 1);
       var without = E.solve(E.compile({ id: def.id, board: board }), null, 400000);
-      if (!without.solvable || without.moves !== def.par) continue;
-      assert.notStrictEqual(row[x], 'G',
+      assert(!without.solvable || without.moves !== def.par,
         'stage ' + def.id + ': the drifter at ' + x + ',' + y +
         ' changes nothing — par is still ' + def.par + ' without it');
-      inertWalls++;
     }
   });
 });

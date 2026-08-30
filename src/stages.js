@@ -118,33 +118,33 @@
     },
     {
       id: 2, name: 'DRIFT', par: 2,
-      idea: 'two penguins, 1 drifter, 2 walls; 2 moves.',
-      hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短2手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 2.' },
-      board: ['A...#',
-              'G...#',
-              'b....',
-              'a....',
-              'B....']
+      idea: 'two penguins, 3 walls; 2 moves.',
+      hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短2手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 2.' },
+      board: ['....#',
+              '.#...',
+              '.....',
+              'A....',
+              'aBb#.']
     },
     {
       id: 3, name: 'GLIDE', par: 2,
       idea: 'two penguins, 3 walls; 2 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短2手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 2.' },
-      board: ['....b',
-              '.#..A',
+      board: ['#...A',
+              '....b',
               '....B',
-              '...#a',
-              '#....']
+              '.#..a',
+              '....#']
     },
     {
       id: 4, name: 'FLOE', par: 3,
-      idea: 'two penguins, 3 walls; 3 moves.',
-      hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短3手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 3.' },
-      board: ['baB..',
-              'A.#..',
-              '.....',
-              '.#...',
-              '....#']
+      idea: 'two penguins, 1 drifter, 2 walls; 3 moves.',
+      hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短3手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 3.' },
+      board: ['b....',
+              'a....',
+              'G....',
+              'B...#',
+              'A...#']
     },
     {
       id: 5, name: 'SLIP', par: 3,
@@ -153,48 +153,48 @@
       board: ['#....',
               '...#.',
               '.....',
-              '.....',
-              'ba#BA']
+              '..#.B',
+              '..Aba']
     },
     {
       id: 6, name: 'CALM', par: 4,
       idea: 'two penguins, 3 walls; 4 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短4手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 4.' },
-      board: ['#....',
-              '...#.',
-              '.....',
-              '....#',
-              '.bBAa']
+      board: ['....#',
+              'A#...',
+              'a....',
+              'B..#.',
+              'b....']
     },
     {
       id: 7, name: 'FROST', par: 4,
       idea: 'two penguins, 3 walls; 4 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短4手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 4.' },
-      board: ['#BabA',
+      board: ['a#AbB',
               '.....',
               '.....',
-              '.#...',
-              '....#']
+              '..#..',
+              '#....']
     },
     {
       id: 8, name: 'SHELF', par: 5,
-      idea: 'two penguins, 1 wall; 5 moves.',
-      hint: { ja: '壁ともう一羽、どちらもストッパーになる。最短5手。', en: 'The wall and the other penguin are both brakes. Best: 5.' },
-      board: ['a....',
-              'B....',
-              'b....',
+      idea: 'one penguin, 1 wall; 5 moves.',
+      hint: { ja: '壁の手前でちょうど止める。最短5手。', en: 'Stop short, against the wall. Best: 5.' },
+      board: ['...a.',
               '.....',
-              'A...#']
+              '.....',
+              '.....',
+              'A.#..']
     },
     {
       id: 9, name: 'CRISP', par: 5,
-      idea: 'one penguin, 1 wall; 5 moves.',
-      hint: { ja: '壁の手前でちょうど止める。最短5手。', en: 'Stop short, against the wall. Best: 5.' },
-      board: ['..#.A',
+      idea: 'two penguins, 3 walls; 5 moves.',
+      hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短5手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 5.' },
+      board: ['....#',
+              '.#...',
               '.....',
-              '.....',
-              '.....',
-              '.a...']
+              '#....',
+              'aAbB.']
     },
     {
       id: 10, name: 'DAWN', par: 6,
@@ -210,11 +210,11 @@
       id: 11, name: 'RIME', par: 6,
       idea: 'two penguins, 3 walls; 6 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短6手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 6.' },
-      board: ['a....',
-              '#....',
-              'B..#.',
-              'A....',
-              'b...#']
+      board: ['#....',
+              '....#',
+              '.....',
+              '.....',
+              'A#Bba']
     },
     {
       id: 12, name: 'THAW', par: 7,
@@ -230,61 +230,61 @@
       id: 13, name: 'SLEET', par: 7,
       idea: 'two penguins, 3 walls; 7 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短7手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 7.' },
-      board: ['....#',
-              '#....',
-              'A....',
-              'a....',
-              'bB.#.']
+      board: ['#....',
+              '..#..',
+              '.....',
+              '.#...',
+              '.BAab']
     },
     {
       id: 14, name: 'BERG', par: 8,
       idea: 'two penguins, 3 walls; 8 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短8手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 8.' },
-      board: ['A...#',
-              '#....',
+      board: ['#....',
+              '...#.',
+              '....#',
               '.....',
-              'b..#.',
-              'Ba...']
+              'Aa.bB']
     },
     {
       id: 15, name: 'CRAG', par: 8,
       idea: 'two penguins, 3 walls; 8 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短8手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 8.' },
-      board: ['A.Bba',
-              '.#...',
+      board: ['.B#bA',
+              '....a',
               '.....',
-              '..#..',
+              '...#.',
               '#....']
     },
     {
       id: 16, name: 'PALE', par: 9,
       idea: 'two penguins, 3 walls; 9 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短9手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 9.' },
-      board: ['A....',
-              'b....',
-              'a...#',
-              'B#...',
-              '....#']
+      board: ['BbAa.',
+              '.....',
+              '...#.',
+              '..#..',
+              '#....']
     },
     {
       id: 17, name: 'HUSH', par: 9,
       idea: 'two penguins, 3 walls; 9 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短9手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 9.' },
       board: ['....#',
-              '..#..',
-              '.#...',
-              '.....',
-              '.bBaA']
+              'bB...',
+              'A#...',
+              'a.#..',
+              '.....']
     },
     {
       id: 18, name: 'VEIL', par: 10,
       idea: 'two penguins, 3 walls; 10 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短10手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 10.' },
-      board: ['.B#..',
-              'b..#.',
-              'A....',
-              'a....',
-              '....#']
+      board: ['..#.#',
+              '.....',
+              '.....',
+              '...#.',
+              'AabB.']
     },
     {
       id: 19, name: 'SPUR', par: 10,
@@ -298,13 +298,13 @@
     },
     {
       id: 20, name: 'NORTH', par: 11,
-      idea: 'two penguins, 1 wall; 11 moves.',
-      hint: { ja: '壁ともう一羽、どちらもストッパーになる。最短11手。', en: 'The wall and the other penguin are both brakes. Best: 11.' },
-      board: ['.a...',
+      idea: 'two penguins, 3 walls; 11 moves.',
+      hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短11手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 11.' },
+      board: ['....#',
+              '..#..',
               '.....',
-              'bB...',
-              '....#',
-              'A....']
+              '.b...',
+              'B#A.a']
     },
     {
       id: 21, name: 'GLEAM', par: 12,
@@ -340,11 +340,11 @@
       id: 24, name: 'BASIN', par: 13,
       idea: 'two penguins, 3 walls; 13 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短13手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 13.' },
-      board: ['B..A.',
-              'a....',
-              'b...#',
-              '.#...',
-              '...#.']
+      board: ['Aa.bB',
+              '.....',
+              '..#..',
+              '....#',
+              '.#...']
     },
     {
       id: 25, name: 'FJORD', par: 14,
@@ -370,21 +370,21 @@
       id: 27, name: 'PRISM', par: 15,
       idea: 'two penguins, 3 walls; 15 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短15手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 15.' },
-      board: ['.....',
-              '#a...',
-              '....#',
-              '....A',
-              '.b.#B']
+      board: ['....B',
+              'A...a',
+              '#....',
+              '...#b',
+              '.#...']
     },
     {
       id: 28, name: 'GLINT', par: 15,
       idea: 'two penguins, 3 walls; 15 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短15手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 15.' },
-      board: ['.....',
-              '.A.#.',
-              '.B..#',
-              '.#...',
-              '.ab..']
+      board: ['..#AB',
+              '....#',
+              '.....',
+              '.a..b',
+              '.#...']
     },
     {
       id: 29, name: 'HOAR', par: 16,
@@ -400,11 +400,11 @@
       id: 30, name: 'BLUE', par: 16,
       idea: 'two penguins, 3 walls; 16 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短16手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 16.' },
-      board: ['....#',
-              '#A...',
+      board: ['..#..',
+              '.#...',
+              '.a..b',
               '...#.',
-              '.....',
-              'Ba.b.']
+              'A..B.']
     },
     {
       id: 31, name: 'CLEFT', par: 17,
@@ -420,10 +420,10 @@
       id: 32, name: 'WAKE', par: 17,
       idea: 'two penguins, 2 walls; 17 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短17手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 17.' },
-      board: ['Bb.aA',
+      board: ['B.ba.',
+              'A....',
               '.....',
-              '...#.',
-              '.....',
+              '....#',
               '#....']
     },
     {
@@ -450,21 +450,21 @@
       id: 35, name: 'TIDE', par: 19,
       idea: 'two penguins, 2 walls; 19 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短19手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 19.' },
-      board: ['ABab.',
-              '.....',
-              '#....',
-              '.....',
+      board: ['.....',
+              '#b...',
+              'A...a',
+              'B....',
               '....#']
     },
     {
       id: 36, name: 'SPIRE', par: 19,
-      idea: 'two penguins, 2 walls; 19 moves.',
+      idea: 'two penguins, 3 walls; 19 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短19手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 19.' },
-      board: ['..a.#',
-              '.....',
-              '.....',
-              '.b...',
-              '.#AB.']
+      board: ['BA...',
+              '.b.#.',
+              '....a',
+              '..#..',
+              '..#..']
     },
     {
       id: 37, name: 'BRINE', par: 20,
@@ -478,33 +478,33 @@
     },
     {
       id: 38, name: 'CROWN', par: 20,
-      idea: 'two penguins, 2 walls; 20 moves.',
+      idea: 'two penguins, 3 walls; 20 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短20手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 20.' },
-      board: ['...#.',
-              '...ba',
-              '..#..',
+      board: ['.ba..',
+              '##...',
+              '...#.',
               '.....',
-              'AB...']
+              '...AB']
     },
     {
       id: 39, name: 'STILL', par: 21,
       idea: 'two penguins, 3 walls; 21 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短21手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 21.' },
       board: ['.#...',
-              'b#...',
-              'a...A',
-              '..#..',
-              '....B']
+              '....b',
+              '.....',
+              '..#.a',
+              '..#BA']
     },
     {
       id: 40, name: 'FLARE', par: 21,
       idea: 'two penguins, 3 walls; 21 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短21手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 21.' },
-      board: ['.a.bB',
-              '....A',
-              '...##',
-              '#....',
-              '.....']
+      board: ['.....',
+              '....#',
+              '.#A..',
+              'a.#..',
+              'b..B.']
     },
     {
       id: 41, name: 'QUARTZ', par: 22,
@@ -520,21 +520,21 @@
       id: 42, name: 'LEDGE', par: 23,
       idea: 'two penguins, 3 walls; 23 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短23手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 23.' },
-      board: ['.#.BA',
-              '.....',
+      board: ['b....',
+              'B.#..',
+              '..a.#',
               '...#.',
-              '..#..',
-              '...ba']
+              'A....']
     },
     {
       id: 43, name: 'SLATE', par: 23,
       idea: 'two penguins, 3 walls; 23 moves.',
       hint: { ja: '壁が2つ。どちらの手前で止めるかがすべて。最短23手。', en: 'Two walls. Which one you stop against is the whole decision. Best: 23.' },
-      board: ['aA..B',
-              '.....',
-              '.#b..',
-              '...#.',
-              '..#..']
+      board: ['Ba...',
+              'A....',
+              '#....',
+              '...##',
+              '...b.']
     },
     {
       id: 44, name: 'MIST', par: 24,
@@ -760,11 +760,11 @@
       id: 66, name: 'CAVERN', par: 35,
       idea: 'two penguins, 1 drifter, 3 walls; 35 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短35手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 35.' },
-      board: ['AG#..',
-              '.abB.',
-              '.....',
+      board: ['..#..',
               '...#.',
-              '...#.']
+              '.....',
+              '..a#b',
+              'GB.A.']
     },
     {
       id: 67, name: 'CHASM', par: 36,
@@ -800,11 +800,11 @@
       id: 70, name: 'CIRQUE', par: 37,
       idea: 'two penguins, 1 drifter, 3 walls; 37 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短37手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 37.' },
-      board: ['.a.B.',
-              'A#.#.',
-              '.b..#',
-              '.....',
-              'G....']
+      board: ['...#.',
+              '..#.#',
+              '....G',
+              'b..aB',
+              '..A..']
     },
     {
       id: 71, name: 'SERAC', par: 38,
@@ -850,41 +850,41 @@
       id: 75, name: 'TRAVERSE', par: 40,
       idea: 'two penguins, 1 drifter, 3 walls; 40 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短40手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 40.' },
-      board: ['GA...',
-              'Ba...',
-              '....b',
-              '#.#..',
-              '.#...']
+      board: ['.AG..',
+              '..B..',
+              '.b.a.',
+              '.##..',
+              '..#..']
     },
     {
       id: 76, name: 'ASCENT', par: 40,
       idea: 'two penguins, 1 drifter, 3 walls; 40 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短40手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 40.' },
-      board: ['.....',
-              '..a..',
-              'GB.##',
-              'A.b#.',
-              '.....']
+      board: ['a.bAB',
+              '.G.#.',
+              '..#..',
+              '.....',
+              '..#..']
     },
     {
       id: 77, name: 'PITON', par: 41,
       idea: 'two penguins, 1 drifter, 3 walls; 41 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短41手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 41.' },
-      board: ['..#..',
+      board: ['..#Bb',
+              '#AG..',
               '.....',
-              '..#.G',
-              '.#...',
-              'A.aBb']
+              '.a...',
+              '#....']
     },
     {
       id: 78, name: 'BELAY', par: 41,
       idea: 'two penguins, 1 drifter, 3 walls; 41 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短41手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 41.' },
-      board: ['#..#.',
-              '.b.B.',
-              '...G#',
+      board: ['#a.b.',
+              '..G..',
+              '.#..#',
               '....A',
-              '....a']
+              '...B.']
     },
     {
       id: 79, name: 'CAIRN', par: 42,
@@ -900,11 +900,11 @@
       id: 80, name: 'BEARING', par: 42,
       idea: 'two penguins, 1 drifter, 3 walls; 42 moves.',
       hint: { ja: '壁・流氷・もう一羽。止まれる場所は三種類、あとは順番だけ。最短42手。', en: 'Wall, drifter, other penguin — three brakes, and the rest is the order. Best: 42.' },
-      board: ['..BA.',
+      board: ['.....',
               '.....',
-              '.#..#',
-              '.....',
-              '#bGa.']
+              '.b...',
+              '.##G#',
+              '.a.BA']
     },
     {
       id: 81, name: 'POLARIS', par: 43,

@@ -163,18 +163,28 @@ function skeletonKey(rows) {
 }
 
 /**
- * Coarser still: where the immovable blocks are, and nothing else.
+ * Coarser still: the walls that the PUZZLE uses, and nothing else.
  *
  * Two boards can differ in every piece and every aurora and still be the same
- * room seen twice. This is the scarcest thing the campaign spends: there are
- * 2041 ways to place up to four immovable blocks on a 5×5 up to rotation and
- * reflection, but exactly ONE with none and six with one — so at most seven of
- * the hundred stages can be that open, and the rest of the ladder has to be
- * built out of walls. That is the trade this rule makes, and it is why boards
- * carrying two and three walls now run the length of the campaign instead of
- * clustering at the top.
+ * room seen twice, and this is the scarcest thing the campaign spends — there
+ * are 2041 ways to place up to four immovable blocks on a 5×5 up to rotation
+ * and reflection, but exactly ONE with none and six with one, so at most seven
+ * of the hundred stages can be that open.
+ *
+ * Counting every wall had a loophole wide enough to drive the whole campaign
+ * through: a board can be handed a wall that changes nothing, and it then
+ * counts as a new layout while playing exactly like the one it copied. Eight
+ * stages duplicated another's real walls that way.
+ *
+ * So there are two keys and a stage must be new under both. The one below
+ * admits a wall only if taking it away changes the par or leaves the board
+ * unsolvable, which is what stops two stages being the same puzzle; `plainWalls`
+ * counts every wall, which is what stops two stages LOOKING alike. Neither
+ * implies the other — same walls with different pieces can leave different ones
+ * doing nothing — and dropping either one lets duplicates back in by the door
+ * the other was holding.
  */
-function wallKey(rows) {
+function plainWalls(rows) {
   var flat = rows.join('').replace(/[^#x]/g, '.'), best = null;
   for (var i = 0; i < 8; i++) {
     var p = PERMS[i], out = new Array(25);
@@ -184,13 +194,40 @@ function wallKey(rows) {
   }
   return best;
 }
+var wallCache = Object.create(null);
+function wallKey(rows) {
+  var flat = rows.join('');
+  if (wallCache[flat]) return wallCache[flat];
+  var par = E.solve(E.compile({ id: 'walls', board: rows }), null, 400000).moves;
+  var cells = flat.split('');
+  for (var c = 0; c < 25; c++) {
+    if (cells[c] !== '#' && cells[c] !== 'x') { cells[c] = '.'; continue; }
+    var probe = flat.split('');
+    probe[c] = '.';
+    var rest = [];
+    for (var y = 0; y < 5; y++) rest.push(probe.slice(y * 5, y * 5 + 5).join(''));
+    var without = E.solve(E.compile({ id: 'walls', board: rest }), null, 400000);
+    if (without.solvable && without.moves === par) cells[c] = '.';   // changes nothing
+  }
+  var bare = cells.join(''), best = null;
+  for (var i = 0; i < 8; i++) {
+    var p = PERMS[i], out = new Array(25);
+    for (var j = 0; j < 25; j++) out[p[j]] = bare[j];
+    var t = out.join('');
+    if (best === null || t < best) best = t;
+  }
+  return (wallCache[flat] = best);
+}
 
 var chosenOpenings = Object.create(null);   // canonical opening -> stage id
 var chosenPositions = Object.create(null);  // every position any chosen board reaches
 var chosenSkeletons = Object.create(null);  // walls + auroras -> stage id
-var chosenWalls = Object.create(null);      // walls alone -> stage id
+var chosenWalls = Object.create(null);      // the walls that matter -> stage id
+var chosenPlain = Object.create(null);      // every wall -> stage id
 
 function collides(rows) {
+  var plain = plainWalls(rows);
+  if (chosenPlain[plain]) return chosenPlain[plain];
   var walls = wallKey(rows);
   if (chosenWalls[walls]) return chosenWalls[walls];
   var skeleton = skeletonKey(rows);
@@ -204,6 +241,7 @@ function collides(rows) {
   return 0;
 }
 function claim(id, rows) {
+  chosenPlain[plainWalls(rows)] = id;
   chosenWalls[wallKey(rows)] = id;
   chosenSkeletons[skeletonKey(rows)] = id;
   chosenOpenings[canonical(rows.join(''))] = id;
@@ -449,6 +487,7 @@ function attempt(longest) {
   chosenPositions = Object.create(null);
   chosenSkeletons = Object.create(null);
   chosenWalls = Object.create(null);
+  chosenPlain = Object.create(null);
   var stages = [];
   var failures = [];
   var rejectedTotal = 0;
