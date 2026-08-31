@@ -54,6 +54,31 @@ Procedural cracks, snow, and penguin art remain only as load-error fallbacks.
 The aurora texture receives a goal-colour filter and a weak emissive pulse; no
 symbol or badge is placed over the supplied artwork.
 
+## Penguin expressions
+
+The penguin's upward plane is a face, and which face it is comes from
+`src/expression.js` — nine named expressions over six pieces of artwork, since
+`good`, `perfect`, `clear` and `surprise` currently share the one happy drawing
+and are told apart by their reaction beat. The renderer holds a
+`PenguinReactions` in `Renderer.reactions` and asks it two things per penguin
+per frame: which image, and what pose. It knows no expression names and no
+trigger conditions.
+
+Every face asset is the same 512px square, mapped through the same top-face
+quad, so a swap cannot change a penguin's size or position — `npm run
+test:expression` asserts that on real pixels by comparing the drawn silhouette's
+bounding box across all nine. The pose is one scale about the block's own
+centre and one offset in cells, applied to the quad the renderer was going to
+draw anyway; nothing reads it back, so a penguin mid-flinch still occupies
+exactly the cell the rules put it in. Reduced motion drops the pose and keeps
+the face.
+
+Expressions expire on the frame clock rather than on timers of their own. A
+reaction records the instant it is finished with, and `Renderer.frame` retires
+it, which is why a fast player cannot be left with an old reaction's timeout
+reverting a newer face. A live reaction reports itself busy, so the idle frame
+throttle lifts for as long as one is running.
+
 ## Lighting and occlusion
 
 The texture artwork supplies the light and surface detail. Rendering adds a

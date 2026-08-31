@@ -189,6 +189,10 @@
     this.cssW=1; this.cssH=1;
     this.boardBounds={left:0,right:0,top:0,bottom:0};
     this.onEvent=null;
+    /* Set by the game to a TiltExpression.PenguinReactions. The renderer asks
+       it what face and what pose each penguin wants and draws that; it knows
+       nothing about which expressions exist or what causes them. */
+    this.reactions=null;
     this.textureBank=new TextureBank(function(){
       self.textureVersion=(self.textureVersion||0)+1;
       if(self.stage)self.buildStaticSprites();
@@ -475,6 +479,9 @@
       }
     }
     if(this.updateEffects(dt))busy=true;
+    /* Expressions expire on the frame clock rather than on timers of their own,
+       so a reaction keeps the loop at full rate until it is finished with. */
+    if(this.reactions&&this.reactions.tick(now))busy=true;
     g.save();g.setTransform(this.dpr,0,0,this.dpr,0,0);g.clearRect(0,0,this.cssW,this.cssH);
     var sx=0,sy=0;
     if(this.shake>.01){sx=(Math.random()-.5)*this.shake;sy=(Math.random()-.5)*this.shake;
@@ -566,9 +573,10 @@
         if(movers&&movers[i])pos=[pos[0]+slideX,pos[1]+slideY];
       }
       var inert=st.win==='select'&&st.collectable&&!st.collectable[i];
+      var react=this.reactions?this.reactions.visualFor(i,this.time):null;
       this.pushCommand('penguin',pos[0],pos[1],.035,4,
         {index:i,pos:pos,squash:squash,colour:st.colour?st.colour[i]:0,inert:inert,
-         drifter:st.colour?st.colour[i]===E.GRAY:false});
+         react:react,drifter:st.colour?st.colour[i]===E.GRAY:false});
     }
     for(i=0;i<this.ripples.length;i++){var r=this.ripples[i];
       this.pushCommand('ripple',r.x-.5,r.y-.5,r.z,2,r);}
@@ -714,18 +722,35 @@
     g.restore();
   };
 
+  /**
+   * A penguin, wearing whatever face it currently has on.
+   *
+   * The expression is a texture swap on the same top plane — every face asset
+   * is the same 512px square mapped through the same quad, so no face can be a
+   * different size or land anywhere else. The reaction is a pose: one scale
+   * about this block's own centre and one offset in cells. Neither is ever read
+   * back by anything, so a penguin mid-flinch still occupies exactly the cell
+   * the rules put it in.
+   */
   Renderer.prototype.drawPenguin=function(g,d){
     if(d.drifter)return this.drawDrifter(g,d);
     var p=d.pos,sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
-    var sx=sq&&sq.axis==='x'?1+q*.045:1-q*.018;
-    var sy=sq&&sq.axis==='y'?1+q*.045:1-q*.018;
+    var re=d.react||null,rk=re?re.scale:1,rdx=re?re.dx:0,rdy=re?re.dy:0;
+    var lift=re&&re.lift?re.lift:0;
+    var sx=(sq&&sq.axis==='x'?1+q*.045:1-q*.018)*rk;
+    var sy=(sq&&sq.axis==='y'?1+q*.045:1-q*.018)*rk;
     var h=PENGUIN_HEIGHT,inset=.075;
-    var x0=p[0]+.5-(.5-inset)*sx,x1=p[0]+.5+(.5-inset)*sx;
-    var y0=p[1]+.5-(.5-inset)*sy,y1=p[1]+.5+(.5-inset)*sy;
-    this.drawContactShadow(g,p[0]+.5,p[1]+.5,.37,.20,false);
+    var cx=p[0]+.5+rdx,cy=p[1]+.5+rdy;
+    var x0=cx-(.5-inset)*sx,x1=cx+(.5-inset)*sx;
+    var y0=cy-(.5-inset)*sy,y1=cy+(.5-inset)*sy;
+    /* A hop leaves the tray, so its shadow stays on the ground and only tightens
+       under it. Everything else drags its shadow along unchanged. */
+    this.drawContactShadow(g,cx,p[1]+.5+rdy*(1-lift),
+      .37*(1-lift*.16),.20*(1-lift*.20),false);
     var material=d.colour===2?'penguin-purple':'penguin-orange';
     var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+h,
       material:material,radius:this.cell*.11,topShade:'rgba(255,255,255,.012)',
+      textures:re&&re.face?{top:re.face}:null,
       southShade:d.inert?'rgba(185,213,220,.22)':'rgba(0,18,30,.025)',
       eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
     this.drawPenguinBeak(g,f.top,paletteOf(d.colour));

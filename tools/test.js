@@ -2,6 +2,7 @@
 
 var assert = require('assert');
 var E = require('../src/engine.js');
+var X = require('../src/expression.js');
 var MOD = require('../src/stages.js');
 var STAGES = MOD.STAGES;
 var CHAPTERS = MOD.CHAPTERS;
@@ -307,6 +308,85 @@ assert.strictEqual(hazard.rules.hazard, true, 'x must compile as cracked ice');
 assert.strictEqual(broken.broken, true, 'stopping on cracked ice must end the run');
 assert.strictEqual(broken.state.lost, 1, 'the stopped penguin must be marked lost');
 
+// ---------------------------------------------------------------------------
+// penguin expressions
+// ---------------------------------------------------------------------------
+//
+// The rendering half is proved in the browser (tools/expression-test.js). What
+// belongs here is the half that decides anything: the move evaluator, whose
+// entire job is to never call a move good or bad unless the solver said so.
+
+assert.strictEqual(X.EXPRESSIONS.length, 9, 'nine named expressions');
+X.EXPRESSIONS.forEach(function (name) {
+  assert(X.FACE_FILES[name], name + ' must name a face asset');
+  assert(X.PRIORITY[name] != null, name + ' must have a priority');
+});
+
+// FAIL > CLEAR > DANGER > PERFECT > MISS > SURPRISE > GOOD > BAD > NORMAL
+var order = ['fail', 'clear', 'danger', 'perfect', 'miss', 'surprise', 'good', 'bad', 'normal'];
+order.forEach(function (name, i) {
+  if (!i) return;
+  assert(X.PRIORITY[order[i - 1]] > X.PRIORITY[name],
+    name + ' must rank below ' + order[i - 1]);
+});
+
+// Every reaction pose starts and ends exactly where the penguin already was,
+// so no reaction can leave a block drawn off its own cell.
+X.EXPRESSIONS.forEach(function (name) {
+  var anim = X.ANIM[name];
+  if (!anim) return;
+  assert(anim.ms >= 200 && anim.ms <= 500, name + ': a beat, not a performance');
+  [0, 1].forEach(function (p) {
+    var q = X.pose(anim.kind, p, 'L');
+    assert(Math.abs(q.scale - 1) < 1e-9 && Math.abs(q.dx) < 1e-9 && Math.abs(q.dy) < 1e-9,
+      name + ': the pose must rest at the block\'s own cell at p=' + p);
+  });
+});
+
+function dist(moves, opts) {
+  return {
+    solvable: !opts || opts.solvable !== false,
+    exact: !opts || opts.exact !== false,
+    moves: moves
+  };
+}
+function verdict(from, to, ctx) {
+  ctx = ctx || {};
+  ctx.beforeDist = dist(from.moves != null ? from.moves : from, from);
+  ctx.afterDist = dist(to.moves != null ? to.moves : to, to);
+  return X.evaluateMove(null, null, ctx);
+}
+
+// A move is good only when it provably shortened the solution by one.
+assert.strictEqual(verdict({ moves: 6 }, { moves: 5 }).type, 'good',
+  'one move off the solution length is a good move');
+assert.strictEqual(verdict({ moves: 6 }, { moves: 6 }).type, 'normal',
+  'a move that changes nothing is not a verdict');
+assert.strictEqual(verdict({ moves: 6 }, { moves: 8 }).type, 'bad',
+  'a move that lengthens the solution is a bad move');
+
+// PERFECT is a good move plus a reason.
+assert.strictEqual(verdict({ moves: 2 }, { moves: 1 }).type, 'perfect',
+  'a move that leaves one to go is perfect');
+assert.strictEqual(verdict({ moves: 6 }, { moves: 5 }, { streak: 2 }).type, 'perfect',
+  'a run of shortest moves is perfect');
+assert.strictEqual(verdict({ moves: 6 }, { moves: 5 }, { bigMovers: 2 }).type, 'perfect',
+  'two penguins carried a long way on a shortest move is perfect');
+
+// And nothing at all is claimed when the solver could not answer exactly. This
+// is the rule the whole feature rests on: a wrong BAD is worse than silence.
+[
+  [{ moves: -1, exact: false }, { moves: 5 }],
+  [{ moves: 6 }, { moves: -1, exact: false }],
+  [{ moves: 6 }, { moves: -1, solvable: false }],
+  [{ moves: -1, solvable: false }, { moves: 5 }]
+].forEach(function (pair) {
+  var v = verdict(pair[0], pair[1]);
+  assert.strictEqual(v.confidence, 0, 'an unanswered solver produces no verdict');
+  assert.strictEqual(v.type, 'normal', 'and shows the normal face');
+});
+
 console.log('ok - ' + STAGES.length + ' stages, par ' + first + '…' + last +
   ' on a straight line (' + step.toFixed(3) + ' moves per stage), no stage inside\n'  +
-  '     another and none on shared walls, ' + inertWalls + ' inert walls, rules verified');
+  '     another and none on shared walls, ' + inertWalls + ' inert walls, rules verified\n' +
+  '     and ' + X.EXPRESSIONS.length + ' penguin expressions, ranked, posed and solver-judged');

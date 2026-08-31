@@ -35,6 +35,13 @@
 <link rel="preload" as="image" href="assets/textures/faces/penguin-bottom.png">
 <link rel="preload" as="image" href="assets/textures/faces/penguin-top-orange.png">
 <link rel="preload" as="image" href="assets/textures/faces/penguin-top-purple.png">
+<!-- Penguin expressions. Preloaded here as well as in src/expression.js so the
+     first face a reaction needs is already decoded, not fetched mid-slide. -->
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-happy.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-danger.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-miss.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-bad.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-fail.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -320,6 +327,7 @@
 </section>
 
 <script src="src/engine.js"></script>
+<script src="src/expression.js"></script>
 <script src="src/stages.js"></script>
 <script src="src/save.js"></script>
 <script src="src/haptics.js"></script>

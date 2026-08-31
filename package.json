@@ -9,6 +9,7 @@
     "forge": "node tools/forge.js",
     "qa": "node tools/qa.js",
     "test:render": "node tools/render-test.js",
+    "test:expression": "node tools/expression-test.js",
     "test": "node tools/test.js",
     "serve": "node tools/serve.js",
     "campaign": "node tools/campaign.js",
