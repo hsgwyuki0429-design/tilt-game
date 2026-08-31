@@ -1,6 +1,8 @@
 'use strict';
 
 var assert = require('assert');
+var fs = require('fs');
+var path = require('path');
 var E = require('../src/engine.js');
 var X = require('../src/expression.js');
 var MOD = require('../src/stages.js');
@@ -326,6 +328,28 @@ X.EXPRESSIONS.forEach(function (name) {
   faceFiles[file] = name;
   assert(X.PRIORITY[name] != null, name + ' must have a priority');
 });
+
+// The per-colour sets are drawings of the same nine expressions with the body
+// in the penguin's own colour. Only files that exist may be declared — a path
+// named here that is not on disk is a 404 on every load — and a set is used
+// only once it is whole, so a penguin can never change body colour halfway
+// through its own expressions.
+var declared = Object.create(null);
+Object.keys(X.COLOUR_FACE_FILES).forEach(function (setName) {
+  var set = X.COLOUR_FACE_FILES[setName];
+  Object.keys(set).forEach(function (name) {
+    assert(X.EXPRESSIONS.indexOf(name) >= 0,
+      setName + ' names an expression that does not exist: ' + name);
+    assert(fs.existsSync(path.join(__dirname, '..', set[name])),
+      setName + '.' + name + ' names a file that is not on disk: ' + set[name]);
+    assert(!declared[set[name]], set[name] + ' is declared twice');
+    declared[set[name]] = true;
+  });
+  var missing = X.missingFor(setName);
+  assert.strictEqual(missing.length, 9 - Object.keys(set).length,
+    setName + ': missingFor must name exactly what is not declared');
+});
+assert(Object.keys(X.COLOUR_SETS).length >= 1, 'a colour must map to a set');
 
 // FAIL > CLEAR > DANGER > PERFECT > MISS > SURPRISE > GOOD > BAD > NORMAL
 var order = ['fail', 'clear', 'danger', 'perfect', 'miss', 'surprise', 'good', 'bad', 'normal'];

@@ -85,6 +85,45 @@
   var EXPRESSIONS = ['normal', 'good', 'perfect', 'clear', 'surprise',
     'danger', 'miss', 'bad', 'fail'];
 
+  /*
+   * A face set per penguin colour.
+   *
+   * The set above is the one every penguin wears; these are drawings where the
+   * whole body carries the penguin's own colour rather than the beak carrying
+   * it alone. The keys are the renderer's own material names, so `colour` maps
+   * to a set the same way `drawPenguin` picks a material.
+   *
+   * ONLY FILES THAT EXIST ARE LISTED. A path named here that is not on disk
+   * would 404 on every load, and thirteen of those in the console is a worse
+   * problem than a missing face. Add the line when the drawing arrives.
+   *
+   * A colour set is used only once it is COMPLETE — all nine expressions
+   * declared and all nine decoded. Half a set would mean the same penguin
+   * changing body colour as its face changed, which is not a partial feature,
+   * it is a broken one. Until then every penguin wears the shared set and the
+   * board looks exactly as it does today; the moment the ninth file lands, the
+   * colour switches itself on with nothing else to change.
+   */
+  var COLOUR_SETS = { 1: 'penguin-orange', 2: 'penguin-purple' };
+
+  var COLOUR_FACE_FILES = {
+    'penguin-orange': {
+      clear:   'assets/textures/faces/penguin-orange-clear.png',
+      perfect: 'assets/textures/faces/penguin-orange-perfect.png',
+      miss:    'assets/textures/faces/penguin-orange-miss.png',
+      fail:    'assets/textures/faces/penguin-orange-fail.png'
+    },
+    'penguin-purple': {
+      normal:  'assets/textures/faces/penguin-purple-normal.png'
+    }
+  };
+
+  /** Which drawings a colour set is still waiting for. */
+  function missingFor(setName) {
+    var set = COLOUR_FACE_FILES[setName] || {};
+    return EXPRESSIONS.filter(function (name) { return !set[name]; });
+  }
+
   /**
    * Which news wins when two things happen to one penguin in one move.
    *
@@ -173,7 +212,10 @@
     return out;
   }
 
-  var REST = { face: null, expression: 'normal', scale: 1, dx: 0, dy: 0, lift: 0 };
+  /* No face override and no pose: the renderer draws exactly what it drew
+     before this feature existed. */
+  var REST = { face: null, expression: 'normal', scale: 1, dx: 0, dy: 0,
+    lift: 0, tintBeak: true };
 
   // ---------------------------------------------------------------------------
   // Preloading
@@ -191,18 +233,34 @@
   function FaceBank(onReady) {
     this.images = {};
     this.paths = [];
+    this.complete = {};
     this.loaded = 0;
     this.onReady = onReady || function () {};
     var seen = {}, self = this;
-    EXPRESSIONS.forEach(function (name) {
-      var src = FACE_FILES[name];
-      if (seen[src]) return;
+    var want = function (src) {
+      if (!src || seen[src]) return;
       seen[src] = true;
       self.paths.push(src);
+    };
+    EXPRESSIONS.forEach(function (name) { want(FACE_FILES[name]); });
+    Object.keys(COLOUR_FACE_FILES).forEach(function (setName) {
+      var set = COLOUR_FACE_FILES[setName];
+      EXPRESSIONS.forEach(function (name) { want(set[name]); });
     });
     this.expected = this.paths.length;
+    this.sync();
     this.load();
   }
+  /** Which colour sets are complete enough to use. Recomputed as images land. */
+  FaceBank.prototype.sync = function () {
+    var self = this;
+    Object.keys(COLOUR_FACE_FILES).forEach(function (setName) {
+      var set = COLOUR_FACE_FILES[setName];
+      self.complete[setName] = EXPRESSIONS.every(function (name) {
+        return !!(set[name] && self.images[set[name]]);
+      });
+    });
+  };
   FaceBank.prototype.load = function () {
     if (typeof Image === 'undefined' || typeof document === 'undefined') {
       this.loaded = this.expected;
@@ -215,6 +273,7 @@
       var done = function (ok) {
         if (ok) self.images[src] = img;
         self.loaded++;
+        self.sync();
         if (self.loaded === self.expected) self.onReady();
       };
       img.onload = function () { done(true); };
@@ -225,8 +284,21 @@
     });
   };
   FaceBank.prototype.ready = function () { return this.loaded >= this.expected; };
-  FaceBank.prototype.face = function (expression) {
-    var src = FACE_FILES[expression];
+
+  /** Does this colour have a full set of its own drawings? */
+  FaceBank.prototype.hasColourSet = function (colour) {
+    var setName = COLOUR_SETS[colour];
+    return !!(setName && this.complete[setName]);
+  };
+
+  /**
+   * The drawing for one expression, in this penguin's colour where there is a
+   * complete set for it and in the shared black-bodied set where there is not.
+   */
+  FaceBank.prototype.face = function (expression, colour) {
+    var setName = colour != null ? COLOUR_SETS[colour] : null;
+    var src = (setName && this.complete[setName] &&
+      COLOUR_FACE_FILES[setName][expression]) || FACE_FILES[expression];
     return src ? (this.images[src] || null) : null;
   };
 
@@ -485,11 +557,23 @@
    */
   PenguinReactions.prototype.visualFor = function (index, t) {
     var p = this.pens[index];
-    if (!p || p.expression === 'normal') return REST;
+    if (!p) return REST;
+
+    /* A penguin drawn in its own colour carries that colour in the artwork, so
+       the runtime beak tint would only fight the drawing. Where the colour set
+       is incomplete this is the shared face and the tint is still the only
+       thing saying which aurora it belongs to. */
+    var own = this.bank.hasColourSet(p.colour);
+    if (p.expression === 'normal') {
+      if (!own) return REST;
+      return { face: this.bank.face('normal', p.colour), expression: 'normal',
+        scale: 1, dx: 0, dy: 0, lift: 0, tintBeak: false };
+    }
     if (t == null) t = now();
 
-    var out = { face: this.bank.face(p.expression), expression: p.expression,
-      scale: 1, dx: 0, dy: 0, lift: 0 };
+    var out = { face: this.bank.face(p.expression, p.colour),
+      expression: p.expression, scale: 1, dx: 0, dy: 0, lift: 0,
+      tintBeak: !own };
     if (this.reduceMotion || !p.anim) return out;
 
     var phase = (t - p.animStart) / p.anim.ms;
@@ -514,6 +598,9 @@
   return {
     EXPRESSIONS: EXPRESSIONS,
     FACE_FILES: FACE_FILES,
+    COLOUR_SETS: COLOUR_SETS,
+    COLOUR_FACE_FILES: COLOUR_FACE_FILES,
+    missingFor: missingFor,
     PRIORITY: PRIORITY,
     HOLD: HOLD,
     STICKY: STICKY,

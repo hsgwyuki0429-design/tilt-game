@@ -62,6 +62,25 @@ The penguin's upward plane is a face, and which face it is comes from
 and asks it two things per penguin per frame: which image, and what pose. It
 knows no expression names and no trigger conditions.
 
+### Per-colour sets
+
+A penguin's colour is normally carried by its beak, tinted at runtime. A second
+set of drawings per colour — `COLOUR_FACE_FILES`, keyed by the same
+`penguin-orange` / `penguin-purple` material names the renderer uses — carries
+it in the whole body instead, and where one is in use the runtime beak tint
+steps aside so it does not fight the artwork.
+
+A colour set is used only once it is **complete**: all nine expressions
+declared and all nine decoded. Half a set would mean one penguin changing body
+colour as its face changed, which is not a partial feature but a broken one, so
+until the ninth drawing lands every penguin wears the shared set and the board
+looks exactly as it did. Only files that exist may be declared — a path named
+for a drawing that is not on disk is a 404 on every load — so adding a drawing
+is adding its line, and the colour switches itself on when the last one arrives.
+`npm test` checks every declared path resolves to a real file, and
+`npm run test:expression` proves the switch-over end to end by completing a set
+in memory.
+
 Every face asset is the same 512px square, mapped through the same top-face
 quad, so a swap cannot change a penguin's size or position — `npm run
 test:expression` asserts that on real pixels by comparing the drawn silhouette's

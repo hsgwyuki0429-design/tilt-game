@@ -753,7 +753,10 @@
       textures:re&&re.face?{top:re.face}:null,
       southShade:d.inert?'rgba(185,213,220,.22)':'rgba(0,18,30,.025)',
       eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
-    this.drawPenguinBeak(g,f.top,paletteOf(d.colour));
+    /* The beak carries the aurora colour only while the body cannot: a face
+       drawn in the penguin's own colour already says which aurora is its, and
+       tinting on top of that would fight the drawing. */
+    if(!re||re.tintBeak!==false)this.drawPenguinBeak(g,f.top,paletteOf(d.colour));
     if(!this.textureBank.face(material,'south'))this.drawPenguinFallback(g,f);
   };
   /**

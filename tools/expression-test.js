@@ -99,9 +99,12 @@ function expressions(page) {
   });
 }
 
-/* The bounding box of everything dark in the penguin's cell. Every face asset
-   is the same black rounded square with a different drawing inside it, so this
-   box is the one number that says "the swap moved nothing". */
+/* The bounding box of the penguin's own frame inside its cell.
+   A pixel counts when it is far from the ice it is standing on, which finds the
+   rounded frame and skips the white belly — and keeps working when that frame
+   is the penguin's own yellow or purple rather than black. Every face asset is
+   the same square with a different drawing inside it, so this box is the one
+   number that says "the swap moved nothing". */
 async function penguinBox(page) {
   return page.evaluate(function () {
     var g = window.game, r = g.renderer;
@@ -110,20 +113,23 @@ async function penguinBox(page) {
       if (g.state.alive[i] && g.stage.colour[i] !== window.TiltEngine.GRAY) break;
     }
     var p = g.state.pos[i];
-    var pad = r.cell * .8;
+    // Wide enough for the whole block, tight enough to exclude its neighbours.
+    var pad = r.cell * .55;
     var c = r.project(p[0] + .5, p[1] + .5, 0);
     var x0 = Math.max(0, Math.round((c.x - pad) * r.dpr));
     var y0 = Math.max(0, Math.round((c.y - pad) * r.dpr));
     var w = Math.min(r.canvas.width - x0, Math.round(pad * 2 * r.dpr));
     var h = Math.min(r.canvas.height - y0, Math.round(pad * 2 * r.dpr));
     var data = r.ctx.getImageData(x0, y0, w, h).data;
+    // The plain ice this cell is drawn on, read from a corner of the sample.
+    var bg = [data[0], data[1], data[2]];
     var minX = 1e9, minY = 1e9, maxX = -1, maxY = -1, n = 0;
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
         var o = (y * w + x) * 4;
         if (data[o + 3] < 40) continue;
-        var luma = .299 * data[o] + .587 * data[o + 1] + .114 * data[o + 2];
-        if (luma > 70) continue;                    // the near-black penguin body only
+        var dr = data[o] - bg[0], dg = data[o + 1] - bg[1], db = data[o + 2] - bg[2];
+        if (dr * dr + dg * dg + db * db < 90 * 90) continue;   // still the ice
         n++;
         if (x < minX) minX = x; if (x > maxX) maxX = x;
         if (y < minY) minY = y; if (y > maxY) maxY = y;
@@ -163,13 +169,21 @@ async function penguinBox(page) {
       if (!img) { missing.push(name); return; }
       sizes[name] = img.naturalWidth + 'x' + img.naturalHeight;
     });
+    var paths = {};
+    X.EXPRESSIONS.forEach(function (n) { paths[X.FACE_FILES[n]] = 1; });
+    Object.keys(X.COLOUR_FACE_FILES).forEach(function (setName) {
+      var set = X.COLOUR_FACE_FILES[setName];
+      Object.keys(set).forEach(function (n) { paths[set[n]] = 1; });
+    });
     return { ready: b.ready(), requests: b.expected, missing: missing, sizes: sizes,
-      expressions: X.EXPRESSIONS.length };
+      declared: Object.keys(paths).length, expressions: X.EXPRESSIONS.length };
   });
   ok('nine expressions are declared', bank.expressions === 9, 'found ' + bank.expressions);
   ok('every face is decoded before play', bank.ready && !bank.missing.length,
     'missing=' + bank.missing.join(','));
-  ok('the nine faces cost ' + bank.requests + ' image requests', bank.requests <= 9);
+  ok('every drawing is fetched once and only once  (' + bank.requests +
+    ' requests for ' + bank.declared + ' declared paths)',
+    bank.requests === bank.declared);
   var distinct = await page.evaluate(function () {
     var X = window.TiltExpression, b = window.game.reactions.bank, seen = [];
     return X.EXPRESSIONS.every(function (name) {
@@ -180,10 +194,108 @@ async function penguinBox(page) {
     });
   });
   ok('each expression resolves to a drawing of its own', distinct);
-  var uniqueSizes = Object.keys(bank.sizes).map(function (k) { return bank.sizes[k]; })
-    .filter(function (v, i, a) { return a.indexOf(v) === i; });
-  ok('every face is the same 512px square', uniqueSizes.length === 1 && uniqueSizes[0] === '512x512',
-    uniqueSizes.join(' '));
+  var allSizes = await page.evaluate(function () {
+    var b = window.game.reactions.bank, out = {};
+    Object.keys(b.images).forEach(function (src) {
+      out[b.images[src].naturalWidth + 'x' + b.images[src].naturalHeight] = 1;
+    });
+    return Object.keys(out);
+  });
+  ok('every drawing, shared and per-colour, is the same 512px square',
+    allSizes.length === 1 && allSizes[0] === '512x512', allSizes.join(' '));
+
+  // ── the per-colour sets, and what they must not do until they are whole ────
+  section('PER-COLOUR FACES');
+  var colours = await page.evaluate(function () {
+    var X = window.TiltExpression, b = window.game.reactions.bank;
+    return Object.keys(X.COLOUR_FACE_FILES).map(function (setName) {
+      var set = X.COLOUR_FACE_FILES[setName];
+      var declared = Object.keys(set);
+      return {
+        set: setName,
+        declared: declared.length,
+        missing: X.missingFor(setName),
+        decoded: declared.filter(function (n) { return !!b.images[set[n]]; }).length,
+        complete: !!b.complete[setName]
+      };
+    });
+  });
+  colours.forEach(function (c) {
+    ok('every declared ' + c.set + ' drawing decodes  (' + c.decoded + '/' +
+      c.declared + ')', c.decoded === c.declared);
+    ok(c.set + ' is ' + (c.complete ? 'complete and in use' : 'held back until all nine land') +
+      (c.missing.length ? '  — still needs ' + c.missing.join(', ') : ''),
+      c.complete === (c.missing.length === 0));
+  });
+
+  // An incomplete set must leave the board exactly as it was: every expression
+  // falls back to the shared drawing, and the beak keeps carrying the colour.
+  var fallback = await page.evaluate(function () {
+    var X = window.TiltExpression, g = window.game, R = g.reactions, b = R.bank;
+    var out = { mixed: [], tint: [] };
+    [1, 2].forEach(function (colour) {
+      if (b.hasColourSet(colour)) return;                 // a whole set is allowed to differ
+      X.EXPRESSIONS.forEach(function (name) {
+        if (b.face(name, colour) !== b.face(name)) out.mixed.push(colour + ':' + name);
+      });
+    });
+    R.pens.forEach(function (p) {
+      if (!p || b.hasColourSet(p.colour)) return;
+      R.setExpression(p.index, 'good');
+      if (R.visualFor(p.index).tintBeak === false) out.tint.push(p.id);
+    });
+    R.reset();
+    return out;
+  });
+  ok('an incomplete colour set draws the shared face for every expression',
+    fallback.mixed.length === 0, fallback.mixed.join(' '));
+  ok('and leaves the beak carrying the aurora colour',
+    fallback.tint.length === 0, fallback.tint.join(' '));
+
+  /* The switch-on, proved before the artwork it waits for exists. The set is
+     completed in memory with the drawings already on disk, the bank is asked
+     to look again, and the whole path — face lookup, beak tint, the drawn
+     silhouette — has to change over for that colour and for no other. */
+  var switched = await page.evaluate(async function () {
+    var X = window.TiltExpression, g = window.game, R = g.reactions, b = R.bank;
+    var setName = X.COLOUR_SETS[1];
+    var set = X.COLOUR_FACE_FILES[setName];
+    var restore = {}, filler = set.miss;
+    X.missingFor(setName).forEach(function (name) { restore[name] = true; set[name] = filler; });
+    b.sync();
+
+    var report = {
+      completed: b.hasColourSet(1),
+      otherUntouched: !b.hasColourSet(2),
+      ownFaces: X.EXPRESSIONS.every(function (n) { return b.face(n, 1) === b.images[set[n]]; }),
+      sharedForOther: X.EXPRESSIONS.every(function (n) { return b.face(n, 2) === b.face(n); }),
+      tintOff: true, tintOnForOther: true
+    };
+    R.pens.forEach(function (p) {
+      if (!p) return;
+      R.setExpression(p.index, 'good');
+      var tint = R.visualFor(p.index).tintBeak;
+      if (p.colour === 1 && tint !== false) report.tintOff = false;
+      if (p.colour === 2 && tint === false) report.tintOnForOther = false;
+      R.setExpression(p.index, 'normal');
+      if (p.colour === 1 && R.visualFor(p.index).face !== b.face('normal', 1)) {
+        report.ownFaces = false;                 // the resting face must swap too
+      }
+    });
+
+    X.EXPRESSIONS.forEach(function (name) { if (restore[name]) delete set[name]; });
+    b.sync();
+    R.reset();
+    report.restored = !b.hasColourSet(1);
+    return report;
+  });
+  ok('completing a colour set switches that colour over', switched.completed && switched.ownFaces,
+    JSON.stringify(switched));
+  ok('including the resting face, and drops the beak tint with it', switched.tintOff);
+  ok('and leaves the other colour on the shared set',
+    switched.otherUntouched && switched.sharedForOther && switched.tintOnForOther,
+    JSON.stringify(switched));
+  ok('the probe put the incomplete set back', switched.restored);
 
   // ── resting state ──────────────────────────────────────────────────────────
   section('NORMAL');
