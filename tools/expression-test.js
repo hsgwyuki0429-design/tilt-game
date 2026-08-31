@@ -252,50 +252,110 @@ async function penguinBox(page) {
   ok('and leaves the beak carrying the aurora colour',
     fallback.tint.length === 0, fallback.tint.join(' '));
 
-  /* The switch-on, proved before the artwork it waits for exists. The set is
-     completed in memory with the drawings already on disk, the bank is asked
-     to look again, and the whole path — face lookup, beak tint, the drawn
-     silhouette — has to change over for that colour and for no other. */
-  var switched = await page.evaluate(async function () {
-    var X = window.TiltExpression, g = window.game, R = g.reactions, b = R.bank;
-    var setName = X.COLOUR_SETS[1];
+  /* A complete set really is worn, by the whole path: every expression, the
+     resting face included, and the beak tint out of the way. */
+  var live = await page.evaluate(function () {
+    var X = window.TiltExpression, R = window.game.reactions, b = R.bank;
+    var out = [];
+    Object.keys(X.COLOUR_SETS).forEach(function (colour) {
+      colour = Number(colour);
+      var setName = X.COLOUR_SETS[colour];
+      if (!b.hasColourSet(colour)) return;
+      var set = X.COLOUR_FACE_FILES[setName];
+      out.push({
+        set: setName,
+        ownFaces: X.EXPRESSIONS.every(function (n) { return b.face(n, colour) === b.images[set[n]]; }),
+        notShared: X.EXPRESSIONS.every(function (n) { return b.face(n, colour) !== b.face(n); }),
+        tintOff: R.pens.every(function (p) {
+          if (!p || p.colour !== colour) return true;
+          R.setExpression(p.index, 'good');
+          var a = R.visualFor(p.index).tintBeak === false;
+          R.setExpression(p.index, 'normal');
+          var b2 = R.visualFor(p.index).tintBeak === false;
+          return a && b2;
+        })
+      });
+    });
+    R.reset();
+    return out;
+  });
+  live.forEach(function (c) {
+    ok(c.set + ' wears its own drawing for all nine expressions',
+      c.ownFaces && c.notShared, JSON.stringify(c));
+    ok('and hands the beak back to the artwork, resting face included', c.tintOff,
+      JSON.stringify(c));
+  });
+
+  /* The switch itself, exercised whichever way round the sets happen to be:
+     an incomplete colour is completed in memory and has to change over, and a
+     complete one has a drawing taken away and has to fall all the way back.
+     Either way the other colour must come out of it exactly as it went in. */
+  var switched = await page.evaluate(function () {
+    var X = window.TiltExpression, R = window.game.reactions, b = R.bank;
+    var colours = Object.keys(X.COLOUR_SETS).map(Number);
+    var subject = colours.filter(function (c) { return !b.hasColourSet(c); })[0];
+    var direction = subject != null ? 'completed' : 'broken';
+    if (subject == null) subject = colours.filter(function (c) { return b.hasColourSet(c); })[0];
+    if (subject == null) return { skipped: true };
+    var others = colours.filter(function (c) { return c !== subject; });
+
+    var snapshot = function () {
+      return others.map(function (c) {
+        return { live: b.hasColourSet(c),
+          faces: X.EXPRESSIONS.map(function (n) { return b.face(n, c); }) };
+      });
+    };
+    var before = snapshot();
+    var setName = X.COLOUR_SETS[subject];
     var set = X.COLOUR_FACE_FILES[setName];
-    var restore = {}, filler = set.miss;
-    X.missingFor(setName).forEach(function (name) { restore[name] = true; set[name] = filler; });
+    var added = {}, removed = null;
+
+    if (direction === 'completed') {
+      var filler = set[Object.keys(set)[0]];
+      X.missingFor(setName).forEach(function (n) { added[n] = true; set[n] = filler; });
+    } else {
+      removed = { name: 'bad', src: set.bad };
+      delete set.bad;
+    }
     b.sync();
 
-    var report = {
-      completed: b.hasColourSet(1),
-      otherUntouched: !b.hasColourSet(2),
-      ownFaces: X.EXPRESSIONS.every(function (n) { return b.face(n, 1) === b.images[set[n]]; }),
-      sharedForOther: X.EXPRESSIONS.every(function (n) { return b.face(n, 2) === b.face(n); }),
-      tintOff: true, tintOnForOther: true
-    };
-    R.pens.forEach(function (p) {
-      if (!p) return;
+    var flipped = direction === 'completed' ? b.hasColourSet(subject) : !b.hasColourSet(subject);
+    var wears = X.EXPRESSIONS.every(function (n) {
+      return direction === 'completed'
+        ? b.face(n, subject) === b.images[set[n]]
+        : b.face(n, subject) === b.face(n);
+    });
+    var tint = R.pens.every(function (p) {
+      if (!p || p.colour !== subject) return true;
       R.setExpression(p.index, 'good');
-      var tint = R.visualFor(p.index).tintBeak;
-      if (p.colour === 1 && tint !== false) report.tintOff = false;
-      if (p.colour === 2 && tint === false) report.tintOnForOther = false;
+      var t = R.visualFor(p.index).tintBeak;
       R.setExpression(p.index, 'normal');
-      if (p.colour === 1 && R.visualFor(p.index).face !== b.face('normal', 1)) {
-        report.ownFaces = false;                 // the resting face must swap too
-      }
+      var r = R.visualFor(p.index).tintBeak;
+      return direction === 'completed' ? (t === false && r === false) : (t !== false && r !== false);
     });
 
-    X.EXPRESSIONS.forEach(function (name) { if (restore[name]) delete set[name]; });
+    var after = snapshot();
+    var untouched = after.every(function (a, i) {
+      return a.live === before[i].live &&
+        a.faces.every(function (f, j) { return f === before[i].faces[j]; });
+    });
+
+    Object.keys(added).forEach(function (n) { delete set[n]; });
+    if (removed) set[removed.name] = removed.src;
     b.sync();
     R.reset();
-    report.restored = !b.hasColourSet(1);
-    return report;
+
+    return { direction: direction, subject: setName, flipped: flipped, wears: wears,
+      tint: tint, untouched: untouched,
+      restored: direction === 'completed' ? !b.hasColourSet(subject) : b.hasColourSet(subject) };
   });
-  ok('completing a colour set switches that colour over', switched.completed && switched.ownFaces,
+  ok('a set going ' + (switched.direction === 'completed' ? 'whole switches ' : 'short falls ') +
+    switched.subject + ' over', switched.flipped && switched.wears, JSON.stringify(switched));
+  ok('carrying the beak tint with it, resting face included', switched.tint,
     JSON.stringify(switched));
-  ok('including the resting face, and drops the beak tint with it', switched.tintOff);
-  ok('and leaves the other colour on the shared set',
-    switched.otherUntouched && switched.sharedForOther && switched.tintOnForOther,
+  ok('and leaving every other colour exactly as it was', switched.untouched,
     JSON.stringify(switched));
-  ok('the probe put the incomplete set back', switched.restored);
+  ok('the probe put the set back', switched.restored, JSON.stringify(switched));
 
   // ── resting state ──────────────────────────────────────────────────────────
   section('NORMAL');

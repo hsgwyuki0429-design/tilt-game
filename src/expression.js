@@ -118,7 +118,10 @@
       good:     'assets/textures/faces/penguin-purple-good.png',
       perfect:  'assets/textures/faces/penguin-purple-perfect.png',
       surprise: 'assets/textures/faces/penguin-purple-surprise.png',
+      clear:    'assets/textures/faces/penguin-purple-clear.png',
+      danger:   'assets/textures/faces/penguin-purple-danger.png',
       miss:     'assets/textures/faces/penguin-purple-miss.png',
+      bad:      'assets/textures/faces/penguin-purple-bad.png',
       fail:     'assets/textures/faces/penguin-purple-fail.png'
     }
   };
