@@ -60,6 +60,40 @@ Nothing in the build is trusted: `tools/build-stages.js` recompiles and
 re-solves every board with `src/engine.js` before writing it out, and `npm test`
 re-solves all hundred again.
 
+## The 4×4 tray, measured end to end
+
+The campaign wants a hundred boards at a hundred exact lengths, so
+`tools/level-search.js` keeps the *emptiest* few boards at each length and
+throws the rest away. That is the right answer for building a campaign and the
+wrong one for the question "what does the 4×4 tray actually contain?", so the
+4×4 is also swept separately:
+
+```sh
+# every obstacle plan the tray can hold, four cores at a time
+node tools/search-4x4.js --plans "2,2,3" --slice 0/4 --out tools/parts/a.json
+
+# fold the parts together
+node tools/search-4x4.js --plans "" --merge "tools/parts/a.json,…"   --keep 100 --out tools/4x4-index.json
+
+# re-solve every board it kept with src/engine.js, and replay every solution
+node tools/verify-4x4.js tools/4x4-index.json
+
+# write the catalogue out, longest board first
+node tools/report-4x4.js tools/4x4-index.json > docs/CATALOG-4x4.md
+```
+
+`--plans` takes `penguins,drifters,immovables[,cracked-ice]` triples separated
+by `;`, `--slice at/of` takes a share of one plan's layouts so four processes
+can walk it at once, `--keep` sets how many boards to catalogue per length, and
+`--budget` caps a plan in seconds. It differs from `level-search.js` in three
+ways: it counts *every* board it measures into a par histogram rather than only
+the ones it keeps, it keeps boards for variety instead of for emptiness — first
+across obstacle plans, then rooms, then skeletons, then solutions — and it
+stores the shortest solution alongside every board.
+
+`docs/CATALOG-4x4.md` is what came out: the difficulty distribution of the whole
+tray, and boards at every length from one swipe to the longest there is.
+
 ## Checks
 
 Run the logic tests — every board re-solved, the difficulty line verified — with:
