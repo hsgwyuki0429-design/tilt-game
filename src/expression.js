@@ -108,9 +108,13 @@
 
   var COLOUR_FACE_FILES = {
     'penguin-orange': {
-      clear:   'assets/textures/faces/penguin-orange-clear.png',
+      normal:  'assets/textures/faces/penguin-orange-normal.png',
+      good:    'assets/textures/faces/penguin-orange-good.png',
       perfect: 'assets/textures/faces/penguin-orange-perfect.png',
+      clear:   'assets/textures/faces/penguin-orange-clear.png',
+      danger:  'assets/textures/faces/penguin-orange-danger.png',
       miss:    'assets/textures/faces/penguin-orange-miss.png',
+      bad:     'assets/textures/faces/penguin-orange-bad.png',
       fail:    'assets/textures/faces/penguin-orange-fail.png'
     },
     'penguin-purple': {
