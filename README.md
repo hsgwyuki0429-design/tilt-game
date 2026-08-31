@@ -76,6 +76,14 @@ Chromium):
 npm run test:render
 ```
 
+Run the penguin expression contracts — every face preloaded, every trigger
+fired on a real board, the stale-timer race, and a pixel check that swapping a
+face moves nothing — with:
+
+```sh
+npm run test:expression
+```
+
 Run the complete browser campaign and interaction harness with:
 
 ```sh

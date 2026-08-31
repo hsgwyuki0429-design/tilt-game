@@ -54,6 +54,48 @@ Procedural cracks, snow, and penguin art remain only as load-error fallbacks.
 The aurora texture receives a goal-colour filter and a weak emissive pulse; no
 symbol or badge is placed over the supplied artwork.
 
+## Penguin expressions
+
+The penguin's upward plane is a face, and which face it is comes from
+`src/expression.js` — nine named expressions with one drawing each, held in
+`FACE_FILES`. The renderer holds a `PenguinReactions` in `Renderer.reactions`
+and asks it two things per penguin per frame: which image, and what pose. It
+knows no expression names and no trigger conditions.
+
+### Per-colour sets
+
+A penguin's colour is normally carried by its beak, tinted at runtime. A second
+set of drawings per colour — `COLOUR_FACE_FILES`, keyed by the same
+`penguin-orange` / `penguin-purple` material names the renderer uses — carries
+it in the whole body instead, and where one is in use the runtime beak tint
+steps aside so it does not fight the artwork.
+
+A colour set is used only once it is **complete**: all nine expressions
+declared and all nine decoded. Half a set would mean one penguin changing body
+colour as its face changed, which is not a partial feature but a broken one, so
+until the ninth drawing lands every penguin wears the shared set and the board
+looks exactly as it did. Only files that exist may be declared — a path named
+for a drawing that is not on disk is a 404 on every load — so adding a drawing
+is adding its line, and the colour switches itself on when the last one arrives.
+`npm test` checks every declared path resolves to a real file, and
+`npm run test:expression` proves the switch-over end to end by completing a set
+in memory.
+
+Every face asset is the same 512px square, mapped through the same top-face
+quad, so a swap cannot change a penguin's size or position — `npm run
+test:expression` asserts that on real pixels by comparing the drawn silhouette's
+bounding box across all nine. The pose is one scale about the block's own
+centre and one offset in cells, applied to the quad the renderer was going to
+draw anyway; nothing reads it back, so a penguin mid-flinch still occupies
+exactly the cell the rules put it in. Reduced motion drops the pose and keeps
+the face.
+
+Expressions expire on the frame clock rather than on timers of their own. A
+reaction records the instant it is finished with, and `Renderer.frame` retires
+it, which is why a fast player cannot be left with an old reaction's timeout
+reverting a newer face. A live reaction reports itself busy, so the idle frame
+throttle lifts for as long as one is running.
+
 ## Lighting and occlusion
 
 The texture artwork supplies the light and surface detail. Rendering adds a

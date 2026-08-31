@@ -131,6 +131,19 @@
 
   var OBJECTIVE = { allin: 'winAllin' };
 
+  var X = root.TiltExpression;
+
+  /*
+   * The node budget the solver gets for one question about the settled
+   * position. It is what the dead-end notice has always spent; the move
+   * evaluation shares that one answer rather than buying a second.
+   */
+  var SOLVE_CAP = 40000;
+
+  /* A slide long enough to call far, in cells. Two of them at once, on a move
+   * that was also on a shortest solution, is one of the things PERFECT is for. */
+  var FAR_SLIDE = 3;
+
   function t(key) { var v = TXT[key]; return v ? (JA ? v.ja : v.en) : key; }
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
@@ -173,6 +186,20 @@
 
     this.canvas = document.getElementById('board');
     this.renderer = new root.TiltRender.Renderer(this.canvas);
+
+    /*
+     * Faces. Built here rather than in loadStage so the images are decoded
+     * while the home screen is still up: the first time a face is needed it is
+     * halfway through a slide, and an image that starts loading there is a
+     * stutter in the one animation anybody is watching.
+     *
+     * The renderer is handed the controller, not the expressions. It asks what
+     * to draw; it has no opinion about what causes what.
+     */
+    this.reactions = new X.PenguinReactions();
+    this.renderer.reactions = this.reactions;
+    this.optimalStreak = 0;
+    this.distCache = Object.create(null);
 
     this.stage = null;
     this.state = null;
@@ -330,6 +357,9 @@
     root_.classList.toggle('rm', reduced);
     root_.classList.toggle('motion-full', !reduced);
     this.renderer.reduceMotion = reduced;
+    // Reduced motion drops the reaction poses and keeps the faces: the
+    // information survives, the movement does not.
+    this.reactions.reduceMotion = reduced;
     this.wake();
   };
 
@@ -347,6 +377,15 @@
     this.phase = 'play';
 
     this.renderer.setStage(this.stage, this.state);
+
+    var self = this;
+    this.stateKey = E.makeStateKey(this.stage);
+    this.distCache = Object.create(null);
+    this.optimalStreak = 0;
+    // The controller reads positions back out of the engine state rather than
+    // keeping a copy: one mutable board, same as everything else here.
+    this.reactions.setStage(this.stage, function () { return self.state; });
+    this.reactions.reset();
 
     var chap = chapterOf(def.id);
     var chapName = JA ? (chap.ja || chap.name) : chap.name;
@@ -486,9 +525,15 @@
     if (!res.moved) {
       // Nothing shifted. Say so — in the board's own language, by leaning it
       // that way and letting it spring back — and do not charge a move for it.
+      //
+      // Every penguin on the board is wedged, or the swipe would have moved one
+      // of them, so every penguin gets the flinch. It is the one reaction that
+      // fires on the input rather than on the board settling, because there is
+      // no slide to wait for.
       this.audio.blocked();
       this.haptics.blocked();
       this.renderer.rebuff(dir);
+      this.reactions.begin().proposeLive('miss', { dir: dir }).commit();
       this.wake();
       return;
     }
@@ -537,6 +582,18 @@
   /** Called once the animation has finished and the board is at rest. */
   Game.prototype.settle = function (res) {
     var self = this;
+
+    /*
+     * The settled position is solved exactly once per move. Both questions the
+     * game asks about it — "can this still be won?" and "was that move on a
+     * shortest solution?" — are answered from that one result, so asking the
+     * second one costs nothing. Faces are set before any card or toast: the
+     * board is what the player is still looking at.
+     */
+    var probe = E.solve(this.stage, this.state, SOLVE_CAP);
+    var dead = !res.clear && !res.broken && !probe.solvable && !probe.truncated;
+    this.reactToMove(res, probe, dead);
+
     if (res.clear) {
       this.queued = null;
       this.setPhase('clear');
@@ -567,7 +624,7 @@
     }
 
     this.setPhase('play');
-    this.noticeIfStuck();
+    this.noticeIfStuck(probe);
 
     if (this.queued) {
       var d = this.queued;
@@ -598,15 +655,164 @@
    * the benefit of the doubt. Calling a legal position a dead end because the
    * solver ran out of nodes would be far worse than missing a jam.
    */
-  Game.prototype.noticeIfStuck = function () {
+  Game.prototype.noticeIfStuck = function (probe) {
     if (this.stuck) return true;
-    var r = E.solve(this.stage, this.state, 40000);
+    var r = probe || E.solve(this.stage, this.state, SOLVE_CAP);
     if (r.solvable || r.truncated) return false;
 
     this.stuck = true;
     this.haptics.blocked();
     this.showToast(t('stuck'), { icon: 'undo' });
     return true;
+  };
+
+  // -- reactions --------------------------------------------------------------
+
+  /**
+   * How many moves this position still needs, cached by the position itself.
+   *
+   * Keyed on the engine's own state key, so the cache cannot go stale: two
+   * states with the same key ARE the same position. Undo walking back over
+   * ground it has already covered therefore gets its answers for free.
+   */
+  Game.prototype.remaining = function (state, probe) {
+    if (!this.stateKey) return null;
+    var key = this.stateKey(state);
+    if (!probe && this.distCache[key]) return this.distCache[key];
+    var r = probe || E.solve(this.stage, state, SOLVE_CAP);
+    var out = { solvable: !!r.solvable, exact: !r.truncated, moves: r.moves };
+    this.distCache[key] = out;
+    return out;
+  };
+
+  /** The separate slides one block made during one move, as frame ranges. */
+  function slideRuns(frames, i) {
+    var runs = [], start = -1;
+    for (var t = 1; t < frames.length; t++) {
+      var p = frames[t - 1].pos[i], q = frames[t].pos[i];
+      var moved = frames[t - 1].alive[i] && (p[0] !== q[0] || p[1] !== q[1]);
+      if (moved && start < 0) start = t - 1;
+      if (!moved && start >= 0) { runs.push([start, t - 1]); start = -1; }
+    }
+    if (start >= 0) runs.push([start, frames.length - 1]);
+    return runs;
+  }
+
+  /** Cells this block covered over the whole move. */
+  function travelled(frames, i) {
+    var runs = slideRuns(frames, i), total = 0;
+    for (var k = 0; k < runs.length; k++) {
+      var a = frames[runs[k][0]].pos[i], b = frames[runs[k][1]].pos[i];
+      total += Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
+    }
+    return total;
+  }
+
+  /** Did this block glide over cracked ice and live? */
+  Game.prototype.crossedHazard = function (frames, i) {
+    var st = this.stage;
+    if (!st.rules.hazard) return false;
+    var last = frames[frames.length - 1];
+    if (!last.alive[i]) return false;          // it stopped there, and that is the run ending
+    for (var t = 0; t < frames.length; t++) {
+      if (!frames[t].alive[i]) break;
+      var p = frames[t].pos[i];
+      if (st.terrain[p[1] * st.w + p[0]] === E.HAZARD) return true;
+    }
+    return false;
+  };
+
+  /**
+   * Is this penguin one swipe away from being destroyed?
+   *
+   * Simulated, not guessed: each of the four gravities is played out on the
+   * settled position, and the question is whether this exact block comes to
+   * rest on cracked ice. Being far from an aurora is not danger — a puzzle
+   * routinely wants you further away, and saying otherwise would be a lie.
+   */
+  Game.prototype.oneMoveFromLoss = function (index) {
+    var st = this.stage;
+    if (!st.rules.hazard) return false;
+    for (var d = 0; d < E.DIRS.length; d++) {
+      var r = E.simulate(st, this.state, E.DIRS[d], { frames: false });
+      if (!r.moved) continue;
+      for (var e = 0; e < r.events.length; e++) {
+        if (r.events[e].type === 'lost' && r.events[e].block === index) return true;
+      }
+    }
+    return false;
+  };
+
+  /**
+   * Everything one move did, turned into one face per penguin.
+   *
+   * Nothing here decides anything on its own. It collects what is certainly
+   * true about the move, proposes each fact to the penguin it happened to, and
+   * lets the priority table settle the ties — so a penguin that was collected
+   * on a board that is also one swipe from cracked ice hears about being
+   * collected, and the one still standing there hears about the ice.
+   */
+  Game.prototype.reactToMove = function (res, probe, dead) {
+    var R = this.reactions, st = this.stage;
+    var before = this.history.length ? this.history[this.history.length - 1] : null;
+    var frames = res.frames || [];
+    var i, e;
+
+    // -- the verdict on the move as a whole, from the solver ------------------
+    var far = 0;
+    for (i = 0; i < st.blocks.length && frames.length; i++) {
+      if (st.colour[i] === E.GRAY) continue;
+      if (travelled(frames, i) >= FAR_SLIDE) far++;
+    }
+    var verdict = X.evaluateMove(before, this.state, {
+      stage: st,
+      beforeDist: before ? this.remaining(before) : null,
+      afterDist: this.remaining(this.state, probe),
+      streak: this.optimalStreak,
+      bigMovers: far
+    });
+    var onLine = verdict.confidence > 0 &&
+      (verdict.type === 'good' || verdict.type === 'perfect');
+    // A run of shortest moves is spent when it is paid out, so a well-played
+    // stage reads good, good, PERFECT rather than turning perfect for good.
+    this.optimalStreak = verdict.reason === 'optimal-streak' ? 0
+      : (onLine ? this.optimalStreak + 1 : 0);
+
+    R.begin();
+
+    // A judgement about the position is a judgement about everyone still on it.
+    if (verdict.confidence > 0 && verdict.type !== 'normal') R.proposeLive(verdict.type);
+
+    // -- what certainly happened, penguin by penguin --------------------------
+    for (i = 0; i < st.blocks.length; i++) {
+      if (st.colour[i] === E.GRAY) continue;      // a drifter has no face to pull
+
+      // A special tile fired underneath this one and it got away with it.
+      if (frames.length && this.crossedHazard(frames, i)) R.propose(i, 'surprise');
+
+      // It stopped, something elsewhere was collected, and gravity carried it
+      // further than the swipe looked like it would. That is the chain
+      // reaction, and it is the one thing on this board nobody sees coming.
+      if (frames.length && slideRuns(frames, i).length > 1) R.propose(i, 'surprise');
+
+      if (this.state.alive[i] && this.oneMoveFromLoss(i)) R.propose(i, 'danger');
+    }
+
+    // A dead end is a danger the game already recognises and says out loud —
+    // once. `stuck` is still false here, so this fires on the move that walked
+    // into the jam and not on every move made inside it, exactly as the toast
+    // does and for the same reason: an unwinnable position stays unwinnable,
+    // and saying so every move is noise rather than news.
+    if (dead && !this.stuck) R.proposeLive('danger');
+
+    for (e = 0; e < res.events.length; e++) {
+      if (res.events[e].type === 'goal') R.propose(res.events[e].block, 'clear');
+    }
+    if (res.clear) R.proposeAll('clear');
+    if (res.broken) R.proposeAll('fail');
+
+    R.commit();
+    this.wake();
   };
 
   // -- undo / restart ---------------------------------------------------------
@@ -640,6 +846,8 @@
       this.cancelSlide();
       if (this.history.length) this.history.pop();
       this.stuck = false;
+      this.optimalStreak = 0;
+      this.reactions.reset();
       this.renderer.showState(this.state);
       this.renderer.gravity = null;
       this.audio.undo();
@@ -655,6 +863,10 @@
     this.queued = null;
     this.restorePoint = null;
     this.stuck = false;
+    // A move taken back takes its reaction with it, and breaks any run of
+    // optimal moves that was building.
+    this.optimalStreak = 0;
+    this.reactions.reset();
     this.setPhase('play');
     this.renderer.showState(this.state);
     this.renderer.gravity = null;
@@ -693,6 +905,8 @@
     this.history = [];
     this.queued = null;
     this.stuck = false;
+    this.optimalStreak = 0;
+    this.reactions.reset();
     this.phase = 'play';
     this.renderer.setStage(this.stage, this.state);
     this.hideOverlay();
@@ -719,6 +933,10 @@
     this.stuck = false;
     this.state = rp.state;
     this.history = rp.history;
+    this.optimalStreak = 0;
+    this.reactions.reset();
+    // Undoing a restart puts the run ending back, and with it the face.
+    if (rp.phase === 'over') this.reactions.begin().proposeAll('fail').commit();
     this.renderer.showState(this.state);
     this.renderer.gravity = null;
     this.audio.undo();

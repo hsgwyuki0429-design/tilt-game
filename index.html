@@ -35,6 +35,36 @@
 <link rel="preload" as="image" href="assets/textures/faces/penguin-bottom.png">
 <link rel="preload" as="image" href="assets/textures/faces/penguin-top-orange.png">
 <link rel="preload" as="image" href="assets/textures/faces/penguin-top-purple.png">
+<!-- Penguin expressions. Preloaded here as well as in src/expression.js so the
+     first face a reaction needs is already decoded, not fetched mid-slide. -->
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-good.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-perfect.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-clear.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-surprise.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-danger.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-miss.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-bad.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-face-fail.png">
+<!-- Per-colour faces. Only the drawings that exist are listed here and in
+     src/expression.js; a colour set is used once all nine of it have landed. -->
+<link rel="preload" as="image" href="assets/textures/faces/penguin-orange-normal.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-orange-good.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-orange-clear.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-orange-surprise.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-orange-danger.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-orange-bad.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-orange-perfect.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-orange-miss.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-orange-fail.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-purple-normal.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-purple-good.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-purple-perfect.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-purple-surprise.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-purple-miss.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-purple-clear.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-purple-danger.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-purple-bad.png">
+<link rel="preload" as="image" href="assets/textures/faces/penguin-purple-fail.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -320,6 +350,7 @@
 </section>
 
 <script src="src/engine.js"></script>
+<script src="src/expression.js"></script>
 <script src="src/stages.js"></script>
 <script src="src/save.js"></script>
 <script src="src/haptics.js"></script>
