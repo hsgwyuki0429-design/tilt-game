@@ -114,7 +114,12 @@
       fail:    'assets/textures/faces/penguin-orange-fail.png'
     },
     'penguin-purple': {
-      normal:  'assets/textures/faces/penguin-purple-normal.png'
+      normal:   'assets/textures/faces/penguin-purple-normal.png',
+      good:     'assets/textures/faces/penguin-purple-good.png',
+      perfect:  'assets/textures/faces/penguin-purple-perfect.png',
+      surprise: 'assets/textures/faces/penguin-purple-surprise.png',
+      miss:     'assets/textures/faces/penguin-purple-miss.png',
+      fail:     'assets/textures/faces/penguin-purple-fail.png'
     }
   };
 
