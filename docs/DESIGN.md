@@ -5,6 +5,13 @@ lengths, 5×5 once they outrun it — and it is generated rather than authored.
 Two tools produce it: `tools/level-search.js` measures the design space, and
 `tools/build-stages.js` lays the result out and writes `src/stages.js`.
 
+That pair asks one question — how long is this board — and lays the answer out
+along a straight line. It is not the question you pick a *good* board with;
+[FUN-SEARCH.md](FUN-SEARCH.md) describes the separate system that asks what a
+board makes the player do, and the candidate browser that lets a person play the
+shortlist and decide. Nothing there changes anything described below: the
+shipped hundred stay exactly as they are, as the thing to beat.
+
 ## The pieces
 
 | Character | Piece | Notes |

@@ -441,7 +441,16 @@ function combinations(list, n) {
 }
 function popcount(m) { var c = 0; while (m) { m &= m - 1; c++; } return c; }
 
-function run(plan) {
+/**
+ * Measure every board of one plan.
+ *
+ * With no `sink` this is what the CLI does: each measured board is offered to
+ * the shortlist above. A caller that wants the boards themselves — the fun
+ * search does — passes `{ gate, emit }` instead, and gets exactly the same
+ * enumeration with its own cheap gate and its own destination. The measurement
+ * is untouched either way: same layouts, same backward BFS, same pars.
+ */
+function run(plan, sink) {
   var nPenguin = plan.penguins, nGray = plan.gray, k = nPenguin + nGray;
   var col = new Int8Array(k), i;
   for (i = 0; i < nPenguin; i++) col[i] = i + 1;
@@ -509,18 +518,24 @@ function run(plan) {
             boards++;
             if (moves > maxSeen) maxSeen = moves;
             if (moves < MINPAR) return;
-            var slot = slotFor(moves);
-            if (!worthBuilding(slot, set.length, nGray, nPenguin, layoutPlan)) return;
+            var slot = null;
+            if (sink) {
+              if (!sink.gate(moves, set.length, nGray, nPenguin, layoutPlan)) return;
+            } else {
+              slot = slotFor(moves);
+              if (!worthBuilding(slot, set.length, nGray, nPenguin, layoutPlan)) return;
+            }
             var blocks = [], t = code;
             for (var b = 0; b < k; b++) { blocks.push({ cell: t % BASE, colour: col[b] }); t = (t / BASE) | 0; }
             var rows = boardRows(wallMask, hazMask,
               gp.map(function (cell, idx) { return { cell: cell, colour: idx + 1 }; }), blocks);
-            offer(slot, {
+            var entry = {
               moves: moves, statics: set.length, grays: nGray, penguins: nPenguin,
               walls: popcount(wallMask), hazards: popcount(hazMask),
               rows: rows, canon: canonBoard(rows), skeleton: skeleton(rows),
               wallPlan: wallPlan(rows)
-            });
+            };
+            if (sink) sink.emit(entry); else offer(slot, entry);
             return;
           }
           for (var idx = 0; idx < open.length; idx++) {
@@ -536,109 +551,126 @@ function run(plan) {
 }
 
 // ---------------------------------------------------------------------------
-var argv = process.argv.slice(2);
-function arg(name, dflt) {
-  var i = argv.indexOf('--' + name);
-  return i < 0 ? dflt : argv[i + 1];
-}
-var flag = function (name) { return argv.indexOf('--' + name) >= 0; };
-if (arg('keep', null)) KEEP = Number(arg('keep'));
-if (arg('minpar', null)) MINPAR = Number(arg('minpar'));
-/* One side per run. Boards of different sizes live happily in one index — the
-   keys are all derived from the board's own string — but the enumeration is
-   sized once, up front. */
-setSize(Number(arg('size', 5)));
-
-var plans = [];
-var spec = arg('plans', null);
-if (spec !== null) {
-  // --plans "" measures nothing: useful with --merge, to fold existing runs
-  // together through the same shortlist rules.
-  spec.split(';').filter(Boolean).forEach(function (part) {
-    var v = part.split(',').map(Number);
-    plans.push({ penguins: v[0], gray: v[1], statics: v[2], hazards: flag('hazards') });
-  });
-} else {
-  var maxStatics = Number(arg('statics', 2)), maxGray = Number(arg('gray', 1));
-  for (var p = 1; p <= 2; p++) for (var g = 0; g <= maxGray; g++) for (var s = 0; s <= maxStatics; s++) {
-    plans.push({ penguins: p, gray: g, statics: s, hazards: flag('hazards') });
+// the command line
+// ---------------------------------------------------------------------------
+/* Everything below runs only when this file IS the program. Required as a
+   module it is an enumeration library and nothing happens on load, which is
+   how tools/fun-search.js reuses the exact same measurement. */
+function main() {
+  var argv = process.argv.slice(2);
+  function arg(name, dflt) {
+    var i = argv.indexOf('--' + name);
+    return i < 0 ? dflt : argv[i + 1];
   }
-}
+  var flag = function (name) { return argv.indexOf('--' + name) >= 0; };
+  if (arg('keep', null)) KEEP = Number(arg('keep'));
+  if (arg('minpar', null)) MINPAR = Number(arg('minpar'));
+  /* One side per run. Boards of different sizes live happily in one index — the
+     keys are all derived from the board's own string — but the enumeration is
+     sized once, up front. */
+  setSize(Number(arg('size', 5)));
 
-var covered = [];
-var merge = arg('merge', null);
-if (merge) {
-  // fold existing runs back in, so several passes can be accumulated. Comma
-  // separate them; they go through the same shortlist rules as a fresh search.
-  merge.split(',').forEach(function (file) {
-    var prev = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (prev.plans) covered = covered.concat(prev.plans);
-    Object.keys(prev.pars || prev).forEach(function (m) {
-      (prev.pars || prev)[m].forEach(function (e) {
-        e.canon = e.canon || canonBoard(e.rows);
-        e.skeleton = e.skeleton || skeleton(e.rows);
-        e.wallPlan = e.wallPlan || wallPlan(e.rows);
-        offer(slotFor(Number(m)), e);
+  var plans = [];
+  var spec = arg('plans', null);
+  if (spec !== null) {
+    // --plans "" measures nothing: useful with --merge, to fold existing runs
+    // together through the same shortlist rules.
+    spec.split(';').filter(Boolean).forEach(function (part) {
+      var v = part.split(',').map(Number);
+      plans.push({ penguins: v[0], gray: v[1], statics: v[2], hazards: flag('hazards') });
+    });
+  } else {
+    var maxStatics = Number(arg('statics', 2)), maxGray = Number(arg('gray', 1));
+    for (var p = 1; p <= 2; p++) for (var g = 0; g <= maxGray; g++) for (var s = 0; s <= maxStatics; s++) {
+      plans.push({ penguins: p, gray: g, statics: s, hazards: flag('hazards') });
+    }
+  }
+
+  var covered = [];
+  var merge = arg('merge', null);
+  if (merge) {
+    // fold existing runs back in, so several passes can be accumulated. Comma
+    // separate them; they go through the same shortlist rules as a fresh search.
+    merge.split(',').forEach(function (file) {
+      var prev = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (prev.plans) covered = covered.concat(prev.plans);
+      Object.keys(prev.pars || prev).forEach(function (m) {
+        (prev.pars || prev)[m].forEach(function (e) {
+          e.canon = e.canon || canonBoard(e.rows);
+          e.skeleton = e.skeleton || skeleton(e.rows);
+          e.wallPlan = e.wallPlan || wallPlan(e.rows);
+          offer(slotFor(Number(m)), e);
+        });
       });
     });
-  });
-}
+  }
 
-var out = arg('out', path.join(__dirname, 'level-index.json'));
+  var out = arg('out', path.join(__dirname, 'level-index.json'));
 
-/* The index records exactly which corners of the space were measured, so a
-   claim about "the longest board there is" can be checked rather than taken on
-   trust. A pass still running is written with the fraction of layouts it had
-   reached; a completed pass over the same corner replaces it. */
-function writeIndex(inProgress) {
-  var cov = covered.concat(inProgress ? [inProgress] : []), keep = Object.create(null);
-  cov.forEach(function (e) {
-    var k = (e.size || 5) + ',' + e.penguins + ',' + e.drifters + ',' + e.statics +
-            ',' + (e.crackedIce ? 1 : 0);
-    var held = keep[k];
-    if (!held || (held.partial && !e.partial) ||
-        (!held.partial === !e.partial && e.boards > held.boards)) keep[k] = e;
-  });
-  cov = Object.keys(keep).map(function (k) { return keep[k]; });
-  cov.sort(function (a, b) {
-    return (a.size || 5) - (b.size || 5) || a.penguins - b.penguins ||
-           a.drifters - b.drifters || a.statics - b.statics;
-  });
-  var pars = {};
-  Array.from(best.keys()).sort(function (a, b) { return a - b; }).forEach(function (m) {
-    pars[m] = best.get(m).list.map(function (e) {
-      return {
-        moves: e.moves, statics: e.statics, walls: e.walls, hazards: e.hazards,
-        grays: e.grays, penguins: e.penguins, rows: e.rows
-      };
+  /* The index records exactly which corners of the space were measured, so a
+     claim about "the longest board there is" can be checked rather than taken on
+     trust. A pass still running is written with the fraction of layouts it had
+     reached; a completed pass over the same corner replaces it. */
+  function writeIndex(inProgress) {
+    var cov = covered.concat(inProgress ? [inProgress] : []), keep = Object.create(null);
+    cov.forEach(function (e) {
+      var k = (e.size || 5) + ',' + e.penguins + ',' + e.drifters + ',' + e.statics +
+              ',' + (e.crackedIce ? 1 : 0);
+      var held = keep[k];
+      if (!held || (held.partial && !e.partial) ||
+          (!held.partial === !e.partial && e.boards > held.boards)) keep[k] = e;
     });
+    cov = Object.keys(keep).map(function (k) { return keep[k]; });
+    cov.sort(function (a, b) {
+      return (a.size || 5) - (b.size || 5) || a.penguins - b.penguins ||
+             a.drifters - b.drifters || a.statics - b.statics;
+    });
+    var pars = {};
+    Array.from(best.keys()).sort(function (a, b) { return a - b; }).forEach(function (m) {
+      pars[m] = best.get(m).list.map(function (e) {
+        return {
+          moves: e.moves, statics: e.statics, walls: e.walls, hazards: e.hazards,
+          grays: e.grays, penguins: e.penguins, rows: e.rows
+        };
+      });
+    });
+    // written aside and renamed, so a run stopped mid-write leaves the previous
+    // checkpoint intact rather than a half-written file
+    fs.writeFileSync(out + '.tmp', JSON.stringify({ plans: cov, pars: pars }, null, 1));
+    fs.renameSync(out + '.tmp', out);
+    return Object.keys(pars).map(Number).sort(function (a, b) { return a - b; });
+  }
+
+  checkpoint = function (progress) {
+    writeIndex(progress);
+    console.log('  … ' + progress.partial + ' layouts, longest so far ' +
+      progress.longest + ' — checkpointed to ' + out);
+  };
+
+  plans.forEach(function (plan) {
+    var t0 = Date.now();
+    var r = run(plan);
+    console.log(N + 'x' + N + ' penguins=' + plan.penguins + ' drifters=' + plan.gray +
+      ' statics=' + plan.statics + (plan.hazards ? ' +cracked-ice' : '') +
+      '  graphs=' + r.graphs + ' boards=' + r.boards + ' longest=' + r.maxSeen +
+      '  (' + ((Date.now() - t0) / 1000).toFixed(1) + 's)');
+    covered.push({
+      size: N, penguins: plan.penguins, drifters: plan.gray, statics: plan.statics,
+      crackedIce: !!plan.hazards, longest: r.maxSeen, boards: r.boards
+    });
+    writeIndex();
   });
-  // written aside and renamed, so a run stopped mid-write leaves the previous
-  // checkpoint intact rather than a half-written file
-  fs.writeFileSync(out + '.tmp', JSON.stringify({ plans: cov, pars: pars }, null, 1));
-  fs.renameSync(out + '.tmp', out);
-  return Object.keys(pars).map(Number).sort(function (a, b) { return a - b; });
+
+  var keys = writeIndex();
+  console.log('wrote ' + out + ' — par ' + keys[0] + '…' + keys[keys.length - 1]);
 }
 
-checkpoint = function (progress) {
-  writeIndex(progress);
-  console.log('  … ' + progress.partial + ' layouts, longest so far ' +
-    progress.longest + ' — checkpointed to ' + out);
+if (require.main === module) main();
+
+module.exports = {
+  setSize: setSize, run: run, permsFor: permsFor,
+  boardRows: boardRows, canonBoard: canonBoard, canonFlat: canonFlat,
+  skeleton: skeleton, wallPlan: wallPlan, popcount: popcount,
+  combinations: combinations,
+  size: function () { return N; }
 };
-
-plans.forEach(function (plan) {
-  var t0 = Date.now();
-  var r = run(plan);
-  console.log(N + 'x' + N + ' penguins=' + plan.penguins + ' drifters=' + plan.gray +
-    ' statics=' + plan.statics + (plan.hazards ? ' +cracked-ice' : '') +
-    '  graphs=' + r.graphs + ' boards=' + r.boards + ' longest=' + r.maxSeen +
-    '  (' + ((Date.now() - t0) / 1000).toFixed(1) + 's)');
-  covered.push({
-    size: N, penguins: plan.penguins, drifters: plan.gray, statics: plan.statics,
-    crackedIce: !!plan.hazards, longest: r.maxSeen, boards: r.boards
-  });
-  writeIndex();
-});
-
-var keys = writeIndex();
-console.log('wrote ' + out + ' — par ' + keys[0] + '…' + keys[keys.length - 1]);

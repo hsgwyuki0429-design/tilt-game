@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Served from the project root by tools/serve.js, so every path below is
+     written relative to the root and this <base> makes them resolve whether the
+     page is opened at /tools/fun-browser.html or anywhere else. -->
+<base href="../">
+<title>TILT — candidate browser</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<!-- Inline, so the page asks the server for nothing it does not need. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23EEF6FA'/><rect x='5' y='5' width='9' height='9' rx='3' fill='%230B8DAE'/><rect x='18' y='18' width='9' height='9' rx='3' fill='none' stroke='%235C6484' stroke-width='2'/></svg>">
+<style>
+/* A developer tool, not the game. It borrows the game's ENGINE and its
+   RENDERER — the two things that decide whether a board plays the way the
+   search says it does — and nothing else, because the game's own shell is
+   built around one campaign in one order and this is a shortlist you sort. */
+:root {
+  --ink: #16324a;
+  --ink-mute: #6a839a;
+  --line: #cfe0ea;
+  --panel: #ffffff;
+  --ground: #eef6fa;
+  --accent: #0b8dae;
+  --keep: #0f8a5f;
+  --maybe: #b07d09;
+  --reject: #b0413e;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  display: grid;
+  grid-template-columns: 232px minmax(320px, 1fr) 330px;
+  grid-template-rows: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+h1 { font-size: 14px; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 2px; }
+h2 {
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-mute); margin: 16px 0 6px; font-weight: 600;
+}
+h2:first-of-type { margin-top: 0; }
+aside, main, section.detail { overflow-y: auto; padding: 14px; }
+aside, section.detail { background: var(--panel); }
+aside { border-right: 1px solid var(--line); }
+section.detail { border-left: 1px solid var(--line); }
+
+main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#boardWrap { flex: 1 1 auto; min-height: 220px; position: relative; }
+canvas#board { width: 100%; height: 100%; display: block; touch-action: none; }
+
+.row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.row.tight { gap: 3px; }
+button {
+  font: inherit; font-size: 11px; letter-spacing: .04em;
+  padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px;
+  background: #fff; color: var(--ink); cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.wide { flex: 1 1 auto; }
+button.keep.on { background: var(--keep); border-color: var(--keep); }
+button.maybe.on { background: var(--maybe); border-color: var(--maybe); }
+button.reject.on { background: var(--reject); border-color: var(--reject); }
+button:disabled { opacity: .4; cursor: default; }
+
+label.check { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+input[type=number] {
+  width: 56px; font: inherit; padding: 3px 5px;
+  border: 1px solid var(--line); border-radius: 6px;
+}
+
+#status { font-size: 12px; color: var(--ink-mute); min-height: 18px; }
+#headline { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+#headline strong { font-size: 15px; }
+.tag {
+  font-size: 10px; letter-spacing: .07em; padding: 2px 6px;
+  border-radius: 999px; background: #e3f1f7; color: #0a6a84;
+}
+.tag.band { background: #eae4fb; color: #543f9a; }
+.tag.warn { background: #fbe6e4; color: #a03b38; }
+.tag.size { background: #e6f4ea; color: #1c6b41; }
+
+table.metrics { width: 100%; border-collapse: collapse; }
+table.metrics td { padding: 2px 0; vertical-align: top; font-variant-numeric: tabular-nums; }
+table.metrics td.k { color: var(--ink-mute); }
+table.metrics td.v { text-align: right; font-weight: 600; }
+.bar { height: 4px; border-radius: 2px; background: #e2edf3; margin-top: 2px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); }
+.bar.load > i { background: #b07d09; }
+
+pre.board {
+  font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #f5fafc; border: 1px solid var(--line); border-radius: 7px;
+  padding: 7px 9px; margin: 0; letter-spacing: .18em;
+}
+code.sol {
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+.note { font-size: 11px; color: var(--ink-mute); }
+.stars { display: flex; gap: 3px; }
+.stars button { width: 26px; padding: 4px 0; text-align: center; }
+#list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+#list button {
+  text-align: left; display: flex; justify-content: space-between; gap: 6px;
+  font-size: 11px; padding: 4px 7px;
+}
+#list button.cur { background: #dcf0f7; border-color: var(--accent); }
+.verdict-dot { font-weight: 700; }
+.verdict-dot.KEEP { color: var(--keep); }
+.verdict-dot.MAYBE { color: var(--maybe); }
+.verdict-dot.REJECT { color: var(--reject); }
+
+@media (max-width: 900px) {
+  body { grid-template-columns: 1fr; grid-template-rows: auto 60vh auto; overflow: auto; height: auto; }
+  aside, section.detail { border: 0; border-top: 1px solid var(--line); }
+}
+</style>
+</head>
+<body>
+
+<aside>
+  <h1>Candidates</h1>
+  <div class="note" id="poolNote">loading…</div>
+
+  <h2>Tray</h2>
+  <div class="row tight" id="fSize"></div>
+
+  <h2>Kind</h2>
+  <div class="row tight" id="fCategory"></div>
+
+  <h2>Difficulty</h2>
+  <div class="row tight" id="fBand"></div>
+
+  <h2>Walls</h2>
+  <div class="row tight" id="fWalls"></div>
+
+  <h2>Par</h2>
+  <div class="row tight">
+    <input type="number" id="parMin" min="1" placeholder="min">
+    <span class="note">to</span>
+    <input type="number" id="parMax" min="1" placeholder="max">
+  </div>
+
+  <h2>Reviewed</h2>
+  <div class="row tight" id="fReview"></div>
+
+  <h2>Sort</h2>
+  <div class="row tight" id="fSort"></div>
+
+  <h2 id="listHead">Matches</h2>
+  <div id="list"></div>
+</aside>
+
+<main>
+  <div id="headline"></div>
+  <div id="boardWrap"><canvas id="board"></canvas></div>
+  <div id="status"></div>
+  <div class="row">
+    <button id="bPrev">◀ PREVIOUS</button>
+    <button id="bNext">NEXT ▶</button>
+    <button id="bRestart">RESTART</button>
+    <button id="bUndo">UNDO</button>
+    <button id="bSolution">SHOW SOLUTION</button>
+    <button id="bPlay">PLAY SOLUTION</button>
+    <button id="bCopy">COPY BOARD</button>
+  </div>
+  <div class="note">Swipe the board, or use the arrow keys / WASD. J and K step through candidates.</div>
+</main>
+
+<section class="detail">
+  <h2>Your verdict</h2>
+  <div class="row tight" id="vVerdict"></div>
+
+  <h2>Fun</h2>
+  <div class="stars row tight" id="vFun"></div>
+
+  <h2>Difficulty</h2>
+  <div class="stars row tight" id="vDifficulty"></div>
+
+  <h2>Flags</h2>
+  <div class="row tight" id="vFlags"></div>
+
+  <h2>Reviews</h2>
+  <div class="row tight">
+    <button id="bExport">EXPORT REVIEWS</button>
+    <button id="bCopyReviews">COPY</button>
+    <button id="bImport">IMPORT</button>
+    <button id="bClear">CLEAR ALL</button>
+  </div>
+  <div class="note" id="reviewNote"></div>
+
+  <h2>Board</h2>
+  <pre class="board" id="boardText"></pre>
+
+  <h2>Shortest solution</h2>
+  <div><code class="sol" id="solText"></code></div>
+
+  <h2>Estimates</h2>
+  <table class="metrics" id="scores"></table>
+
+  <h2>Measurements</h2>
+  <table class="metrics" id="counts"></table>
+
+  <h2>Buckets</h2>
+  <div class="note" id="bucketNote"></div>
+</section>
+
+<input type="file" id="importFile" accept="application/json" hidden>
+
+<script src="src/engine.js"></script>
+<script src="src/render.js"></script>
+<script src="src/input.js"></script>
+<script src="tools/fun-browser.js"></script>
+</body>
+</html>
