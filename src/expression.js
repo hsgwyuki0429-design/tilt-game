@@ -112,6 +112,10 @@
       good:    'assets/textures/faces/penguin-orange-good.png',
       perfect: 'assets/textures/faces/penguin-orange-perfect.png',
       clear:   'assets/textures/faces/penguin-orange-clear.png',
+      /* A stand-in until an amber surprise is drawn: the spiral-eyed face,
+         which is at least startled. It is its own file so replacing it is
+         dropping one drawing in, with nothing here to change. */
+      surprise: 'assets/textures/faces/penguin-orange-surprise.png',
       danger:  'assets/textures/faces/penguin-orange-danger.png',
       miss:    'assets/textures/faces/penguin-orange-miss.png',
       bad:     'assets/textures/faces/penguin-orange-bad.png',
