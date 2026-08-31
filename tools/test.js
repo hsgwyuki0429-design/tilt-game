@@ -317,8 +317,13 @@ assert.strictEqual(broken.state.lost, 1, 'the stopped penguin must be marked los
 // entire job is to never call a move good or bad unless the solver said so.
 
 assert.strictEqual(X.EXPRESSIONS.length, 9, 'nine named expressions');
+var faceFiles = Object.create(null);
 X.EXPRESSIONS.forEach(function (name) {
-  assert(X.FACE_FILES[name], name + ' must name a face asset');
+  var file = X.FACE_FILES[name];
+  assert(file, name + ' must name a face asset');
+  assert(!faceFiles[file], name + ' must have a drawing of its own, not ' +
+    faceFiles[file] + "'s");
+  faceFiles[file] = name;
   assert(X.PRIORITY[name] != null, name + ' must have a priority');
 });
 

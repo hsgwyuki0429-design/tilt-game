@@ -65,18 +65,17 @@
   // The nine faces
   // ---------------------------------------------------------------------------
   //
-  // Five faces were drawn for this feature; `normal` is the face the game has
-  // always used. The four celebratory states share the one happy artwork that
-  // exists, and are told apart by their reaction animation instead — a clear
-  // hops, a perfect overshoots, a surprise pops. Point any of them at its own
-  // file when that artwork arrives and nothing else has to change.
+  // One drawing each. `normal` is the face the game has always used and stays
+  // the file the renderer already had loaded; the other eight were drawn for
+  // this feature. Nothing reads a face by anything but its expression name, so
+  // replacing one is a single line here.
 
   var FACE_FILES = {
     normal:   'assets/textures/faces/penguin-front.png',
-    good:     'assets/textures/faces/penguin-face-happy.png',
-    perfect:  'assets/textures/faces/penguin-face-happy.png',
-    clear:    'assets/textures/faces/penguin-face-happy.png',
-    surprise: 'assets/textures/faces/penguin-face-happy.png',
+    good:     'assets/textures/faces/penguin-face-good.png',
+    perfect:  'assets/textures/faces/penguin-face-perfect.png',
+    clear:    'assets/textures/faces/penguin-face-clear.png',
+    surprise: 'assets/textures/faces/penguin-face-surprise.png',
     danger:   'assets/textures/faces/penguin-face-danger.png',
     miss:     'assets/textures/faces/penguin-face-miss.png',
     bad:      'assets/textures/faces/penguin-face-bad.png',
@@ -184,9 +183,10 @@
    * All nine faces, decoded before any of them is needed.
    *
    * The first frame a face is used is mid-move, and an image that starts
-   * loading there is a hitch in the one animation the player is watching. Files
-   * are deduplicated, so the four faces sharing one artwork cost one request,
-   * and `normal` is the file the renderer already had in cache.
+   * loading there is a hitch in the one animation the player is watching. Paths
+   * are deduplicated rather than assumed distinct, so two expressions may share
+   * one drawing without costing a second request; `normal` is the file the
+   * renderer already had in cache.
    */
   function FaceBank(onReady) {
     this.images = {};

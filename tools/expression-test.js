@@ -170,6 +170,16 @@ async function penguinBox(page) {
   ok('every face is decoded before play', bank.ready && !bank.missing.length,
     'missing=' + bank.missing.join(','));
   ok('the nine faces cost ' + bank.requests + ' image requests', bank.requests <= 9);
+  var distinct = await page.evaluate(function () {
+    var X = window.TiltExpression, b = window.game.reactions.bank, seen = [];
+    return X.EXPRESSIONS.every(function (name) {
+      var img = b.face(name);
+      if (!img || seen.indexOf(img) >= 0) return false;
+      seen.push(img);
+      return true;
+    });
+  });
+  ok('each expression resolves to a drawing of its own', distinct);
   var uniqueSizes = Object.keys(bank.sizes).map(function (k) { return bank.sizes[k]; })
     .filter(function (v, i, a) { return a.indexOf(v) === i; });
   ok('every face is the same 512px square', uniqueSizes.length === 1 && uniqueSizes[0] === '512x512',

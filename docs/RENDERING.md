@@ -57,12 +57,10 @@ symbol or badge is placed over the supplied artwork.
 ## Penguin expressions
 
 The penguin's upward plane is a face, and which face it is comes from
-`src/expression.js` — nine named expressions over six pieces of artwork, since
-`good`, `perfect`, `clear` and `surprise` currently share the one happy drawing
-and are told apart by their reaction beat. The renderer holds a
-`PenguinReactions` in `Renderer.reactions` and asks it two things per penguin
-per frame: which image, and what pose. It knows no expression names and no
-trigger conditions.
+`src/expression.js` — nine named expressions with one drawing each, held in
+`FACE_FILES`. The renderer holds a `PenguinReactions` in `Renderer.reactions`
+and asks it two things per penguin per frame: which image, and what pose. It
+knows no expression names and no trigger conditions.
 
 Every face asset is the same 512px square, mapped through the same top-face
 quad, so a swap cannot change a penguin's size or position — `npm run
