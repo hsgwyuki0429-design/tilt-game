@@ -10,11 +10,13 @@
     "qa": "node tools/qa.js",
     "test:render": "node tools/render-test.js",
     "test:expression": "node tools/expression-test.js",
-    "test": "node tools/test.js",
+    "test:analysis": "node tools/analysis-test.js",
+    "test": "node tools/test.js && node tools/analysis-test.js",
     "serve": "node tools/serve.js",
     "campaign": "node tools/campaign.js",
     "levels:search": "node tools/level-search.js",
-    "levels:build": "node tools/build-stages.js"
+    "levels:build": "node tools/build-stages.js",
+    "search:fun": "node tools/fun-search.js"
   },
   "devDependencies": {
     "playwright": "^1.49.0"

@@ -60,13 +60,87 @@ Nothing in the build is trusted: `tools/build-stages.js` recompiles and
 re-solves every board with `src/engine.js` before writing it out, and `npm test`
 re-solves all hundred again.
 
+## Finding better boards
+
+The campaign above was built by looking for **long** boards. `tools/fun-search.js`
+looks for **good** ones, which is a different search and wants a different
+answer — a four-by-four with two penguins and one wall that you have to go
+backwards on beats a fifty-move corridor, and nothing in this pipeline scores a
+board for being long.
+
+```sh
+# sweep both trays, analyse what survives, and shortlist by kind
+npm run search:fun
+
+# a four-second smoke run
+node tools/fun-search.js --quick
+
+# narrower passes
+node tools/fun-search.js --size 4
+node tools/fun-search.js --category AHA --min-par 5 --keep 30
+node tools/fun-search.js --help
+```
+
+It reuses the existing enumeration, backward BFS and solver rather than
+replacing them — `tools/level-search.js` is now a library as well as a command —
+and adds three things on top:
+
+- `tools/lib/level-analysis.js` measures what a board *asks*: moves that go the
+  wrong way on purpose, penguins sliding over their own aurora, one penguin
+  braking the other, positions where the choice actually matters, walls that do
+  nothing, and how much of the tray is ever used. All exact, all read off the
+  engine's own position graph.
+- `tools/lib/fun-score.js` turns those counts into estimates — `funPotential`,
+  `ahaPotential`, `interactionScore`, `difficultyScore`, `cognitiveLoadScore`
+  and the rest — and into a *kind*: AHA, INTERACTION, CHOICE, SEQUENCE,
+  PRECISION, ELEGANT, TRAP, ORBIT, HAZARD, MASTER. Every count is divided by par
+  first, so length is never a reason to like a board.
+- `tools/fun-level-index.json` is the shortlist, filed by kind × difficulty ×
+  tray rather than ranked on one number.
+
+The main pool is 4×4 and 5×5, two penguins, walls, and nothing else — no
+drifters and no cracked ice, because both add things to keep track of rather
+than things to see into. 4×4 is the primary tray and gets the deeper sweep. The
+same puzzle on a 4×4 always scores better than on a 5×5.
+
+Then play them:
+
+```sh
+node tools/serve.js
+# open http://localhost:8080/tools/fun-browser.html
+```
+
+The candidate browser runs the shortlist on the game's own engine, renderer and
+input, shows every measurement beside the board, and records what you thought —
+FUN 1–5, DIFFICULTY 1–5, the flags TOO CONFUSING / TOO LINEAR / UNFAIR / AHA,
+and a verdict of KEEP, MAYBE or REJECT. Verdicts are kept in `localStorage` under
+a stable per-board id, so re-running the search does not lose them, and **EXPORT
+REVIEWS** writes them out as `tilt-fun-reviews.json` (**COPY** puts the same JSON
+on the clipboard, **IMPORT** reads one back).
+
+Nothing here rewrites `src/stages.js` or `tools/level-index.json`. The shipped
+hundred stay put as the thing to beat, the measured index is only read, and
+turning reviewed candidates into a campaign is a separate step that has not been
+built yet — on purpose, so the machine finds boards and a person decides which
+are good.
+
+The scores, the kinds, the phases and what is still approximate are all written
+up in [docs/FUN-SEARCH.md](docs/FUN-SEARCH.md).
+
 ## Checks
 
-Run the logic tests — every board re-solved, the difficulty line verified — with:
+Run the logic tests — every board re-solved, the difficulty line verified, and
+the board analysis checked against the solver — with:
 
 ```sh
 npm test
 ```
+
+That runs `tools/test.js` and then `tools/analysis-test.js`, which proves the
+analysis agrees with the solver on all hundred stages and a slice of the index,
+that it does not care which way up a board is drawn or which colour is called A,
+that it spots an idle wall and a penguin used as a brake, that a repeating
+solution is penalised, and that no category has drifted into meaning nothing.
 
 Run the projection, six-face texture, depth-order, and 3×3–5×5 responsive
 contracts with (this environment needs `CHROME_PATH` pointed at the installed
