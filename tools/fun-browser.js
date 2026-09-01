@@ -33,7 +33,12 @@
   var CATEGORIES = ['AHA', 'INTERACTION', 'CHOICE', 'SEQUENCE', 'PRECISION',
                     'ELEGANT', 'TRAP', 'ORBIT', 'HAZARD', 'MASTER'];
   var BANDS = ['tutorial', 'easy', 'medium', 'hard', 'expert'];
-  var FLAGS = ['TOO CONFUSING', 'TOO LINEAR', 'UNFAIR', 'AHA'];
+  /* "Was there an aha?" is not a flag. A flag can only say yes or say nothing,
+     and nothing is what an unreviewed board says too — so a toggle can never
+     record that a board the search called AHA turned out to have none, which is
+     exactly the answer worth having, because it is the one that says the
+     estimate was wrong. Three states, stored separately from the complaints. */
+  var FLAGS = ['TOO CONFUSING', 'TOO LINEAR', 'UNFAIR'];
 
   // ---------------------------------------------------------------------------
   // state
@@ -69,12 +74,14 @@
     catch (err) { note('reviewNote', 'could not save to this browser — use EXPORT'); }
   }
   function reviewOf(id) {
-    if (!reviews[id]) reviews[id] = { fun: 0, difficulty: 0, flags: [], verdict: '' };
+    if (!reviews[id]) reviews[id] = { fun: 0, difficulty: 0, aha: '', flags: [], verdict: '' };
+    if (reviews[id].aha === undefined) reviews[id].aha = '';   // an older export
     return reviews[id];
   }
   function isReviewed(id) {
     var r = reviews[id];
-    return !!(r && (r.verdict || r.fun || r.difficulty || (r.flags && r.flags.length)));
+    return !!(r && (r.verdict || r.fun || r.difficulty || r.aha ||
+                    (r.flags && r.flags.length)));
   }
 
   // ---------------------------------------------------------------------------
@@ -386,6 +393,14 @@
       });
     }));
 
+    fill('vAha', ['YES', 'NO'].map(function (v) {
+      return button(v, r.aha === v, function () {
+        r.aha = r.aha === v ? '' : v;
+        r.at = Date.now();
+        save(); drawVerdict(c); syncReviewNote();
+      });
+    }));
+
     fill('vFlags', FLAGS.map(function (f) {
       var on = r.flags.indexOf(f) >= 0;
       return button(f, on, function () {
@@ -403,7 +418,15 @@
     var keep = pool.filter(function (c) {
       return reviews[c.id] && reviews[c.id].verdict === 'KEEP';
     }).length;
-    note('reviewNote', done + ' of ' + pool.length + ' reviewed · ' + keep + ' kept');
+    /* How often the machine called a board AHA and a person disagreed. It is
+       the only number on this page that grades the search rather than a board,
+       so it is worth having in front of you while you review. */
+    var judged = pool.filter(function (c) {
+      return c.categories.indexOf('AHA') >= 0 && reviews[c.id] && reviews[c.id].aha;
+    });
+    var wrong = judged.filter(function (c) { return reviews[c.id].aha === 'NO'; }).length;
+    note('reviewNote', done + ' of ' + pool.length + ' reviewed · ' + keep + ' kept' +
+      (judged.length ? ' · AHA called wrong ' + wrong + '/' + judged.length : ''));
   }
 
   // ---------------------------------------------------------------------------
@@ -537,6 +560,7 @@
         verdict: reviews[id].verdict || '',
         fun: reviews[id].fun || 0,
         difficulty: reviews[id].difficulty || 0,
+        aha: reviews[id].aha || '',
         flags: (reviews[id].flags || []).slice(),
         board: c ? c.board : null,
         par: c ? c.par : null,
@@ -577,7 +601,8 @@
           var r = incoming[id];
           reviews[id] = {
             verdict: r.verdict || '', fun: r.fun || 0,
-            difficulty: r.difficulty || 0, flags: (r.flags || []).slice(),
+            difficulty: r.difficulty || 0, aha: r.aha || '',
+            flags: (r.flags || []).slice(),
             at: r.at || Date.now()
           };
         });

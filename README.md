@@ -112,8 +112,8 @@ node tools/serve.js
 
 The candidate browser runs the shortlist on the game's own engine, renderer and
 input, shows every measurement beside the board, and records what you thought —
-FUN 1–5, DIFFICULTY 1–5, the flags TOO CONFUSING / TOO LINEAR / UNFAIR / AHA,
-and a verdict of KEEP, MAYBE or REJECT. Verdicts are kept in `localStorage` under
+FUN 1–5, DIFFICULTY 1–5, AHA yes or no, the flags TOO CONFUSING / TOO LINEAR /
+UNFAIR, and a verdict of KEEP, MAYBE or REJECT. Verdicts are kept in `localStorage` under
 a stable per-board id, so re-running the search does not lose them, and **EXPORT
 REVIEWS** writes them out as `tilt-fun-reviews.json` (**COPY** puts the same JSON
 on the clipboard, **IMPORT** reads one back).

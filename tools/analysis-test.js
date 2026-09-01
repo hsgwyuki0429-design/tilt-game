@@ -431,6 +431,80 @@ var BOUNDED = ['funPotential', 'ahaPotential', 'interactionScore', 'choiceScore'
 })();
 
 // ---------------------------------------------------------------------------
+// 8b. two boards that look about as good are separated by the design brief
+// ---------------------------------------------------------------------------
+/* The selection rule is "if two candidates look about as promising, prefer the
+   smaller board, then the plainer one, then the one with no idle wall, then the
+   stronger aha". The word that makes it work is ABOUT: comparing an estimate
+   carried to three decimals exactly would mean the rule never fires. This
+   rebuilds the comparator the search uses and checks the ladder rung by rung. */
+(function () {
+  var FUN_BAND = 0.02;
+  function band(r) { return Math.round(r.funPotential / FUN_BAND); }
+  function better(a, b) {
+    var d = band(b) - band(a);
+    if (d) return d;
+    if (a.boardSize !== b.boardSize) return a.boardSize - b.boardSize;
+    if (a.elementCount !== b.elementCount) return a.elementCount - b.elementCount;
+    if (a.redundantWallCount !== b.redundantWallCount) {
+      return a.redundantWallCount - b.redundantWallCount;
+    }
+    var A = a.analysis, B = b.analysis;
+    if (A.ahaPotential !== B.ahaPotential) return B.ahaPotential - A.ahaPotential;
+    if (A.interactionScore !== B.interactionScore) return B.interactionScore - A.interactionScore;
+    if (A.choiceScore !== B.choiceScore) return B.choiceScore - A.choiceScore;
+    if (a.par !== b.par) return a.par - b.par;
+    return a.canonicalId < b.canonicalId ? -1 : 1;
+  }
+  function rec(over) {
+    var base = {
+      funPotential: 0.500, boardSize: 4, elementCount: 3, redundantWallCount: 0,
+      par: 8, canonicalId: 'm',
+      analysis: { ahaPotential: 0.5, interactionScore: 0.5, choiceScore: 0.5 }
+    };
+    Object.keys(over).forEach(function (k) {
+      if (k === 'analysis') Object.keys(over[k]).forEach(function (j) { base.analysis[j] = over[k][j]; });
+      else base[k] = over[k];
+    });
+    return base;
+  }
+  var mid = rec({});
+
+  // A clearly better estimate still wins outright — the ladder is a tie-break,
+  // not a way to smuggle a worse board past a better one.
+  assert(better(rec({ funPotential: 0.70, boardSize: 5, elementCount: 6 }), mid) < 0,
+    'a much higher fun potential must win regardless of size');
+
+  // Inside one band, the brief's order decides, rung by rung.
+  assert(better(rec({ funPotential: 0.505, boardSize: 4 }),
+                rec({ funPotential: 0.495, boardSize: 5 })) < 0,
+    'about-equal: the smaller tray wins');
+  assert(better(rec({ funPotential: 0.505, elementCount: 3 }),
+                rec({ funPotential: 0.495, elementCount: 5 })) < 0,
+    'about-equal, same tray: fewer pieces wins');
+  assert(better(rec({ funPotential: 0.505, redundantWallCount: 0 }),
+                rec({ funPotential: 0.495, redundantWallCount: 1 })) < 0,
+    'about-equal, same pieces: no idle wall wins');
+  assert(better(rec({ funPotential: 0.505, analysis: { ahaPotential: 0.8 } }),
+                rec({ funPotential: 0.495, analysis: { ahaPotential: 0.2 } })) < 0,
+    'about-equal, same board: the stronger aha wins');
+  assert(better(rec({ funPotential: 0.505, analysis: { interactionScore: 0.8 } }),
+                rec({ funPotential: 0.495, analysis: { interactionScore: 0.2 } })) < 0,
+    'then the stronger interaction');
+  assert(better(rec({ funPotential: 0.505, par: 6 }),
+                rec({ funPotential: 0.495, par: 20 })) < 0,
+    'and last, the shorter answer');
+
+  // The brief's own worked example, end to end.
+  var boardA = rec({ funPotential: 0.50, boardSize: 5, elementCount: 8, par: 20,
+                     redundantWallCount: 2 });
+  var boardB = rec({ funPotential: 0.51, boardSize: 4, elementCount: 3, par: 8,
+                     analysis: { ahaPotential: 0.8, interactionScore: 0.7 } });
+  assert(better(boardB, boardA) < 0, 'the 4x4 with one wall must beat the busy 5x5');
+})();
+ok('about-equal candidates are separated by size, simplicity, then aha');
+
+// ---------------------------------------------------------------------------
 // 9. the cheap phase agrees with the expensive one
 // ---------------------------------------------------------------------------
 /* tools/fun-search.js throws most boards away on the strength of `survey`
@@ -501,8 +575,12 @@ ok('board identity survives rotation, reflection and recolouring');
   index.candidates.forEach(function (c) {
     assert(!ids[c.id], 'two candidates share the id ' + c.id);
     ids[c.id] = 1;
-    assert(c.boardSize === 4 || c.boardSize === 5,
-      'candidate ' + c.id + ' is ' + c.boardSize + '×' + c.boardSize + ' — the pool is 4×4 and 5×5');
+    /* The default pool is 4×4 and 5×5; a 3×3 pass is a deliberate `--size 3`
+       run for tutorial boards. Either way the file has to say which it was, so
+       the size is checked against the settings rather than against a constant. */
+    assert(index.settings.sizes.indexOf(c.boardSize) >= 0,
+      'candidate ' + c.id + ' is ' + c.boardSize + '×' + c.boardSize +
+      ' but the file was searched on ' + index.settings.sizes.join('/'));
     assert.strictEqual(c.board.length, c.boardSize, 'candidate ' + c.id + ': board size must match');
     var flat = c.board.join('');
     if (!index.settings.drifters) {

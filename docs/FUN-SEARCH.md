@@ -48,9 +48,13 @@ the cells that do nothing (`activeAreaRatio`) and once for the empty band
 load faster than it adds depth. Nothing in the analysis is hard-wired to 4 or 5
 — `--size` takes what the enumerator supports — but the main pool is these two.
 
-**3×3 is not in the main pool.** It is too small to hold a second idea. If a
-tutorial ever wants one- and two-move boards, `--size` and `--min-par 1` will
-produce them; the campaign pool starts at par 3.
+**3×3 is not in the main pool, but it is searchable.** It is too small to hold
+a second idea, so `--size all` means 4 and 5. When a tutorial wants one- and
+two-move boards, `node tools/fun-search.js --size 3 --min-par 1` sweeps the
+small tray and files the results the same way as any other pass. `--size 6` is
+refused with a reason rather than silently measuring nothing: the enumerator
+packs a cell index into a 32-bit occupancy mask, and thirty-six cells will not
+fit. That is a fact about `tools/level-search.js`, not a preference.
 
 **Drifters and cracked ice are not in the main pool either.** Both make a board
 harder to *hold in your head* rather than harder to see into — a drifter is a
@@ -237,14 +241,27 @@ what each move did — rather than from the board, so it survives rotating,
 reflecting and recolouring, and it collides exactly when two different-looking
 boards want the same moves for the same reasons.
 
-Ranking inside a bucket is the selection rule from the brief, in order:
+Ranking inside a bucket is the selection rule from the brief: *if two boards
+look about as promising, take the smaller, plainer one.* The word doing the work
+is **about** — `funPotential` is an estimate carried to three decimals, and
+comparing it exactly would mean two boards are only ever judged on size and
+simplicity when their estimates collide to the last digit, so the rule would
+read well and never fire. It is rounded into bands of 0.02 first; inside a band
+the estimate has nothing left to say and the ladder decides:
 
-1. `funPotential` — an estimate, and it goes first only because something has to
-2. fewer pieces
-3. the smaller tray
+1. `funPotential`, to the nearest 0.02
+2. the smaller tray
+3. fewer pieces
 4. fewer idle walls
-5. shorter
-6. canonical id, so two runs cannot disagree
+5. the stronger aha
+6. the stronger penguin interaction
+7. more real choices
+8. the shorter answer
+9. canonical id, so two runs cannot disagree
+
+Everything above the aha rung is a fact about the board rather than an opinion
+about it. `tools/analysis-test.js` walks the ladder rung by rung, including the
+brief's own worked example — the 4×4 with one wall against the busy 5×5.
 
 ## Running it
 
@@ -294,8 +311,13 @@ wrong here plays wrong in the game.
 - **Filter** by tray, kind, difficulty, wall count, par range, and review state
   (unreviewed / KEEP only / MAYBE). **Sort** by fun, aha, interaction,
   simplicity or par.
-- **Rate** each board: FUN 1–5, DIFFICULTY 1–5, the flags TOO CONFUSING, TOO
-  LINEAR, UNFAIR and AHA, and a verdict of KEEP, MAYBE or REJECT.
+- **Rate** each board: FUN 1–5, DIFFICULTY 1–5, AHA yes or no, the flags TOO
+  CONFUSING, TOO LINEAR and UNFAIR, and a verdict of KEEP, MAYBE or REJECT.
+  AHA is deliberately not a flag: a flag can only say yes or say nothing, and
+  nothing is what an unreviewed board says too, so it could never record that a
+  board the search called AHA turned out to have none — which is the answer
+  worth having, because it is the one that says the estimate was wrong. The
+  review line keeps a running count of exactly that.
 - Every panel of numbers above is shown beside the board, including a warning
   when a candidate carries an idle wall or is a position the shipped campaign
   already walks through.

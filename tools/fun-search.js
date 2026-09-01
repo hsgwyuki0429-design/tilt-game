@@ -78,11 +78,30 @@ function num(name, dflt) { var v = arg(name, null); return v === null ? dflt : N
 
 var QUICK = flag('quick');
 
+/* tools/level-search.js keeps one bit per cell in a 32-bit occupancy mask, so a
+   tray of side 6 (thirty-six cells) would silently mis-encode. Five is the
+   ceiling until that mask changes. */
+var MAX_TRAY = 5;
+
 var OPT = {
   sizes: (function () {
+    /* The main pool is 4×4 and 5×5 and that is a design decision, not a limit
+       of the code — so `all` means those two, and asking for another tray gets
+       it rather than getting silence. Three is real: it is where a tutorial
+       board would come from. Six is refused with a reason, because the
+       enumerator packs a cell index into a 32-bit occupancy mask and a 6×6 has
+       thirty-six cells; that is a fact about tools/level-search.js, not a
+       preference, and a run that quietly measured nothing would hide it. */
     var v = arg('size', 'all');
     if (v === 'all') return [4, 5];
-    return String(v).split(',').map(Number).filter(function (n) { return n === 4 || n === 5; });
+    var list = String(v).split(',').map(Number);
+    var bad = list.filter(function (n) { return !(n >= 3 && n <= MAX_TRAY); });
+    if (bad.length) {
+      console.error('cannot search a ' + bad[0] + 'x' + bad[0] + ' tray — the enumerator ' +
+        'handles 3 to ' + MAX_TRAY + ' (the main pool is 4 and 5)');
+      process.exit(1);
+    }
+    return list;
   })(),
   minPar: num('min-par', QUICK ? 4 : 3),
   maxPar: num('max-par', 0),
@@ -109,7 +128,7 @@ if (flag('help') || flag('h')) {
   console.log([
     'node tools/fun-search.js [options]',
     '',
-    '  --size 4|5|all        which tray (default all)',
+    '  --size N[,N]|all      which tray: 3, 4 or 5 (default all = the 4 and 5 main pool)',
     '  --min-par N           shortest board to consider (default 3)',
     '  --max-par N           longest board to consider (default no cap)',
     '  --keep N              candidates per category/difficulty/size bucket (default 20)',
@@ -191,21 +210,36 @@ var records = new Map();                        // canonicalId -> record
 function bucketKey(cat, band, size) { return cat + '/' + band + '/' + size + 'x' + size; }
 
 /**
- * Better is: more fun potential, then simpler, then smaller, then shorter.
+ * "If two boards look about as promising, take the smaller, plainer one."
  *
- * That order is the selection rule from the design brief, in code. Fun
- * potential is an estimate and it goes first only because something has to;
- * everything under it is a fact about the board, and every one of those facts
- * prefers the smaller, plainer board. Ties end on the canonical id so two runs
- * of the same command cannot disagree.
+ * The word doing the work is ABOUT. `funPotential` is an estimate carried to
+ * three decimals, and comparing it exactly means two boards are only ever
+ * judged on size and simplicity when their estimates collide to the last digit
+ * — which is to say almost never, so the rule would read well and never fire.
+ * Rounding to a band first is what makes it a real preference: inside a band
+ * the estimate has nothing left to say, and the ladder below decides instead.
+ *
+ * The ladder is the design brief's order, unchanged: smaller tray, fewer
+ * pieces, fewer idle walls, stronger aha, stronger interaction, more real
+ * choices, and a shorter answer. Everything above the aha rung is a fact about
+ * the board rather than an opinion about it. Ties end on the canonical id, so
+ * two runs of one command cannot disagree.
  */
+var FUN_BAND = 0.02;
+function funBand(r) { return Math.round(r.funPotential / FUN_BAND); }
+
 function better(a, b) {
-  if (a.funPotential !== b.funPotential) return b.funPotential - a.funPotential;
-  if (a.elementCount !== b.elementCount) return a.elementCount - b.elementCount;
+  var band = funBand(b) - funBand(a);
+  if (band) return band;
   if (a.boardSize !== b.boardSize) return a.boardSize - b.boardSize;
+  if (a.elementCount !== b.elementCount) return a.elementCount - b.elementCount;
   if (a.redundantWallCount !== b.redundantWallCount) {
     return a.redundantWallCount - b.redundantWallCount;
   }
+  var A = a.analysis, B = b.analysis;
+  if (A.ahaPotential !== B.ahaPotential) return B.ahaPotential - A.ahaPotential;
+  if (A.interactionScore !== B.interactionScore) return B.interactionScore - A.interactionScore;
+  if (A.choiceScore !== B.choiceScore) return B.choiceScore - A.choiceScore;
   if (a.par !== b.par) return a.par - b.par;
   return a.canonicalId < b.canonicalId ? -1 : (a.canonicalId > b.canonicalId ? 1 : 0);
 }
