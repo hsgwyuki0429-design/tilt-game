@@ -85,9 +85,9 @@
   /* Frontal elevation: grid X and Y remain perpendicular on screen.
      Height reveals only the front face, with no sideways camera angle. */
   var GRID_X = 1;
-  var GRID_Y = .90;
+  var GRID_Y = .95;
   var Z_X = 0;
-  var Z_Y = .52;
+  var Z_Y = .30;
   var WALL_HEIGHT = .21;
   var DRIFTER_HEIGHT = .19;
   var PENGUIN_HEIGHT = .76;
@@ -220,6 +220,7 @@
   };
   Renderer.prototype.showState=function(state){
     this.state=state; this.anim=null; this.grazes.length=0;
+    this.particles.length=0; this.ripples.length=0;
   };
 
   Renderer.prototype.layout=function(){
@@ -334,7 +335,7 @@
       if(start>=0)br.push([start,frames.length-1]);runs.push(br);
     }
     this.anim={frames:frames,runs:runs,events:result.events.slice(),
-      passes:this.findPasses(frames),firedPass:{},fired:{},
+      passes:this.findPasses(frames),firedPass:{},fired:{},trailTime:0,trailDistance:[],
       t0:(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now(),
       duration:Math.max(TICK,(frames.length-1)*TICK+TAIL+SQUASH),
       endState:result.state,onDone:onDone,done:false};
@@ -394,6 +395,48 @@
   Renderer.prototype.ripple=function(wx,wy,wz,col,r0,r1,ms){
     this.ripples.push({x:wx,y:wy,z:wz,col:col,r0:r0,r1:r1,life:0,max:ms});
   };
+  // Distance-spaced shavings stay continuous across refresh rates. Each pair
+  // peels from a rear contact edge, fans sideways, then tumbles onto the ice.
+  Renderer.prototype.iceSpray=function(x,y,dx,dy,speed,impact){
+    if(this.reduceMotion)return;
+    var count=impact?18:4;
+    for(var j=0;j<count;j++){
+      var side=j%2?1:-1,spread=side*(.00045+Math.random()*.00125);
+      var back=(.0004+Math.random()*.0008)*speed;
+      var kind=j%4===0?'frost':j%4===1&&!impact?'skate':'shard';
+      var edge=impact?.34:-.26-Math.random()*.12;
+      var across=(impact?Math.random()*.5:.22+Math.random()*.15)*side;
+      var px=x+dx*edge-dy*across,py=y+dy*edge+dx*across;
+      if(px<.025||py<.025||px>this.stage.w-.025||py>this.stage.h-.025)continue;
+      this.particles.push({kind:kind,x:px,y:py,z:.025,
+        vx:-dx*back-dy*spread,vy:-dy*back+dx*spread,
+        vz:kind==='skate'?0:(.0012+Math.random()*.0022)*(impact?1.3:1),
+        life:0,max:kind==='skate'?220:380+Math.random()*260,
+        size:kind==='frost'?.035+Math.random()*.035:.018+Math.random()*.032,
+        angle:Math.random()*Math.PI*2,spin:(Math.random()-.5)*.018,glint:Math.random()<.22,
+        dx:dx,dy:dy,col:j%3?'#e4faff':'#83bed3'});
+    }
+    if(this.particles.length>260)this.particles.splice(0,this.particles.length-260);
+  };
+  Renderer.prototype.emitSlideIce=function(elapsed){
+    var a=this.anim,previous=a.trailTime;a.trailTime=elapsed;
+    if(this.reduceMotion||elapsed-previous>100||elapsed<=previous)return;
+    for(var i=0;i<a.runs.length;i++){
+      var alive=a.frames[Math.min(a.frames.length-1,Math.floor(elapsed/TICK))].alive[i];
+      if(!alive)continue;
+      var p=this.animPos(i,previous),q=this.animPos(i,elapsed);
+      var dx=q[0]-p[0],dy=q[1]-p[1],distance=Math.sqrt(dx*dx+dy*dy);
+      if(distance<.0001)continue;
+      dx/=distance;dy/=distance;
+      var spacing=.075,remainder=a.trailDistance[i]||0;
+      for(var d=spacing-remainder;d<=distance;d+=spacing){
+        var f=d/distance;
+        this.iceSpray(p[0]+(q[0]-p[0])*f+.5,p[1]+(q[1]-p[1])*f+.5,
+          dx,dy,Math.min(1.8,distance/(elapsed-previous)*75),false);
+      }
+      a.trailDistance[i]=(remainder+distance)%spacing;
+    }
+  };
   Renderer.prototype.addShake=function(amount,cap){
     if(!this.reduceMotion)this.shake=Math.min(this.shake+amount,cap);
   };
@@ -403,7 +446,11 @@
     if(ev.type==='goal'){
       this.burst(x,y,.22,pal.mid,14,1.25);this.ripple(x,y,.045,pal.mid,.18,.78,390);
       this.flashes.push({cell:ev.cell,life:0,max:460});this.addShake(.9,2.5);
-    }else if(ev.type==='stop')this.addShake(.42,2.1);
+    }else if(ev.type==='stop'){
+      this.addShake(.42,2.1);
+      var dir=E.DV[this.gravity];
+      if(dir)this.iceSpray(x,y,dir[0],dir[1],1.2,true);
+    }
     else if(ev.type==='lost'){
       this.burst(x,y,.2,THEME.lost,18,1.75);this.ripple(x,y,.04,THEME.lostRing,.18,1.05,480);
       this.addShake(2.4,4);
@@ -412,12 +459,20 @@
   };
   Renderer.prototype.updateEffects=function(dt){
     var busy=false,i,p;
+    if(this.reduceMotion)this.particles.length=0;
     for(i=this.ripples.length-1;i>=0;i--){p=this.ripples[i];p.life+=dt;
       if(p.life>=p.max)this.ripples.splice(i,1);else busy=true;}
     for(i=this.particles.length-1;i>=0;i--){p=this.particles[i];p.life+=dt;
       if(p.life>=p.max){this.particles.splice(i,1);continue;}
-      p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;p.vz-=.0000044*dt;
-      p.vx*=.994;p.vy*=.994;if(p.z<.035){p.z=.035;p.vz*=-.24;}busy=true;}
+      var step=Math.min(dt,40);
+      p.x+=p.vx*step;p.y+=p.vy*step;
+      if(p.kind==='skate'){p.z=.012;p.vx=0;p.vy=0;}
+      else{p.z+=p.vz*step;p.vz-=.000012*step;}
+      if(p.angle!=null)p.angle+=p.spin*step;
+      var drag=Math.exp(-step*(p.z<=.035?.013:.002));p.vx*=drag;p.vy*=drag;
+      if(p.z<.025){p.z=.025;p.vz*=-.22;p.spin*=.55;}
+      if(p.kind){p.x=Math.max(.025,Math.min(this.stage.w-.025,p.x));
+        p.y=Math.max(.025,Math.min(this.stage.h-.025,p.y));}busy=true;}
     for(i=this.flashes.length-1;i>=0;i--){this.flashes[i].life+=dt;
       if(this.flashes[i].life>=this.flashes[i].max)this.flashes.splice(i,1);else busy=true;}
     for(i=this.grazes.length-1;i>=0;i--){this.grazes[i].life+=dt;
@@ -430,6 +485,7 @@
     var busy=false,elapsed=0,i;
     if(this.anim){
       elapsed=now-this.anim.t0;
+      this.emitSlideIce(elapsed);
       for(i=0;i<this.anim.events.length;i++){
         var ev=this.anim.events[i];if(this.anim.fired[i])continue;
         var when=ev.t*TICK+(ev.type==='stop'?TAIL:TICK*.55);
@@ -513,7 +569,8 @@
     /* Painter order follows the footprint, never the object's height. Using z
        here makes tall objects sort behind their own floor tile. */
     var p=this.project(x+.92,y+.92,0);
-    var pass=kind==='particle'?2:(kind==='wall'||kind==='penguin'?1:0);
+    var pass=kind==='particle'?(data.kind?(data.kind==='skate'?.5:1):2):
+      (kind==='wall'||kind==='penguin'?1:0);
     this.commands.push({kind:kind,x:x,y:y,z:z||0,layer:layer,pass:pass,
       depth:p.y,tie:p.x,data:data});
   };
@@ -579,7 +636,7 @@
     for(i=0;i<this.ripples.length;i++){var r=this.ripples[i];
       this.pushCommand('ripple',r.x-.5,r.y-.5,r.z,2,r);}
     for(i=0;i<this.particles.length;i++){var p=this.particles[i];
-      this.pushCommand('particle',p.x-.5,p.y-.5,p.z,6,p);}
+      this.pushCommand('particle',p.x-.92,p.y-.92,p.z,6,p);}
   };
   Renderer.prototype.drawCommand=function(g,c){
     if(c.kind==='floor')this.drawFloor(g,c.data);
@@ -595,7 +652,7 @@
     cracked:{top:['#B9DEEA','#68AFCF'],south:['#C0E2ED','#83BED8'],east:['#9BCDE0','#5E9FC6']},
     goal:{top:['#C6E8ED','#79BDC9'],south:['#C0E2ED','#83BED8'],east:['#9BCDE0','#5E9FC6']},
     'wall-smooth':{top:['#FFFFFF','#EAF5FA'],south:['#79C8E2','#43A0CB'],east:['#62B5D8','#347FB1']},
-    'wall-brick':{top:['#FFFFFF','#EDF7FC'],south:['#A9D9F3','#629FC6'],east:['#88C2E2','#4E89B5']},
+    'wall-brick':{top:['#f0fcff','#c3e5f0'],south:['#95cadc','#629fb8'],east:['#88C2E2','#4E89B5']},
     'penguin-orange':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
     'penguin-purple':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
     /* Old drift ice. Deliberately the only desaturated thing on the board: the
@@ -625,7 +682,7 @@
     var textures=o.textures||{},self=this;
     function texture(name){return Object.prototype.hasOwnProperty.call(textures,name)?textures[name]:self.textureBank.face(o.material,name);}
     if(f.south[2].y-f.top[0].y>0){
-      var body=[f.top[0],f.top[1],f.east[3],f.east[2],f.south[3],f.top[3]];
+      var body=[f.top[0],f.top[1],f.south[2],f.south[3]];
       this.drawFace(g,body,null,s.south,null,o.radius);
     }
     if(Math.abs(f.east[2].x-f.east[0].x)>.01)
@@ -663,13 +720,25 @@
   Renderer.prototype.drawWall=function(g,c){
     var key=c.outer?'wall:outer':'wall:smooth';
     if(this.blitStaticSprite(g,key,c.x,c.y))return;
-    var gap=.065;
-    this.drawContactShadow(g,c.x+.5,c.y+.63,.47,.34,true);
+    var gap=.13;
+    this.drawContactShadow(g,c.x+.5,c.y+.62,.40,.36,true);
     var f=this.drawBox(g,{x0:c.x+gap,y0:c.y+gap,x1:c.x+1-gap,y1:c.y+1-gap,
-      z0:.015,z1:WALL_HEIGHT,material:'wall-brick',radius:this.cell*.075,
+      z0:.015,z1:WALL_HEIGHT,material:'wall-brick',radius:this.cell*.045,
       textures:{top:null,south:null,east:null}});
-    g.save();roundedPoly(g,f.top,this.cell*.075);g.strokeStyle='rgba(255,255,255,.9)';
-    g.lineWidth=1.4;g.stroke();g.restore();
+    this.drawIceBevel(g,f.top);
+  };
+
+  Renderer.prototype.drawIceBevel=function(g,top){
+    g.save();roundedPoly(g,top,this.cell*.045);g.clip();faceTransform(g,top,256);
+    // Thin inward bevel: the frosted cap never extends beyond the ice body.
+    g.strokeStyle='rgba(255,255,255,.80)';g.lineWidth=8;
+    g.beginPath();g.moveTo(4,246);g.lineTo(4,4);g.lineTo(246,4);g.stroke();
+    g.strokeStyle='rgba(82,148,173,.23)';g.lineWidth=7;
+    g.beginPath();g.moveTo(252,12);g.lineTo(252,252);g.lineTo(12,252);g.stroke();
+    var gleam=g.createLinearGradient(0,0,256,210);
+    gleam.addColorStop(0,'rgba(255,255,255,.30)');gleam.addColorStop(.45,'rgba(255,255,255,.06)');
+    gleam.addColorStop(.47,'rgba(255,255,255,.22)');gleam.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=gleam;g.fillRect(8,8,240,240);g.restore();
   };
 
   Renderer.prototype.drawCracks=function(g,top){
@@ -738,8 +807,8 @@
     var y0=cy-(.5-inset)*sy,y1=cy+(.5-inset)*sy;
     /* A hop leaves the tray, so its shadow stays on the ground and only tightens
        under it. Everything else drags its shadow along unchanged. */
-    this.drawContactShadow(g,cx,p[1]+.5+rdy*(1-lift),
-      .37*(1-lift*.16),.20*(1-lift*.20),false);
+    this.drawContactShadow(g,cx,p[1]+.64+rdy*(1-lift),
+      .43*(1-lift*.16),.33*(1-lift*.20),false);
     var style=d.colour===2?'penguin-violet-solid':'penguin-amber-solid';
     var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035+lift,z1:.035+h+lift,
       material:style,radius:this.cell*.075,topShade:'rgba(255,255,255,.012)',
@@ -806,7 +875,7 @@
     var inset=.10;
     var x0=p[0]+.5-(.5-inset)*sx,x1=p[0]+.5+(.5-inset)*sx;
     var y0=p[1]+.5-(.5-inset)*sy,y1=p[1]+.5+(.5-inset)*sy;
-    this.drawContactShadow(g,p[0]+.5,p[1]+.5,.37,.21,true);
+    this.drawContactShadow(g,p[0]+.5,p[1]+.62,.44,.38,true);
     var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+DRIFTER_HEIGHT,
       material:'drifter',radius:this.cell*.075,
       textures:{top:null,south:null,east:null}});
@@ -866,9 +935,10 @@
   };
   Renderer.prototype.drawContactShadow=function(g,x,y,rx,ry,deep){
     var c=this.project(x,y,.008);g.save();
-    g.translate(c.x+this.cell*.025,c.y+this.cell*.075);g.scale(this.cell*rx*1.2,this.cell*ry*1.3);
+    g.translate(c.x+this.cell*.025,c.y+this.cell*.025);g.scale(this.cell*rx*1.2,this.cell*ry*1.1);
     var shadow=g.createRadialGradient(0,0,.12,0,0,1);
-    shadow.addColorStop(0,deep?'rgba(24,65,85,.28)':'rgba(24,65,85,.24)');
+    shadow.addColorStop(0,deep?'rgba(24,65,85,.36)':'rgba(24,65,85,.42)');
+    shadow.addColorStop(.55,'rgba(24,65,85,.20)');
     shadow.addColorStop(1,'rgba(24,65,85,0)');g.fillStyle=shadow;
     g.fillRect(-1,-1,2,2);g.restore();
   };
@@ -886,6 +956,34 @@
   };
   Renderer.prototype.drawParticle=function(g,p){
     var c=this.project(p.x,p.y,p.z),a=1-p.life/p.max,s=this.cell*p.size*(.45+a*.55);
+    if(p.kind){
+      g.save();g.globalAlpha=Math.min(1,a*2)*.9;
+      if(p.kind==='skate'){
+        g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=Math.max(.6,this.cell*.009);
+        var tail=this.project(p.x-p.dx*.17,p.y-p.dy*.17,.012);
+        g.beginPath();g.moveTo(tail.x,tail.y);g.lineTo(c.x,c.y);g.stroke();
+      }else if(p.kind==='frost'){
+        var mist=g.createRadialGradient(c.x,c.y,0,c.x,c.y,s*2.2);
+        mist.addColorStop(0,'rgba(247,255,255,.6)');mist.addColorStop(1,'rgba(220,248,255,0)');
+        g.fillStyle=mist;g.fillRect(c.x-s*2.2,c.y-s*2.2,s*4.4,s*4.4);
+      }else{
+        var ground=this.project(p.x,p.y,.01);
+        g.fillStyle='rgba(37,104,127,.12)';g.beginPath();
+        g.ellipse(ground.x+1,ground.y+1,s*.85,s*.35,0,0,Math.PI*2);g.fill();
+        g.translate(c.x,c.y);g.rotate(p.angle);
+        g.fillStyle=p.col;g.beginPath();g.moveTo(-s,-s*.35);g.lineTo(s*.2,-s);
+        g.lineTo(s,s*.3);g.lineTo(-s*.2,s*.7);g.closePath();g.fill();
+        g.fillStyle='#fff';g.beginPath();g.moveTo(-s,-s*.35);g.lineTo(s*.2,-s);
+        g.lineTo(s*.1,s*.12);g.closePath();g.fill();
+        g.strokeStyle='rgba(73,145,175,.65)';g.lineWidth=.5;g.beginPath();
+        g.moveTo(-s*.2,s*.7);g.lineTo(s,s*.3);g.stroke();
+        if(p.glint&&Math.sin(p.angle*2)>.94&&p.z>.055){
+          g.strokeStyle='#fff';g.lineWidth=.8;g.beginPath();
+          g.moveTo(-s*1.6,0);g.lineTo(s*1.6,0);g.moveTo(0,-s*1.6);g.lineTo(0,s*1.6);g.stroke();
+        }
+      }
+      g.restore();return;
+    }
     g.save();g.globalAlpha=a*.9;g.fillStyle=p.col;g.beginPath();g.arc(c.x,c.y,s,0,Math.PI*2);g.fill();
     g.fillStyle='rgba(255,255,255,.72)';g.beginPath();g.arc(c.x-s*.25,c.y-s*.3,s*.28,0,Math.PI*2);g.fill();g.restore();
   };

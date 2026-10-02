@@ -144,6 +144,48 @@ function serve() {
       'sprites=' + architecture.staticSprites);
     check('devicePixelRatio is capped at 2', architecture.dpr <= 2, 'dpr=' + architecture.dpr);
 
+    console.log('\n\u001b[1mICE SHAVINGS\u001b[0m');
+    var ice=await page.evaluate(function(){
+      var r=game.renderer,E=TiltEngine;
+      var st=E.compile({id:'ice-probe',board:['A....','.....','.....','.....','....a']});
+      var result={directions:true,types:true,bounded:true},counts=[];
+      ['U','R','D','L'].forEach(function(dir){
+        var state=E.initialState(st);state.pos[0]=[2,2];r.setStage(st,state);
+        r.playMove(E.simulate(st,state,dir),function(){});
+        for(var time=16;time<=96;time+=16)r.emitSlideIce(time);
+        var dv=E.DV[dir];
+        result.directions=result.directions&&r.particles.length>0&&r.particles.every(function(p){
+          return p.dx===dv[0]&&p.dy===dv[1]&&p.vx*dv[0]+p.vy*dv[1]<=0;
+        });
+        result.types=result.types&&['shard','skate','frost'].every(function(kind){
+          return r.particles.some(function(p){return p.kind===kind;});
+        });
+        r.collectCommands(96);
+        result.occlusion=r.commands.filter(function(c){return c.kind==='particle';}).every(function(c){return c.pass<=1;});
+      });
+      [8,16,32].forEach(function(dt){
+        r.setStage(st,E.initialState(st));r.playMove(E.simulate(st,r.state,'R'),function(){});
+        for(var time=dt;time<=96;time+=dt)r.emitSlideIce(time);
+        counts.push(r.particles.length);
+      });
+      result.refresh=counts.every(function(n){return n===counts[0];});
+      for(var k=0;k<100;k++)r.iceSpray(2.5,2.5,1,0,1,true);
+      result.bounded=r.particles.length<=260;
+      for(var tick=0;tick<80;tick++)r.updateEffects(16);
+      result.expired=r.particles.length===0;
+      r.iceSpray(2,2,1,0,1,false);r.reduceMotion=true;r.updateEffects(16);
+      r.iceSpray(2,2,1,0,1,true);result.reduced=r.particles.length===0;r.reduceMotion=false;
+      r.iceSpray(2,2,1,0,1,false);r.showState(E.initialState(st));result.reset=r.particles.length===0;
+      r.setStage(st,E.initialState(st));r.playMove(E.simulate(st,r.state,'L'),function(){});
+      r.emitSlideIce(32);result.idle=r.particles.length===0;
+      game.loadStage(9);return result;
+    });
+    check('all four directions throw shavings backward from moving contact edges',ice.directions);
+    check('shards, frost and skate marks are distinct and depth-occluded',ice.types&&ice.occlusion);
+    check('emission density matches at 30, 60 and 120 Hz',ice.refresh);
+    check('effects have a fixed budget and expire completely',ice.bounded&&ice.expired);
+    check('reduced motion, restoration and stationary blocks leave no shavings',ice.reduced&&ice.reset&&ice.idle);
+
     console.log('\n\u001b[1mGESTURE TILT\u001b[0m');
     await page.evaluate(function () { game.loadStage(9); game.renderer.gesture=false; });
     for (var dir of ['L','R','U','D']) {

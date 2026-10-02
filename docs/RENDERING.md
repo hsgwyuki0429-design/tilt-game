@@ -9,7 +9,7 @@ directly to the screen.
 
 ```text
 screenX = originX + x * cell
-screenY = originY + y * cell * 0.90 - z * cell * 0.52
+screenY = originY + y * cell * 0.95 - z * cell * 0.30
 ```
 
 Penguins are constructed as 0.76-cell cubes, with gradients and joined rounded
@@ -18,7 +18,12 @@ vector eyes, cheeks, and a white bib. A small faceted beak projects above that
 plane. No penguin image is pasted onto the geometry. Nine expression drawings
 follow the existing reaction controller and retain its movement poses.
 
-Snow obstacles are 0.21 cells high and grey drifters are 0.19 cells high: one
+The elevated frontal camera shortens the visible side without flattening the
+cube geometry. Walls fit inside a 0.74-cell footprint, with an inward glass bevel
+instead of an oversized white cap. Soft contact shadows extend just past the
+footprint to anchor the blocks to the tray.
+
+Ice obstacles are 0.21 cells high and grey drifters are 0.19 cells high: one
 quarter of their full-height versions. They use the same solid geometry and
 lighting, with a small bevel and contact shadow. Lower obstacles keep adjacent
 goals readable and distinguish the penguins from the scenery.
@@ -60,7 +65,23 @@ animation loop. Its cubes, shallow obstacles, and original auroras match play.
 
 Floor and goals paint first. Raised walls and penguins share a pass sorted by
 their ground footprint, so floor tiles cannot paint over a sliding piece.
-Soft radial contact shadows anchor the pieces; particles paint last.
+Soft radial contact shadows anchor the pieces. Skate marks paint over the floor;
+ice fragments share the objects' depth pass so they cannot spray over a nearer
+wall or penguin. Goal celebration particles paint last.
+
+## Ice slide effects
+
+Actual animation displacement emits paired shavings from the trailing contact
+edges, spaced by distance rather than frame count. Faceted, spinning fragments
+fan backward and sideways, bounce and lose speed, while fine frost and short
+skate marks dissolve. Stop events add a concentrated spray at the leading edge.
+Sparse glints and tiny ground shadows give the fragments volume. Positions,
+sizes, rotation, and lifetimes vary so the trail does not become a regular grid.
+
+Effects are capped at 260 particles and expire within 640ms. Large clock jumps
+do not dump an entire move's particles. Reduced motion suppresses shavings;
+restoring a state or loading a stage clears them. Particle simulation never
+changes engine positions or move history.
 
 - Device pixel ratio is capped at 2.
 - Five terrain variants and the complete tray are cached on layout or decode.
@@ -73,6 +94,8 @@ Soft radial contact shadows anchor the pieces; particles paint last.
 - `npm run test:render`: frontal geometry, cube proportions, shallow obstacles,
   no raster penguin/wall art, nine distinct vector expressions, real touch drags
   and cancellation in all four directions, reduced motion, and responsive fit.
+  Also checks four-direction ice trails, frame-rate-independent emission,
+  occlusion, budget, expiry, stationary blocks, and recovery cleanup.
 - `npm run test:expression`: reaction triggers, expiry, poses, and silhouette.
 - `npm run test:recovery`: multiple dead-end moves, nearest solvable recovery,
   restart reversal, keyboard input, cancellation, unknown solver results, and
