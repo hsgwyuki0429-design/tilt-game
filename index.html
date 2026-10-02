@@ -9,7 +9,7 @@
      itself claims every gesture inside it with `touch-action: none`. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="TILT — a gravity puzzle. You never move the blocks. You move the world.">
-<meta name="theme-color" content="#EDF8FC">
+<meta name="theme-color" content="#eaf3f3">
 <meta name="color-scheme" content="light">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -136,17 +136,13 @@
 
 <!-- ══ HOME ══════════════════════════════════════════════════════════════════ -->
 <section id="home" class="home-screen" aria-labelledby="home-title">
-  <div class="home-aurora" aria-hidden="true"></div>
   <div class="home-card">
+    <p class="home-edition" aria-hidden="true">A LITTLE WORLD OF ICE</p>
     <p class="home-eyebrow" data-t="homeEyebrow">氷上グラビティパズル</p>
     <h1 id="home-title" class="home-logo">TILT</h1>
     <p class="home-lead" data-t="homeLead">指をはらって、ペンギンを同じ色のオーロラへ。</p>
 
-    <div class="home-board" aria-hidden="true">
-      <i class="home-tile t1"></i><i class="home-tile t2"></i><i class="home-tile t3"></i>
-      <i class="home-tile t4"></i><i class="home-goal"></i><i class="home-tile t6"></i>
-      <i class="home-tile t7"></i><i class="home-penguin"></i><i class="home-tile t9"></i>
-    </div>
+    <canvas id="home-preview" class="home-board" aria-hidden="true"></canvas>
 
     <div class="home-progress">
       <span id="home-stage">STAGE 1 · HOME</span>
@@ -161,21 +157,10 @@
 </section>
 
 
-<!-- ══ GAME ═══════════════════════════════════════════════════════════════════
-     The desktop composition follows the supplied ice-world design sheet: a
-     compact editorial header, a dominant square board, a tile guide and quiet
-     supporting panels. On phones the reference panels fold away and the same
-     markup becomes a focused, touch-first game. -->
+<!-- Gameplay: one screen-aligned diorama and its controls. -->
 <div id="app">
   <div class="showcase-head">
-    <section class="brand-block" aria-labelledby="brand-title">
-      <h1 id="brand-title"><em>TILT</em> パズルゲーム</h1>
-      <p class="brand-tagline">氷の世界 × 重力操作 × 立方体ペンギン</p>
-      <div class="brand-concept">
-        <strong>デザインコンセプト</strong>
-        <span>盤面をスワイプして重力を操り、ペンギンをオーロラへ導く。見た目だけでルールが伝わる、透明感のある氷上パズル。</span>
-      </div>
-    </section>
+    <div class="game-wordmark" aria-hidden="true">TILT <span>ICE &amp; GRAVITY</span></div>
 
     <header id="hud" aria-label="Stage status">
       <button id="btn-menu" class="hud-btn" type="button" data-t-aria="stages" aria-label="Stages">
@@ -197,7 +182,7 @@
   <div class="play-layout">
     <section class="game-shell" aria-label="TILT game board">
       <main id="board-area">
-        <canvas id="board"></canvas>
+        <canvas id="board" role="img" aria-label="TILT puzzle board"></canvas>
         <div id="toast" role="status" aria-live="polite"></div>
         <div id="overlay" class="overlay" role="dialog" aria-modal="true"></div>
       </main>
@@ -222,71 +207,7 @@
         </button>
       </footer>
     </section>
-
-    <aside class="tile-guide" aria-labelledby="tile-guide-title">
-      <h2 id="tile-guide-title">タイルの種類</h2>
-      <div class="guide-row">
-        <div class="tile-art ice-art" aria-hidden="true"><i></i></div>
-        <div><h3>つるつるの氷 <small>（通常床）</small></h3><p>滑って動くことができる。<br>特別な効果はない。</p></div>
-      </div>
-      <div class="guide-row">
-        <div class="tile-art crack-art" aria-hidden="true"><i></i><b></b></div>
-        <div><h3>ヒビ氷 <small>（危険マス）</small></h3><p>通過することはできるが、停止すると氷が割れて<strong>失敗。</strong></p></div>
-      </div>
-      <div class="guide-row">
-        <div class="tile-art aurora-art" aria-hidden="true"><i></i></div>
-        <div><h3>オーロラ渦 <small>（ゴール）</small></h3><p>通過することはできるが、ここに停止すると<strong>クリア。</strong></p></div>
-      </div>
-      <div class="guide-row guide-wall">
-        <div class="wall-art" aria-hidden="true"><i></i></div>
-        <div><h3>氷の壁 <small>（ブロック）</small></h3><p>通れない。滑るペンギンを止める。</p></div>
-      </div>
-      <div class="guide-row guide-wall">
-        <div class="drifter-art" aria-hidden="true"><i></i></div>
-        <div><h3>灰色の流氷 <small>（動く障害物）</small></h3><p>ペンギンと同じ向きに滑る。回収されないので、<strong>オーロラ渦をふさぐ</strong>こともある。</p></div>
-      </div>
-    </aside>
   </div>
-
-  <div class="reference-panels" aria-label="Game visual guide">
-    <section class="reference-card tile-details">
-      <h2>タイルの詳細イメージ</h2>
-      <div class="detail-grid">
-        <figure><div class="tile-art ice-art"><i></i></div><figcaption><strong>つるつるの氷</strong><span>透明感のある、光を反射する氷。</span></figcaption></figure>
-        <figure><div class="tile-art crack-art"><i></i><b></b></div><figcaption><strong>ヒビ氷（危険マス）</strong><span>中心から放射状に大きく割れた氷。</span></figcaption></figure>
-        <figure><div class="tile-art aurora-art"><i></i></div><figcaption><strong>オーロラ渦（ゴール）</strong><span>氷の表面に浮かぶ神秘的な渦。</span></figcaption></figure>
-      </div>
-    </section>
-
-    <section class="reference-card rule-summary">
-      <h2>ルール（まとめ）</h2>
-      <ul>
-        <li>盤面をスワイプして重力の方向を変える。</li>
-        <li>ペンギンは壁やブロックに当たるまで一直線に滑る。</li>
-        <li>灰色の流氷も同じ重力で滑るが、回収されない。</li>
-        <li>移動終了時に止まったタイルで結果が決まる。</li>
-      </ul>
-      <div class="rule-result fail"><span class="tile-art crack-art"><i></i><b></b></span><p>ヒビ氷に停止<br><strong>→ 失敗</strong></p></div>
-      <div class="rule-result clear"><span class="tile-art aurora-art"><i></i></span><p>オーロラ渦に停止<br><strong>→ クリア！</strong></p></div>
-    </section>
-  </div>
-
-  <div class="design-strip">
-    <section class="reference-card visual-points">
-      <h2>ビジュアルのポイント</h2>
-      <ul><li>立方体ペンギンを主役にした3D表現</li><li>透明な氷と柔らかな雪の質感</li><li>危険とゴールが一目で分かる光の演出</li></ul>
-    </section>
-    <section class="reference-card palette-card">
-      <h2>カラーパレット</h2>
-      <div class="swatches" aria-label="Color palette">
-        <span style="--c:#CDE6FF"><i></i>氷</span><span style="--c:#A9C8E8"><i></i>氷影</span>
-        <span style="--c:#E9F2FF"><i></i>雪</span><span style="--c:#7FB3D9"><i></i>ヒビ</span>
-        <span style="--c:#46E6FF"><i></i>オーロラ</span><span style="--c:#1E1E1E"><i></i>ペンギン</span>
-        <span style="--c:#F5CB71"><i></i>くちばし</span>
-      </div>
-    </section>
-  </div>
-
 </div>
 
 

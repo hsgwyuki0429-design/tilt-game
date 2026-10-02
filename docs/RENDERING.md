@@ -1,113 +1,79 @@
-# Flat top-down tile rendering
+# Frontal ice diorama
 
-`src/engine.js` remains the canonical 2D grid. The renderer maps every cell
-directly to a screen-aligned square so the live board matches the home preview.
+The engine remains a deterministic 2D grid. The Canvas renderer gives objects
+height while keeping the view square to the board: rows horizontal, columns
+vertical, and no sideways camera angle. All four swipe directions still map
+directly to the screen.
 
-## View
-
-There is no perspective, visible side face, camera controller, rotation, zoom,
-or orbit. Logical X stays screen-right and logical Y stays screen-down, so all
-four swipe directions match the visible penguin movement:
+## Geometry and materials
 
 ```text
-screenX = originX + x * S
-screenY = originY + y * S
+screenX = originX + x * cell
+screenY = originY + y * cell * 0.90 - z * cell * 0.52
 ```
 
-Every row and column uses the same scale.
+Penguins are constructed as 0.76-cell cubes, with gradients and joined rounded
+geometry for their upward and front planes. The upward face is drawn with
+vector eyes, cheeks, and a white bib. A small faceted beak projects above that
+plane. No penguin image is pasted onto the geometry. Nine expression drawings
+follow the existing reaction controller and retain its movement poses.
 
-## Blocks and spacing
+Snow obstacles are 0.21 cells high and grey drifters are 0.19 cells high: one
+quarter of their full-height versions. They use the same solid geometry and
+lighting, with a small bevel and contact shadow. Lower obstacles keep adjacent
+goals readable and distinguish the penguins from the scenery.
 
-Every floor, hazard, goal, wall, and penguin is a softly rounded top-down tile.
-The board uses a pale blue rounded tray like the home-screen preview.
+The tray has a continuous snowy rim, a translucent blue side, and a soft cast
+shadow. Floor texture is softly blended from the original ice artwork, sampling
+its interior to avoid repeated baked borders. Cracked ice retains stronger
+contrast. Goals retain the original `goal-top.png` aurora artwork, colour filter,
+pulse, and collection flash. A rounded clip trims the asset's black corner
+padding without replacing the aurora design.
 
-## The drifter
+## Swipe response
 
-The drifter has no supplied artwork; it is drawn procedurally in
-`Renderer.drawFloeTop`. Because the view is strictly top-down, its side faces
-have no area, so the whole piece has to read off one square, and it has to
-answer two questions at once:
+The whole canvas tilts by up to 4.5 degrees around X or Y in CSS perspective.
+Drag progress controls the angle; a committed slide carries that lean through
+its movement, then settles exactly to level. Cancelling a drag returns to level
+without changing game state. Existing fractional previews only move pieces
+that the engine would actually allow to move.
 
-- **Is it mine?** It is the only desaturated thing on the board. The walls are
-  white-blue and the penguins near-black, so a mid blue-grey belongs to neither.
-  It carries no face, no beak, and no colour an aurora could match.
-- **Can I push it?** It sits *on* the tray rather than being part of it: inset
-  from its cell, rounded, with a contact shadow, where a wall fills its cell
-  edge to edge and casts none. A wide bevel around a raised inner panel supplies
-  the rest, and is sized to stay several pixels wide at the 39px cell an
-  iPhone SE gets.
+Tilt never changes engine coordinates, move counts, history, or swipe axes.
+Layout reads untransformed client dimensions, so resizing during a gesture
+cannot feed perspective distortion back into sizing. Reduced motion immediately
+clears the tilt and retains expression changes without poses.
 
-Its ice quality comes from a diagonal sweep and one soft highlight rather than
-from drawn frost lines. At cell size any small, countable set of strokes stops
-reading as texture and starts reading as a glyph — two frost lines looked like a
-slash — so the surface detail is all gradients, which have no shape to misread.
-The north-west lighting matches the floor tiles and wall caps.
+## Expressions and home
 
-## Supplied face assets
+`src/expression.js` owns the nine reaction states, their priorities, and their
+expiry times. The renderer reads `visualFor().expression` and draws the matching
+vector eyes on the same top plane. The existing image bank remains available
+for compatibility; the current penguin renderer does not use its artwork.
+Expressions expire on the frame clock, so no stale timer can replace a newer
+reaction. Poses never feed back into the engine's grid position.
 
-The renderer loads the 16 individual 512×512 PNGs in
-`assets/textures/faces/`. Each visible tile is mapped directly by semantic role.
-The supplied penguin face is the visible top-down penguin tile. Its beak receives
-the matching goal colour at runtime.
+Home uses a static instance of the same renderer and a small 4×4 composition.
+It repaints on asset decode or ResizeObserver notifications without an extra
+animation loop. Its cubes, shallow obstacles, and original auroras match play.
 
-Procedural cracks, snow, and penguin art remain only as load-error fallbacks.
-The aurora texture receives a goal-colour filter and a weak emissive pulse; no
-symbol or badge is placed over the supplied artwork.
+## Ordering and performance
 
-## Penguin expressions
-
-The penguin's upward plane is a face, and which face it is comes from
-`src/expression.js` — nine named expressions with one drawing each, held in
-`FACE_FILES`. The renderer holds a `PenguinReactions` in `Renderer.reactions`
-and asks it two things per penguin per frame: which image, and what pose. It
-knows no expression names and no trigger conditions.
-
-### Per-colour sets
-
-A penguin's colour is normally carried by its beak, tinted at runtime. A second
-set of drawings per colour — `COLOUR_FACE_FILES`, keyed by the same
-`penguin-orange` / `penguin-purple` material names the renderer uses — carries
-it in the whole body instead, and where one is in use the runtime beak tint
-steps aside so it does not fight the artwork.
-
-A colour set is used only once it is **complete**: all nine expressions
-declared and all nine decoded. Half a set would mean one penguin changing body
-colour as its face changed, which is not a partial feature but a broken one, so
-until the ninth drawing lands every penguin wears the shared set and the board
-looks exactly as it did. Only files that exist may be declared — a path named
-for a drawing that is not on disk is a 404 on every load — so adding a drawing
-is adding its line, and the colour switches itself on when the last one arrives.
-`npm test` checks every declared path resolves to a real file, and
-`npm run test:expression` proves the switch-over end to end by completing a set
-in memory.
-
-Every face asset is the same 512px square, mapped through the same top-face
-quad, so a swap cannot change a penguin's size or position — `npm run
-test:expression` asserts that on real pixels by comparing the drawn silhouette's
-bounding box across all nine. The pose is one scale about the block's own
-centre and one offset in cells, applied to the quad the renderer was going to
-draw anyway; nothing reads it back, so a penguin mid-flinch still occupies
-exactly the cell the rules put it in. Reduced motion drops the pose and keeps
-the face.
-
-Expressions expire on the frame clock rather than on timers of their own. A
-reaction records the instant it is finished with, and `Renderer.frame` retires
-it, which is why a fast player cannot be left with an old reaction's timeout
-reverting a newer face. A live reaction reports itself busy, so the idle frame
-throttle lifts for as long as one is running.
-
-## Lighting and occlusion
-
-The texture artwork supplies the light and surface detail. Rendering adds a
-small contact shadow beneath the penguin and a pale blue board tray.
-
-Floor cells and goals paint first, then walls and penguins, then particles. This
-keeps moving penguins visible without changing game state.
-
-## Performance
+Floor and goals paint first. Raised walls and penguins share a pass sorted by
+their ground footprint, so floor tiles cannot paint over a sliding piece.
+Soft radial contact shadows anchor the pieces; particles paint last.
 
 - Device pixel ratio is capped at 2.
-- Source assets are pre-sized to 512px; no runtime atlas crop occurs.
-- Floor, hazard, goal-base, and wall tiles are cached as seven small sprites.
-- The background cache contains only the rounded board tray.
-- No per-frame canvas allocation or image decode is performed.
+- Five terrain variants and the complete tray are cached on layout or decode.
+- No per-frame canvas allocation or image decode is needed.
+- No runtime dependency or build step is added.
+
+## Verification
+
+- `npm test`: campaign rules, solver agreement, and expression decisions.
+- `npm run test:render`: frontal geometry, cube proportions, shallow obstacles,
+  no raster penguin/wall art, nine distinct vector expressions, real touch drags
+  and cancellation in all four directions, reduced motion, and responsive fit.
+- `npm run test:expression`: reaction triggers, expiry, poses, and silhouette.
+- `npm run qa`: all 100 campaign stages and interaction checks.
+- `npm run qa -- --fast-campaign`: the same checks with only campaign animations
+  advanced to their endpoints; interruption and gesture probes keep real timing.

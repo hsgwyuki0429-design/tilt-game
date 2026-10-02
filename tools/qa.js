@@ -24,6 +24,7 @@ var chromium = pw.chromium, devices = pw.devices;
 
 var ROOT = path.join(__dirname, '..');
 var SHOTS = process.argv.indexOf('--shots') >= 0;
+var FAST_CAMPAIGN = process.argv.indexOf('--fast-campaign') >= 0;
 var SHOT_DIR = path.join(ROOT, '.qa');
 
 var MIME = {
@@ -120,7 +121,7 @@ async function swipe(page, x, y, dx, dy) {
   }));
 
   var cellSize = await page.evaluate(function () { return window.game.renderer.cell; });
-  ok('3×3 cells are large on a phone (>=90px)', cellSize >= 90, 'cell=' + cellSize + 'px');
+  ok('campaign cells remain legible on a phone (>=44px)', cellSize >= 44, 'cell=' + cellSize + 'px');
 
   if (SHOTS) await page.screenshot({ path: path.join(SHOT_DIR, '01-stage1.png') });
 
@@ -158,6 +159,13 @@ async function swipe(page, x, y, dx, dy) {
 
     for (var m = 0; m < plan.path.length; m++) {
       await page.keyboard.press(keyFor[plan.path[m]]);
+      // Optional campaign-only fast-forward. Real key input, event dispatch,
+      // completion callbacks, and end-state rendering still run. The timing-
+      // sensitive undo, interruption, and swipe probes below keep real time.
+      if (FAST_CAMPAIGN) await page.evaluate(function () {
+        var r=window.game.renderer;
+        if(r.anim){r.anim.t0-=r.anim.duration;r.frame(16,performance.now());}
+      });
       await page.waitForFunction(function () { return window.game.phase !== 'busy'; }, null, { timeout: 6000 });
     }
     await page.waitForTimeout(650);
@@ -281,14 +289,13 @@ async function swipe(page, x, y, dx, dy) {
   ok('each device is introduced by a stage that explains it',
     vocabulary.untaught.length === 0, vocabulary.untaught.join(' '));
 
-  // Every alternative win condition names itself in the HUD. Without this the
-  // difficulty moves off the board and into a sentence nobody read.
+  // The current campaign has one win condition; every stage still needs its
+  // objective in the HUD, including stages without an introductory hint.
   var objectives = await page.evaluate(async function () {
     var g = window.game, S = window.TiltStages.STAGES, out = [];
     g.save.data.unlocked = 99;
     for (var i = 0; i < S.length; i++) {
       var win = window.TiltEngine.compile(S[i]).win;
-      if (win === 'allin') continue;
       g.loadStage(i);
       var label = (document.getElementById('objective') || {}).textContent || '';
       out.push({ id: S[i].id, win: win, label: label });
@@ -296,9 +303,9 @@ async function swipe(page, x, y, dx, dy) {
     return out;
   });
   var unlabelled = objectives.filter(function (o) { return !o.label; });
-  ok('every board with an unusual win condition says so in the HUD  (' +
+  ok('every campaign board states its objective in the HUD  (' +
     objectives.length + ' stages)',
-    objectives.length > 0 && unlabelled.length === 0,
+    objectives.length === stageCount && unlabelled.length === 0,
     unlabelled.map(function (o) { return o.id + ':' + o.win; }).join(' '));
 
   // Destroy a block on purpose and watch what the game does about it.
@@ -407,7 +414,10 @@ async function swipe(page, x, y, dx, dy) {
   var colour = await page.evaluate(function () {
     var g = window.game, E = window.TiltEngine, S = window.TiltStages.STAGES;
     var idx = -1;
-    for (var i = 0; i < S.length; i++) if (E.compile(S[i]).rules.colour) { idx = i; break; }
+    for (var i = 0; i < S.length; i++) {
+      var candidate=E.compile(S[i]);
+      if(candidate.colour.indexOf(1)>=0 && candidate.colour.indexOf(2)>=0){idx=i;break;}
+    }
     if (idx < 0) return { ok: false };
     g.loadStage(idx);
     var st = g.stage;

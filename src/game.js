@@ -277,6 +277,7 @@
     }
 
     this.loadStage(this.firstUnsolved());
+    this.initHomePreview();
     this.showHome();
   }
 
@@ -299,6 +300,21 @@
   };
 
   // -- home -------------------------------------------------------------------
+
+  Game.prototype.initHomePreview = function () {
+    var canvas=document.getElementById('home-preview');
+    if(!canvas)return;
+    var r=this.homeRenderer=new root.TiltRender.Renderer(canvas);
+    var stage=E.compile({id:0,name:'ICE',par:1,board:['.a..','A.#.','.#B.','..b.']});
+    var state=E.initialState(stage);
+    r.reduceMotion=true;
+    r.onInvalidate=function(){r.frame(0,0);};
+    r.reactions=new X.PenguinReactions({onReady:function(){r.frame(0,0);}});
+    r.reactions.reduceMotion=true;r.reactions.setStage(stage,function(){return state;});
+    r.setStage(stage,state);r.frame(0,0);
+    this.homePreviewResize=new ResizeObserver(function(){r.layout();r.frame(0,0);});
+    this.homePreviewResize.observe(canvas);
+  };
 
   Game.prototype.renderHome = function () {
     if (!this.dom.home) return;

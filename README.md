@@ -19,10 +19,16 @@ Every board obeys the same rules:
 - No stage is another stage in disguise — not by rotation or reflection, not by opening on a position another stage passes through, and not by standing on the same walls — counted whole, or counted as only the walls the puzzle actually uses.
 - Swipe and keyboard controls keep the same movement behaviour.
 
-The Canvas renderer keeps those rules on the original 2D grid and draws a flat,
-top-down board matching the home-screen preview. Supplied pale-blue ice, white
-wall, cracked-ice, aurora, and penguin-face textures remain square and readable.
-The same focused game shell scales from iPhone portrait to desktop.
+The Canvas renderer gives the ice tray, snow walls, and penguins visible depth
+while keeping rows horizontal and columns vertical. A frontal, elevated
+view uses soft contact shadows, a continuous snow rim, and translucent ice sides.
+Penguins are solid cubes with vector faces on top. Obstacles are shallow ice
+slabs, and the goals retain the original aurora artwork.
+Swiping gently tilts the whole tray (up to 4.5 degrees); release and cancellation
+settle it back to level. Reduced motion keeps the board level.
+
+Home and gameplay share the same renderer. The interface scales from a 320px
+phone to landscape and desktop without rotating the logical grid.
 
 ## Building the campaign
 
