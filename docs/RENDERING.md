@@ -74,6 +74,9 @@ Soft radial contact shadows anchor the pieces; particles paint last.
   no raster penguin/wall art, nine distinct vector expressions, real touch drags
   and cancellation in all four directions, reduced motion, and responsive fit.
 - `npm run test:expression`: reaction triggers, expiry, poses, and silhouette.
+- `npm run test:recovery`: multiple dead-end moves, nearest solvable recovery,
+  restart reversal, keyboard input, cancellation, unknown solver results, and
+  recovery-button fit at 320px, 390px, and landscape widths.
 - `npm run qa`: all 100 campaign stages and interaction checks.
 - `npm run qa -- --fast-campaign`: the same checks with only campaign animations
   advanced to their endpoints; interruption and gesture probes keep real timing.

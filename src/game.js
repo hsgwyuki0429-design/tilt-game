@@ -61,7 +61,12 @@
     perfect:    { ja: '最短クリア', en: 'Perfect' },
     next:       { ja: '次のステージ', en: 'Next stage' },
     retry:      { ja: 'もう一度', en: 'Try again' },
-    undo:       { ja: '一手もどす', en: 'Undo' },
+    undo:       { ja: '手詰まりの前に戻す', en: 'Back before dead end' },
+    recoveryIdle: { ja: '手詰まりになったら、まだクリアできる盤面へ戻れます。', en: 'When stuck, return to a position you can still solve.' },
+    recoveryHint: { ja: '手詰まりです。クリアできる盤面へ戻って、別の方向を試せます。', en: 'Dead end. Return to a solvable position and try another direction.' },
+    recovered: { ja: '手詰まりになる前の盤面に戻しました', en: 'Returned to the last solvable position' },
+    recoveryUnavailable: { ja: '戻れる盤面を確認できませんでした。最初からやり直せます。', en: 'No verified recovery point was found. You can restart the stage.' },
+    moveUnit: { ja: '手', en: 'moves' },
     undoShort:  { ja: 'もどす', en: 'Undo' },
     restart:    { ja: '最初から', en: 'Restart' },
     stages:     { ja: 'ステージ', en: 'Stages' },
@@ -77,12 +82,12 @@
     back:       { ja: 'もどる', en: 'Back' },
     howto:      { ja: 'あそびかた', en: 'How to play' },
     showRules:  { ja: 'ルールを見る', en: 'Show the rules' },
-    stuck:      { ja: '手づまり。もどすか、最初からやり直せます',
-                  en: 'Dead end — undo, or restart the stage' },
+    stuck:      { ja: '手詰まりです。クリアできる盤面へ戻れます。',
+                  en: 'Dead end. You can return to a solvable position.' },
     restarted:  { ja: '最初にもどしました', en: 'Stage restarted' },
     gameOver:   { ja: 'ここで終わり', en: 'Run ended' },
-    overBody:   { ja: 'ヒビ氷の上で止まると氷が割れます。1手もどせば続けられます。',
-                  en: 'The ice cracked under a stopped penguin. One undo puts it back.' },
+    overBody:   { ja: 'ヒビ氷の上で止まると氷が割れます。手詰まりになる前の盤面へ戻って、続けられます。',
+                  en: 'The ice cracked under a stopped penguin. Return to the last solvable position to continue.' },
     allClear:   { ja: '全ステージ制覇', en: 'Every stage solved' },
     allBody:    { ja: '%nステージすべてクリアしました。', en: 'All %n stages, done.' },
     progress:   { ja: 'クリア済み', en: 'solved' },
@@ -117,7 +122,7 @@
     r1p: { ja: 'ペンギンは直接動かせません。指をはらった向きへ盤面ごと重力が向き、すべてのペンギンが同時に滑ります。',
           en: 'You never move a penguin directly. Swipe, and the whole world falls that way — every penguin at once.' },
     r2h: { ja: '色を合わせる', en: 'Match each colour' },
-    r2p: { ja: '各ペンギンには同じ色・形のオーロラが1つあります。その渦の上で止まると回収されます。',
+    r2p: { ja: '各ペンギンには同じ色のオーロラが1つあります。その渦の上で止まると回収されます。',
           en: 'Every penguin has one matching aurora. It is collected when it stops on that vortex.' },
     r3h: { ja: 'くっついてもクリアではない', en: 'Touching is not a win' },
     r3p: { ja: 'ペンギン同士が触れても消えません。互いを止める、動かせる壁として使えます。',
@@ -125,8 +130,8 @@
     r4h: { ja: '灰色の流氷', en: 'The grey drifter' },
     r4p: { ja: '灰色の流氷も同じ重力で滑りますが、どのオーロラも受け取りません。動かせる壁として使えますが、渦の上で止まるとその渦をふさぎます。',
           en: 'A grey drifter slides with the same gravity, and no aurora will take it. Use it as a movable wall — but if it stops on a vortex, it plugs it.' },
-    r5:  { ja: '手数に制限はありません。いつでも何手でも戻せます。まず試してみるのが正しい遊び方です。',
-          en: 'There is no move limit and undo is free. Trying something to see what it does is how this game is meant to be played.' }
+    r5:  { ja: '手数に制限はありません。手詰まりになっても「手詰まりの前に戻す」で、最後にクリア可能だった盤面へ戻れます。安心して試してみてください。',
+          en: 'There is no move limit. If you reach a dead end, return to your last solvable position and try another direction.' }
   };
 
   var OBJECTIVE = { allin: 'winAllin' };
@@ -677,6 +682,7 @@
     if (r.solvable || r.truncated) return false;
 
     this.stuck = true;
+    this.syncHud();
     this.haptics.blocked();
     this.showToast(t('stuck'), { icon: 'undo' });
     return true;
@@ -833,6 +839,42 @@
 
   // -- undo / restart ---------------------------------------------------------
 
+  Game.prototype.canRecover = function () {
+    return this.history.length > 0 && this.phase !== 'clear' &&
+      (this.stuck || this.phase === 'over');
+  };
+
+  // Find the closest proven-solvable snapshot, skipping all moves made after
+  // the dead end. A capped search is unknown, never evidence of a safe point.
+  Game.prototype.recover = function () {
+    if (this.homeOpen || this.sheets.length || !this.canRecover()) return;
+    var target = -1;
+    for (var i = this.history.length - 1; i >= 0; i--) {
+      if (this.remaining(this.history[i]).solvable) { target = i; break; }
+    }
+    if (target < 0) { this.showToast(t('recoveryUnavailable')); return; }
+    this.cancelSlide();
+    this.audio.resume();
+    this.state = E.cloneState(this.history[target]);
+    this.history.length = target;
+    this.queued = null;
+    this.restorePoint = null;
+    this.stuck = false;
+    this.optimalStreak = 0;
+    this.reactions.reset();
+    this.renderer.showState(this.state);
+    this.renderer.gravity = null;
+    this.renderer.aimDir = null;
+    this.renderer.aimAmount = 0;
+    this.hideOverlay();
+    this.hideToast();
+    this.setPhase('play');
+    this.audio.undo();
+    this.haptics.tilt();
+    this.showToast(t('recovered'), { icon: 'check', ms: 2300 });
+    this.wake();
+  };
+
   /**
    * Abandon a slide that is still playing.
    *
@@ -946,9 +988,10 @@
     var rp = this.restorePoint;
     if (!rp) return;
     this.restorePoint = null;
-    this.stuck = false;
     this.state = rp.state;
     this.history = rp.history;
+    var restored = this.remaining(this.state);
+    this.stuck = rp.phase !== 'over' && !restored.solvable && restored.exact;
     this.optimalStreak = 0;
     this.reactions.reset();
     // Undoing a restart puts the run ending back, and with it the face.
@@ -991,9 +1034,18 @@
     var def = STAGES[this.index];
     this.dom.moves.textContent = String(this.state.moves);
     this.dom.moves.classList.toggle('over', this.state.moves > def.par);
-    // Enabled during a slide too — an in-flight move is exactly the thing undo
-    // can still take back.
-    this.dom.btnUndo.disabled = !this.history.length || this.phase === 'clear';
+    var recoverable = this.canRecover();
+    this.dom.btnUndo.disabled = !recoverable;
+    this.dom.btnUndo.title = t(recoverable ? 'recoveryHint' : 'recoveryIdle');
+    var failed = this.stuck || this.phase === 'over';
+    if (failed) {
+      this.dom.coach.classList.add('is-stuck');
+      this.dom.objective.textContent = t('recoveryHint');
+      this.dom.coach.setAttribute('data-show', 'obj');
+    } else if (this.dom.coach.classList.contains('is-stuck')) {
+      this.dom.coach.classList.remove('is-stuck');
+      this.showCoach(def);
+    }
   };
 
   Game.prototype.showToast = function (text, opts) {
@@ -1139,7 +1191,7 @@
         self.audio.ui(act === 'next');
         if (act === 'next') self.next();
         else if (act === 'retry' || act === 'restart') self.restart({ silent: true });
-        else if (act === 'undo') self.undo();
+        else if (act === 'undo') self.recover();
         else if (act === 'menu') self.openMenu();
       });
     });
@@ -1495,7 +1547,7 @@
       if (!el) return;
       el.addEventListener('click', function (e) { e.preventDefault(); self.audio.resume(); fn(); });
     };
-    tap(this.dom.btnUndo, function () { self.undo(); });
+    tap(this.dom.btnUndo, function () { self.recover(); });
     tap(this.dom.btnRestart, function () { self.restart(); });
     tap(this.dom.btnMenu, function () { self.openMenu(); });
     tap(this.dom.btnHome, function () { self.showHome(); });
@@ -1518,7 +1570,7 @@
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); self.leaveHome(); }
         return;
       }
-      if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') { e.preventDefault(); self.undo(); }
+      if (e.key === 'z' || e.key === 'Z' || e.key === 'Backspace') { e.preventDefault(); self.recover(); }
       else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); self.restart(); }
       else if (e.key === 'Escape') {
         if (self.sheets.length) self.closeSheet(); else self.openMenu();

@@ -612,7 +612,7 @@ async function penguinBox(page) {
 
   await tilt(page, 'R');
   await page.waitForTimeout(400);
-  await page.click('#btn-undo');
+  await page.evaluate(function () { window.game.undo(); });
   await page.waitForTimeout(150);
   ok('undo clears the reaction it took back',
     (await expressions(page)).every(function (e) { return e === 'normal'; }),

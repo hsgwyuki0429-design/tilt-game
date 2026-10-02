@@ -9,6 +9,7 @@
     "forge": "node tools/forge.js",
     "qa": "node tools/qa.js",
     "test:render": "node tools/render-test.js",
+    "test:recovery": "node tools/recovery-test.js",
     "test:expression": "node tools/expression-test.js",
     "test:analysis": "node tools/analysis-test.js",
     "test": "node tools/test.js && node tools/analysis-test.js",

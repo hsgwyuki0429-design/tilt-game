@@ -1001,6 +1001,8 @@ body::before {
 .hud-kicker { font-size:10px;letter-spacing:.08em;color:#657e85; }
 .hud-name { font-size:19px;letter-spacing:.10em;color:#234953;font-weight:750; }
 .hud-moves { color:#234953;font-size:29px;line-height:1; }
+.hud-metric { display:flex;align-items:baseline;justify-content:flex-end;gap:5px; }
+.hud-unit { font-size:10px;font-weight:600;color:#627e86; }
 .hud-par { color:#667f86;font-size:10px; }
 .play-layout { display:block;min-width:0;min-height:0; }
 .game-shell { display:grid;grid-template-rows:minmax(0,1fr) auto auto;height:100%;min-height:0; }
@@ -1013,12 +1015,19 @@ body::before {
 .coach-obj,.coach-hint { font-size:12px;font-weight:550; }
 .coach-ic { color:#4c8a91; }
 .coach-more { opacity:.55; }
-#dock { grid-row:3;min-height:58px;padding:0 0 2px;gap:12px; }
+.coach.is-stuck { background:#fbf1dc;border:1px solid #eadbb9;border-radius:15px;color:#795b26; }
+.coach.is-stuck .coach-ic { color:#a37930; }
+#dock { display:grid;grid-template-columns:minmax(0,1fr) 104px;grid-row:3;min-height:58px;padding:0 0 2px;gap:10px; }
 .dock-btn { min-height:54px;border-radius:18px;border:1px solid rgba(255,255,255,.8);
   background:rgba(255,255,255,.7);color:#305e68;font-size:13px;box-shadow:0 5px 16px rgba(49,90,103,.05); }
+.dock-btn { min-width:0;padding:10px;gap:7px;line-height:1.5; }
+.dock-btn .lbl { white-space:normal;overflow-wrap:anywhere; }
+.dock-btn .ic { width:18px;height:18px;flex-shrink:0; }
 .dock-btn.wide { background:#236e79;color:white;border-color:transparent;box-shadow:0 6px 16px rgba(35,110,121,.15); }
+.dock-btn.wide:active:not(:disabled) { background:#195b66;color:#fff; }
 .dock-btn.quiet { background:rgba(255,255,255,.46);color:#3d6570; }
-.dock-btn:disabled,.dock-btn.wide:disabled { background:rgba(255,255,255,.32);color:#8fa6ad;border-color:rgba(255,255,255,.4);box-shadow:none; }
+.dock-btn:disabled,.dock-btn.wide:disabled { background:rgba(255,255,255,.38);color:#718b93;border-color:rgba(255,255,255,.65);box-shadow:none; }
+button:focus-visible { outline:3px solid #32828c;outline-offset:4px; }
 .sheet { max-width:540px;border:1px solid rgba(255,255,255,.85);background:#f4f9f9; }
 .ov-card { border:1px solid rgba(255,255,255,.95);border-radius:26px;background:rgba(250,253,253,.97); }
 .btn.primary { background:var(--accent); }

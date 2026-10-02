@@ -206,13 +206,13 @@ async function swipe(page, x, y, dx, dy) {
   });
   ok('moves accumulated', mid.hist > 0, 'history=' + mid.hist + ' moves=' + mid.moves);
 
-  // Undo until the button says there is nothing left, rather than assuming a
-  // count — a no-op tilt correctly leaves no history entry behind.
+  // The internal one-step history operation remains a regression contract.
+  // The player-facing button now restores the last solvable position.
   var guard = 0;
   while (guard++ < 20) {
-    var enabled = await page.evaluate(function () { return !document.getElementById('btn-undo').disabled; });
+    var enabled = await page.evaluate(function () { return window.game.history.length > 0; });
     if (!enabled) break;
-    await page.click('#btn-undo');
+    await page.evaluate(function () { window.game.undo(); });
     await page.waitForTimeout(50);
   }
   var afterUndo = await page.evaluate(function () {
