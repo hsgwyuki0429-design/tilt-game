@@ -1,6 +1,6 @@
 'use strict';
 /*
- * TILT — flat top-down ice board.
+ * TILT — sculpted, screen-aligned ice diorama.
  *
  * The engine remains the single source of truth in grid coordinates. Rendering
  * interpolates those coordinates and only then calls project(x, y, z).
@@ -82,18 +82,15 @@
      the move itself having happened. */
   var AIM_SLIDE = .3;
   var MAX_CELL = 112;
-  /* A strictly top-down basis. Supplied square textures remain square and the
-     live board uses the same visual language as the home-screen tile preview. */
+  /* Frontal elevation: grid X and Y remain perpendicular on screen.
+     Height reveals only the front face, with no sideways camera angle. */
   var GRID_X = 1;
-  var GRID_Y = 1;
+  var GRID_Y = .95;
   var Z_X = 0;
-  var Z_Y = 0;
-  var FLOOR_DEPTH = 0;
-  var WALL_HEIGHT = .02;
-  var RING_HEIGHT = .02;
-  var FRONT_RING_HEIGHT = .02;
-  var PENGUIN_HEIGHT = .02;
-  var SCENE_HEIGHT = 0;
+  var Z_Y = .30;
+  var WALL_HEIGHT = .21;
+  var DRIFTER_HEIGHT = .19;
+  var PENGUIN_HEIGHT = .76;
   var FACE_SIZE = 512;
   var FACE_NAMES = ['top','bottom','north','south','east','west'];
 
@@ -180,10 +177,10 @@
     this.ctx=canvas.getContext('2d',{alpha:true});
     this.stage=null; this.state=null; this.anim=null;
     this.particles=[]; this.ripples=[]; this.flashes=[]; this.grazes=[];
-    this.commands=[]; this.cells=[]; this.ring=[]; this.baseCache=null; this.staticSprites={};
+    this.commands=[]; this.cells=[]; this.baseCache=null; this.staticSprites={};
     this.gravity=null; this.aimDir=null; this.aimAmount=0; this.aimSlide=0; this.clearGlow=0; this.time=0;
     this.reduceMotion=false; this.gesture=false; this.gestureDir='L'; this.gestureT=0;
-    this.shift={x:0,y:0}; this.nudge=null; this.shake=0;
+    this.shift={x:0,y:0}; this.tilt={x:0,y:0}; this.nudge=null; this.shake=0;
     this.dpr=1; this.cell=40; this.ox=0; this.oy=0;
     this.stepX=40; this.stepY=40; this.zShiftX=4; this.zScale=11;
     this.cssW=1; this.cssH=1;
@@ -196,6 +193,7 @@
     this.textureBank=new TextureBank(function(){
       self.textureVersion=(self.textureVersion||0)+1;
       if(self.stage)self.buildStaticSprites();
+      if(self.onInvalidate)self.onInvalidate();
     });
   }
 
@@ -217,55 +215,44 @@
     this.particles.length=0; this.ripples.length=0; this.flashes.length=0; this.grazes.length=0;
     this.gravity=null; this.aimDir=null; this.aimAmount=0; this.aimSlide=0;
     this.clearGlow=0; this.shake=0; this.nudge=null;
-    this.shift.x=this.shift.y=0; this.onEvent=null; this.layout();
+    this.shift.x=this.shift.y=0; this.tilt.x=this.tilt.y=0;
+    this.canvas.style.transform='none'; this.onEvent=null; this.layout();
   };
   Renderer.prototype.showState=function(state){
     this.state=state; this.anim=null; this.grazes.length=0;
+    this.particles.length=0; this.ripples.length=0;
   };
 
   Renderer.prototype.layout=function(){
-    var rect=this.canvas.getBoundingClientRect();
-    var w=Math.max(1,Math.round(rect.width)),h=Math.max(1,Math.round(rect.height));
+    // offset sizes do not change when the canvas tilts in CSS perspective.
+    var w=Math.max(1,this.canvas.clientWidth),h=Math.max(1,this.canvas.clientHeight);
     var dpr=Math.min(window.devicePixelRatio||1,2);
     this.dpr=dpr; this.cssW=w; this.cssH=h;
     if(this.canvas.width!==Math.round(w*dpr)||this.canvas.height!==Math.round(h*dpr)){
       this.canvas.width=Math.round(w*dpr); this.canvas.height=Math.round(h*dpr);
     }
     if(!this.stage)return;
-    var st=this.stage,margin=Math.max(7,Math.min(w,h)*.022),pad=.20;
-    var zRange=0;
-    var widthUnits=st.w+2+zRange*Z_X+pad;
-    var heightUnits=st.h+2+zRange*Z_Y+pad;
-    var cell=Math.floor(Math.min(
-      (w-margin*2)/widthUnits,(h-margin*2)/heightUnits,
-      (w-margin*2)/st.w,(h-margin*2)/st.h,MAX_CELL
-    ));
-    this.cell=Math.max(24,cell);
+    var st=this.stage,margin=Math.max(15,Math.min(w,h)*.048);
+    var widthUnits=st.w+.94,heightUnits=st.h*GRID_Y+1.35;
+    this.cell=Math.max(8,Math.min((w-margin*2)/widthUnits,(h-margin*2)/heightUnits,MAX_CELL));
     this.stepX=this.cell*GRID_X; this.stepY=this.cell*GRID_Y;
     this.zShiftX=this.cell*Z_X; this.zScale=this.cell*Z_Y;
-    var boardW=widthUnits*this.cell;
-    var boardH=heightUnits*this.cell;
-    var left=(w-boardW)/2;
-    var top=(h-boardH)/2-Math.min(5,Math.max(0,(h-boardH)*.02));
-    this.ox=left+(1+pad*.5)*this.cell+SCENE_HEIGHT*this.zShiftX;
-    this.oy=top+(1+pad*.5)*this.cell+SCENE_HEIGHT*this.zScale;
-    this.boardBounds={left:left,right:left+boardW,top:top,bottom:top+boardH};
+    this.ox=(w-st.w*this.stepX)/2;
+    this.oy=(h-st.h*this.stepY)/2-this.cell*.13;
+    this.boardBounds={left:this.ox-this.cell*.37,right:this.ox+st.w*this.stepX+this.cell*.37,
+      top:this.oy-this.cell*.42,bottom:this.oy+st.h*this.stepY+this.cell*.68};
+    this.canvas.style.transformOrigin=(w/2)+'px '+(h/2)+'px';
     this.buildTerrain();
   };
 
   Renderer.prototype.buildTerrain=function(){
     var st=this.stage;
-    this.cells.length=0; this.ring.length=0;
+    this.cells.length=0;
     for(var y=0;y<st.h;y++)for(var x=0;x<st.w;x++){
       var i=y*st.w+x,t=st.terrain[i];
       this.cells.push({x:x,y:y,i:i,terrain:t,
         material:t===E.HAZARD?'cracked':(st.goal[i]?'goal':'ice'),
         outer:t===E.WALL&&(x===0||y===0||x===st.w-1||y===st.h-1)});
-    }
-    for(y=-1;y<=st.h;y++)for(x=-1;x<=st.w;x++){
-      if(x===-1||y===-1||x===st.w||y===st.h)
-        this.ring.push({x:x,y:y,ring:true,front:x===st.w||y===st.h,
-          outer:true,material:'wall-brick'});
     }
     var c=document.createElement('canvas'),dpr=this.dpr;
     c.width=Math.max(1,Math.round(this.cssW*dpr));
@@ -276,18 +263,27 @@
   };
 
   Renderer.prototype.drawDioramaBase=function(g){
-    var b=this.boardBounds,r=Math.min(28,this.cell*.28);
-    g.save();g.fillStyle='rgba(123,188,211,.18)';
-    g.strokeStyle='rgba(71,139,166,.16)';g.lineWidth=Math.max(1,this.cell*.016);
-    g.beginPath();
-    if(g.roundRect)g.roundRect(b.left,b.top,b.right-b.left,b.bottom-b.top,r);
-    else g.rect(b.left,b.top,b.right-b.left,b.bottom-b.top);
-    g.fill();g.stroke();g.restore();
+    var c=this.cell,x=this.ox-c*.30,y=this.oy-c*.30;
+    var w=this.stage.w*this.stepX+c*.60,h=this.stage.h*this.stepY+c*.60;
+    var r=c*.26,depth=c*.28;
+    g.save();
+    // One continuous cast shadow grounds the complete tray.
+    g.shadowColor='rgba(38,93,109,.23)';g.shadowBlur=c*.40;g.shadowOffsetY=c*.30;
+    g.fillStyle='#90beca';g.beginPath();g.roundRect(x,y+depth,w,h,r);g.fill();
+    g.shadowColor='transparent';
+    var side=g.createLinearGradient(0,y+h,0,y+h+depth);
+    side.addColorStop(0,'#c4e4e9');side.addColorStop(.35,'#8dc1d0');side.addColorStop(1,'#5c9fb6');
+    g.fillStyle=side;g.beginPath();g.roundRect(x,y+depth*.3,w,h+depth*.7,r);g.fill();
+    var snow=g.createLinearGradient(x,y,x+w,y+h);
+    snow.addColorStop(0,'#ffffff');snow.addColorStop(.55,'#f4fbfc');snow.addColorStop(1,'#d6ebee');
+    g.fillStyle=snow;g.beginPath();g.roundRect(x,y,w,h,r);g.fill();
+    g.strokeStyle='rgba(255,255,255,.95)';g.lineWidth=1.5;g.stroke();
+    // The inset well ties the floor together instead of framing every texture.
+    g.fillStyle='#b9dbe2';g.beginPath();g.roundRect(this.ox-c*.025,this.oy-c*.025,
+      this.stage.w*this.stepX+c*.05,this.stage.h*this.stepY+c*.05,c*.08);g.fill();
+    g.restore();
   };
 
-  /* Static cells remain individual painter commands for correct occlusion, but
-     their expensive affine texture mapping is rasterized only on layout or
-     texture decode. A frame therefore blits one small sprite per terrain cell. */
   Renderer.prototype.buildStaticSprites=function(){
     if(typeof document==='undefined'||!this.stage)return;
     var specs=[
@@ -295,12 +291,10 @@
       {key:'floor:cracked',kind:'floor',data:{material:'cracked'}},
       {key:'floor:goal',kind:'floor',data:{material:'goal'}},
       {key:'wall:smooth',kind:'wall',data:{ring:false,outer:false}},
-      {key:'wall:outer',kind:'wall',data:{ring:false,outer:true}},
-      {key:'wall:ring-back',kind:'wall',data:{ring:true,front:false,outer:true}},
-      {key:'wall:ring-front',kind:'wall',data:{ring:true,front:true,outer:true}}
+      {key:'wall:outer',kind:'wall',data:{ring:false,outer:true}}
     ];
-    var cssW=Math.ceil(this.cell*1.46),cssH=Math.ceil(this.cell*1.54);
-    var anchorX=this.cell*.18,anchorY=this.cell*.48,dpr=this.dpr;
+    var cssW=Math.ceil(this.cell*1.50),cssH=Math.ceil(this.cell*1.82);
+    var anchorX=this.cell*.22,anchorY=this.cell*.66,dpr=this.dpr;
     var oldOx=this.ox,oldOy=this.oy,oldBuilding=this._buildingSprites;
     var sprites={};this._buildingSprites=true;this.ox=anchorX;this.oy=anchorY;
     try{
@@ -341,7 +335,7 @@
       if(start>=0)br.push([start,frames.length-1]);runs.push(br);
     }
     this.anim={frames:frames,runs:runs,events:result.events.slice(),
-      passes:this.findPasses(frames),firedPass:{},fired:{},
+      passes:this.findPasses(frames),firedPass:{},fired:{},trailTime:0,trailDistance:[],
       t0:(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now(),
       duration:Math.max(TICK,(frames.length-1)*TICK+TAIL+SQUASH),
       endState:result.state,onDone:onDone,done:false};
@@ -401,6 +395,48 @@
   Renderer.prototype.ripple=function(wx,wy,wz,col,r0,r1,ms){
     this.ripples.push({x:wx,y:wy,z:wz,col:col,r0:r0,r1:r1,life:0,max:ms});
   };
+  // Distance-spaced shavings stay continuous across refresh rates. Each pair
+  // peels from a rear contact edge, fans sideways, then tumbles onto the ice.
+  Renderer.prototype.iceSpray=function(x,y,dx,dy,speed,impact){
+    if(this.reduceMotion)return;
+    var count=impact?18:4;
+    for(var j=0;j<count;j++){
+      var side=j%2?1:-1,spread=side*(.00045+Math.random()*.00125);
+      var back=(.0004+Math.random()*.0008)*speed;
+      var kind=j%4===0?'frost':j%4===1&&!impact?'skate':'shard';
+      var edge=impact?.34:-.26-Math.random()*.12;
+      var across=(impact?Math.random()*.5:.22+Math.random()*.15)*side;
+      var px=x+dx*edge-dy*across,py=y+dy*edge+dx*across;
+      if(px<.025||py<.025||px>this.stage.w-.025||py>this.stage.h-.025)continue;
+      this.particles.push({kind:kind,x:px,y:py,z:.025,
+        vx:-dx*back-dy*spread,vy:-dy*back+dx*spread,
+        vz:kind==='skate'?0:(.0012+Math.random()*.0022)*(impact?1.3:1),
+        life:0,max:kind==='skate'?220:380+Math.random()*260,
+        size:kind==='frost'?.035+Math.random()*.035:.018+Math.random()*.032,
+        angle:Math.random()*Math.PI*2,spin:(Math.random()-.5)*.018,glint:Math.random()<.22,
+        dx:dx,dy:dy,col:j%3?'#e4faff':'#83bed3'});
+    }
+    if(this.particles.length>260)this.particles.splice(0,this.particles.length-260);
+  };
+  Renderer.prototype.emitSlideIce=function(elapsed){
+    var a=this.anim,previous=a.trailTime;a.trailTime=elapsed;
+    if(this.reduceMotion||elapsed-previous>100||elapsed<=previous)return;
+    for(var i=0;i<a.runs.length;i++){
+      var alive=a.frames[Math.min(a.frames.length-1,Math.floor(elapsed/TICK))].alive[i];
+      if(!alive)continue;
+      var p=this.animPos(i,previous),q=this.animPos(i,elapsed);
+      var dx=q[0]-p[0],dy=q[1]-p[1],distance=Math.sqrt(dx*dx+dy*dy);
+      if(distance<.0001)continue;
+      dx/=distance;dy/=distance;
+      var spacing=.075,remainder=a.trailDistance[i]||0;
+      for(var d=spacing-remainder;d<=distance;d+=spacing){
+        var f=d/distance;
+        this.iceSpray(p[0]+(q[0]-p[0])*f+.5,p[1]+(q[1]-p[1])*f+.5,
+          dx,dy,Math.min(1.8,distance/(elapsed-previous)*75),false);
+      }
+      a.trailDistance[i]=(remainder+distance)%spacing;
+    }
+  };
   Renderer.prototype.addShake=function(amount,cap){
     if(!this.reduceMotion)this.shake=Math.min(this.shake+amount,cap);
   };
@@ -410,7 +446,11 @@
     if(ev.type==='goal'){
       this.burst(x,y,.22,pal.mid,14,1.25);this.ripple(x,y,.045,pal.mid,.18,.78,390);
       this.flashes.push({cell:ev.cell,life:0,max:460});this.addShake(.9,2.5);
-    }else if(ev.type==='stop')this.addShake(.42,2.1);
+    }else if(ev.type==='stop'){
+      this.addShake(.42,2.1);
+      var dir=E.DV[this.gravity];
+      if(dir)this.iceSpray(x,y,dir[0],dir[1],1.2,true);
+    }
     else if(ev.type==='lost'){
       this.burst(x,y,.2,THEME.lost,18,1.75);this.ripple(x,y,.04,THEME.lostRing,.18,1.05,480);
       this.addShake(2.4,4);
@@ -419,12 +459,20 @@
   };
   Renderer.prototype.updateEffects=function(dt){
     var busy=false,i,p;
+    if(this.reduceMotion)this.particles.length=0;
     for(i=this.ripples.length-1;i>=0;i--){p=this.ripples[i];p.life+=dt;
       if(p.life>=p.max)this.ripples.splice(i,1);else busy=true;}
     for(i=this.particles.length-1;i>=0;i--){p=this.particles[i];p.life+=dt;
       if(p.life>=p.max){this.particles.splice(i,1);continue;}
-      p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;p.vz-=.0000044*dt;
-      p.vx*=.994;p.vy*=.994;if(p.z<.035){p.z=.035;p.vz*=-.24;}busy=true;}
+      var step=Math.min(dt,40);
+      p.x+=p.vx*step;p.y+=p.vy*step;
+      if(p.kind==='skate'){p.z=.012;p.vx=0;p.vy=0;}
+      else{p.z+=p.vz*step;p.vz-=.000012*step;}
+      if(p.angle!=null)p.angle+=p.spin*step;
+      var drag=Math.exp(-step*(p.z<=.035?.013:.002));p.vx*=drag;p.vy*=drag;
+      if(p.z<.025){p.z=.025;p.vz*=-.22;p.spin*=.55;}
+      if(p.kind){p.x=Math.max(.025,Math.min(this.stage.w-.025,p.x));
+        p.y=Math.max(.025,Math.min(this.stage.h-.025,p.y));}busy=true;}
     for(i=this.flashes.length-1;i>=0;i--){this.flashes[i].life+=dt;
       if(this.flashes[i].life>=this.flashes[i].max)this.flashes.splice(i,1);else busy=true;}
     for(i=this.grazes.length-1;i>=0;i--){this.grazes[i].life+=dt;
@@ -437,6 +485,7 @@
     var busy=false,elapsed=0,i;
     if(this.anim){
       elapsed=now-this.anim.t0;
+      this.emitSlideIce(elapsed);
       for(i=0;i<this.anim.events.length;i++){
         var ev=this.anim.events[i];if(this.anim.fired[i])continue;
         var when=ev.t*TICK+(ev.type==='stop'?TAIL:TICK*.55);
@@ -452,16 +501,22 @@
         var cb=this.anim.onDone;this.state=this.anim.endState;this.anim=null;if(cb)cb();
       }else busy=true;
     }
-    var want={x:0,y:0};
-    if(this.aimDir&&!this.reduceMotion){
-      var lean=Math.min(60,this.cell*.5);
-      if(this.aimDir==='L')want.x=-lean;else if(this.aimDir==='R')want.x=lean;
-      else if(this.aimDir==='U')want.y=-lean;else want.y=lean;
+    var want={x:0,y:0},tiltDir=this.aimDir||(this.anim?this.gravity:null);
+    if(tiltDir&&!this.reduceMotion){
+      var amount=this.aimDir?clamp01(this.aimAmount||0):Math.min(1,Math.max(0,(this.anim.duration-elapsed)/180));
+      if(tiltDir==='L')want.y=-4.5*amount;else if(tiltDir==='R')want.y=4.5*amount;
+      else if(tiltDir==='U')want.x=4.5*amount;else want.x=-4.5*amount;
     }
-    var k=Math.min(1,dt/90);
-    if(Math.abs(this.shift.x-want.x)>.05||Math.abs(this.shift.y-want.y)>.05){
-      this.shift.x=lerp(this.shift.x,want.x,k);this.shift.y=lerp(this.shift.y,want.y,k);busy=true;
-    }else{this.shift.x=want.x;this.shift.y=want.y;}
+    var k=1-Math.exp(-Math.min(dt,64)/70);
+    if(this.reduceMotion){this.tilt.x=0;this.tilt.y=0;}
+    else ['x','y'].forEach(function(axis){
+      if(Math.abs(this.tilt[axis]-want[axis])>.008){
+        this.tilt[axis]=lerp(this.tilt[axis],want[axis],k);busy=true;
+      }else this.tilt[axis]=want[axis];
+    },this);
+    var transform=this.tilt.x||this.tilt.y?
+      'perspective(1000px) rotateX('+this.tilt.x.toFixed(3)+'deg) rotateY('+this.tilt.y.toFixed(3)+'deg)':'none';
+    if(this.canvas.style.transform!==transform)this.canvas.style.transform=transform;
     /* The board leans as a whole; the blocks that gravity would actually move
        also creep, in cells, the way they are about to go. Both track the swipe
        as it happens, so a move that is still being made already reads. */
@@ -514,7 +569,8 @@
     /* Painter order follows the footprint, never the object's height. Using z
        here makes tall objects sort behind their own floor tile. */
     var p=this.project(x+.92,y+.92,0);
-    var pass=kind==='particle'?2:(kind==='wall'||kind==='penguin'?1:0);
+    var pass=kind==='particle'?(data.kind?(data.kind==='skate'?.5:1):2):
+      (kind==='wall'||kind==='penguin'?1:0);
     this.commands.push({kind:kind,x:x,y:y,z:z||0,layer:layer,pass:pass,
       depth:p.y,tie:p.x,data:data});
   };
@@ -550,7 +606,6 @@
   };
   Renderer.prototype.collectCommands=function(elapsed){
     var st=this.stage;this.commands.length=0;var i,c;
-    for(i=0;i<this.ring.length;i++){c=this.ring[i];this.pushCommand('wall',c.x,c.y,-.01,3,c);}
     for(i=0;i<this.cells.length;i++){
       c=this.cells[i];this.pushCommand('floor',c.x,c.y,0,0,c);
       if(st.goal[c.i])this.pushCommand('goal',c.x,c.y,.012,1,c);
@@ -581,7 +636,7 @@
     for(i=0;i<this.ripples.length;i++){var r=this.ripples[i];
       this.pushCommand('ripple',r.x-.5,r.y-.5,r.z,2,r);}
     for(i=0;i<this.particles.length;i++){var p=this.particles[i];
-      this.pushCommand('particle',p.x-.5,p.y-.5,p.z,6,p);}
+      this.pushCommand('particle',p.x-.92,p.y-.92,p.z,6,p);}
   };
   Renderer.prototype.drawCommand=function(g,c){
     if(c.kind==='floor')this.drawFloor(g,c.data);
@@ -597,7 +652,7 @@
     cracked:{top:['#B9DEEA','#68AFCF'],south:['#C0E2ED','#83BED8'],east:['#9BCDE0','#5E9FC6']},
     goal:{top:['#C6E8ED','#79BDC9'],south:['#C0E2ED','#83BED8'],east:['#9BCDE0','#5E9FC6']},
     'wall-smooth':{top:['#FFFFFF','#EAF5FA'],south:['#79C8E2','#43A0CB'],east:['#62B5D8','#347FB1']},
-    'wall-brick':{top:['#FFFFFF','#EDF7FC'],south:['#A9D9F3','#629FC6'],east:['#88C2E2','#4E89B5']},
+    'wall-brick':{top:['#f0fcff','#c3e5f0'],south:['#95cadc','#629fb8'],east:['#88C2E2','#4E89B5']},
     'penguin-orange':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
     'penguin-purple':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
     /* Old drift ice. Deliberately the only desaturated thing on the board: the
@@ -605,6 +660,8 @@
        reads as "movable, but not yours" against both. The top-to-side falloff
        is wide on purpose — it is what makes the slab read as a solid object at
        39px rather than a grey square. */
+    'penguin-amber-solid':{top:['#ffe3a2','#efbb54'],south:['#e6ac43','#c48726'],east:['#d79c38','#af782b']},
+    'penguin-violet-solid':{top:['#d8ccf7','#a88ddd'],south:['#997acc','#7657ad'],east:['#9073bb','#6c5393']},
     drifter:{top:['#B2C1CF','#71818F'],south:['#A3AFBB','#76828F'],east:['#8F9CA9','#64717F']}
   };
 
@@ -622,53 +679,68 @@
   };
   Renderer.prototype.drawBox=function(g,o){
     var f=this.boxGeometry(o),s=MATERIAL_STYLE[o.material]||MATERIAL_STYLE.ice;
-    var xFace=o.visibleX||'east',yFace=o.visibleY||'south',textures=o.textures||{};
-    var texture=function(name){return Object.prototype.hasOwnProperty.call(textures,name)?
-      textures[name]:this.textureBank.face(o.material,name);}.bind(this);
-    this.drawFace(g,f[xFace],texture(xFace),s.east,o.eastShade,o.radius);
-    this.drawFace(g,f[yFace],texture(yFace),s.south,o.southShade,o.radius);
-    this.drawFace(g,f.top,texture(o.topTextureFace||'top'),s.top,o.topShade,o.radius);
+    var textures=o.textures||{},self=this;
+    function texture(name){return Object.prototype.hasOwnProperty.call(textures,name)?textures[name]:self.textureBank.face(o.material,name);}
+    if(f.south[2].y-f.top[0].y>0){
+      var body=[f.top[0],f.top[1],f.south[2],f.south[3]];
+      this.drawFace(g,body,null,s.south,null,o.radius);
+    }
+    if(Math.abs(f.east[2].x-f.east[0].x)>.01)
+      this.drawFace(g,f.east,texture('east'),s.east,o.eastShade,o.radius,.24);
+    this.drawFace(g,f.top,texture(o.topTextureFace||'top'),s.top,o.topShade,o.radius,o.textureAlpha,o.textureInset);
     return f;
   };
-  Renderer.prototype.drawFace=function(g,pts,texture,colours,shade,radius){
+
+  Renderer.prototype.drawFace=function(g,pts,texture,colours,shade,radius,textureAlpha,textureInset){
     g.save();roundedPoly(g,pts,radius||0);
     var gr=g.createLinearGradient(pts[0].x,pts[0].y,pts[2].x,pts[2].y);
     gr.addColorStop(0,colours[0]);gr.addColorStop(1,colours[1]);g.fillStyle=gr;g.fill();
-    if(texture){var size=texture.naturalWidth||texture.width||FACE_SIZE;
+    if(texture){var size=texture.naturalWidth||texture.width||FACE_SIZE,pad=size*(textureInset||0);
       g.save();roundedPoly(g,pts,radius||0);g.clip();faceTransform(g,pts,size);
-      g.drawImage(texture,0,0,size,size);g.restore();}
+      g.globalAlpha=textureAlpha==null?1:textureAlpha;
+      g.drawImage(texture,pad,pad,size-pad*2,size-pad*2,0,0,size,size);g.restore();}
     if(shade){roundedPoly(g,pts,radius||0);g.fillStyle=shade;g.fill();}
-    roundedPoly(g,pts,radius||0);g.strokeStyle=THEME.floorEdge;
-    g.lineWidth=Math.max(.75,this.cell*.011);g.lineJoin='round';g.stroke();g.restore();
+    roundedPoly(g,pts,radius||0);g.strokeStyle='rgba(51,116,139,.16)';
+    g.lineWidth=Math.max(.65,this.cell*.008);g.stroke();g.restore();
   };
 
   Renderer.prototype.drawFloor=function(g,c){
     if(this.blitStaticSprite(g,'floor:'+c.material,c.x,c.y))return;
-    var gap=.012;
-    var f=this.drawBox(g,{x0:c.x+gap,y0:c.y+gap,x1:c.x+1-gap,y1:c.y+1-gap,
-      z0:-FLOOR_DEPTH,z1:0,material:c.material,radius:this.cell*.075,
-      topShade:'rgba(242,251,255,.12)',southShade:'rgba(24,100,140,.025)',
-      eastShade:'rgba(18,72,126,.075)'});
-    g.save();g.strokeStyle='rgba(255,255,255,.72)';g.lineWidth=Math.max(.8,this.cell*.011);
-    g.beginPath();g.moveTo(f.top[0].x,f.top[0].y);g.lineTo(f.top[1].x,f.top[1].y);
-    g.moveTo(f.top[0].x,f.top[0].y);g.lineTo(f.top[3].x,f.top[3].y);g.stroke();g.restore();
-    if(c.material==='cracked'&&!this.textureBank.face('cracked','top'))this.drawCracks(g,f.top);
+    var gap=.014,material=c.material;
+    var f={top:this.topFace(c.x+gap,c.y+gap,c.x+1-gap,c.y+1-gap,0)};
+    this.drawFace(g,f.top,this.textureBank.face(material,'top'),MATERIAL_STYLE[material].top,
+      material==='goal'?null:'rgba(237,251,252,.08)',this.cell*(material==='goal'?.11:.045),
+      material==='goal'?1:(material==='cracked'?.62:.22),material==='goal'?.015:.10);
+    g.save();g.strokeStyle='rgba(255,255,255,.56)';g.lineWidth=1;
+    g.beginPath();g.moveTo(f.top[0].x+this.cell*.05,f.top[0].y+1);
+    g.lineTo(f.top[1].x-this.cell*.05,f.top[1].y+1);g.stroke();g.restore();
+    if(material==='cracked'&&!this.textureBank.face('cracked','top'))this.drawCracks(g,f.top);
   };
+
   Renderer.prototype.drawWall=function(g,c){
-    var spriteKey=c.ring?(c.front?'wall:ring-front':'wall:ring-back'):(c.outer?'wall:outer':'wall:smooth');
-    if(this.blitStaticSprite(g,spriteKey,c.x,c.y))return;
-    var material='wall-brick';
-    var h = c.ring ? (c.front ? FRONT_RING_HEIGHT : RING_HEIGHT) : WALL_HEIGHT;
-    var gap = c.ring ? .018 : .022;
-    var z0 = c.ring ? -.04 : .015;
+    var key=c.outer?'wall:outer':'wall:smooth';
+    if(this.blitStaticSprite(g,key,c.x,c.y))return;
+    var gap=.13;
+    this.drawContactShadow(g,c.x+.5,c.y+.62,.40,.36,true);
     var f=this.drawBox(g,{x0:c.x+gap,y0:c.y+gap,x1:c.x+1-gap,y1:c.y+1-gap,
-      z0:z0,z1:h,material:material,radius:this.cell*.095,
-      topShade:'rgba(255,255,255,.014)',southShade:'rgba(19,88,133,.025)',
-      eastShade:'rgba(12,63,113,.10)'});
-    if(!this.textureBank.face(material,'south'))this.drawSnow(g,f.south);
-    if(!this.textureBank.face(material,'east'))this.drawSnow(g,f.east);
-    this.drawAO(g,f.south);this.drawAO(g,f.east);
+      z0:.015,z1:WALL_HEIGHT,material:'wall-brick',radius:this.cell*.045,
+      textures:{top:null,south:null,east:null}});
+    this.drawIceBevel(g,f.top);
   };
+
+  Renderer.prototype.drawIceBevel=function(g,top){
+    g.save();roundedPoly(g,top,this.cell*.045);g.clip();faceTransform(g,top,256);
+    // Thin inward bevel: the frosted cap never extends beyond the ice body.
+    g.strokeStyle='rgba(255,255,255,.80)';g.lineWidth=8;
+    g.beginPath();g.moveTo(4,246);g.lineTo(4,4);g.lineTo(246,4);g.stroke();
+    g.strokeStyle='rgba(82,148,173,.23)';g.lineWidth=7;
+    g.beginPath();g.moveTo(252,12);g.lineTo(252,252);g.lineTo(12,252);g.stroke();
+    var gleam=g.createLinearGradient(0,0,256,210);
+    gleam.addColorStop(0,'rgba(255,255,255,.30)');gleam.addColorStop(.45,'rgba(255,255,255,.06)');
+    gleam.addColorStop(.47,'rgba(255,255,255,.22)');gleam.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=gleam;g.fillRect(8,8,240,240);g.restore();
+  };
+
   Renderer.prototype.drawCracks=function(g,top){
     var rays=[[128,132,24,32],[128,132,220,20],[128,132,238,130],
       [128,132,204,238],[128,132,90,248],[128,132,10,184],[128,132,22,92]];
@@ -722,16 +794,6 @@
     g.restore();
   };
 
-  /**
-   * A penguin, wearing whatever face it currently has on.
-   *
-   * The expression is a texture swap on the same top plane — every face asset
-   * is the same 512px square mapped through the same quad, so no face can be a
-   * different size or land anywhere else. The reaction is a pose: one scale
-   * about this block's own centre and one offset in cells. Neither is ever read
-   * back by anything, so a penguin mid-flinch still occupies exactly the cell
-   * the rules put it in.
-   */
   Renderer.prototype.drawPenguin=function(g,d){
     if(d.drifter)return this.drawDrifter(g,d);
     var p=d.pos,sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
@@ -739,37 +801,69 @@
     var lift=re&&re.lift?re.lift:0;
     var sx=(sq&&sq.axis==='x'?1+q*.045:1-q*.018)*rk;
     var sy=(sq&&sq.axis==='y'?1+q*.045:1-q*.018)*rk;
-    var h=PENGUIN_HEIGHT,inset=.075;
+    var h=PENGUIN_HEIGHT,inset=.12;
     var cx=p[0]+.5+rdx,cy=p[1]+.5+rdy;
     var x0=cx-(.5-inset)*sx,x1=cx+(.5-inset)*sx;
     var y0=cy-(.5-inset)*sy,y1=cy+(.5-inset)*sy;
     /* A hop leaves the tray, so its shadow stays on the ground and only tightens
        under it. Everything else drags its shadow along unchanged. */
-    this.drawContactShadow(g,cx,p[1]+.5+rdy*(1-lift),
-      .37*(1-lift*.16),.20*(1-lift*.20),false);
-    var material=d.colour===2?'penguin-purple':'penguin-orange';
-    var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+h,
-      material:material,radius:this.cell*.11,topShade:'rgba(255,255,255,.012)',
-      textures:re&&re.face?{top:re.face}:null,
+    this.drawContactShadow(g,cx,p[1]+.64+rdy*(1-lift),
+      .43*(1-lift*.16),.33*(1-lift*.20),false);
+    var style=d.colour===2?'penguin-violet-solid':'penguin-amber-solid';
+    var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035+lift,z1:.035+h+lift,
+      material:style,radius:this.cell*.075,topShade:'rgba(255,255,255,.012)',
+      textures:{top:null,south:null,east:null},
       southShade:d.inert?'rgba(185,213,220,.22)':'rgba(0,18,30,.025)',
       eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
-    /* The beak carries the aurora colour only while the body cannot: a face
-       drawn in the penguin's own colour already says which aurora is its, and
-       tinting on top of that would fight the drawing. */
-    if(!re||re.tintBeak!==false)this.drawPenguinBeak(g,f.top,paletteOf(d.colour));
-    if(!this.textureBank.face(material,'south'))this.drawPenguinFallback(g,f);
+    // The readable face is formed on the upward plane of the solid cube.
+    this.drawCubePenguinFace(g,f.top,re?re.expression:'normal');
+    var beakZ=.035+lift+h+.015,beakY=cy+.13;
+    var nose=[this.project(cx-.065,beakY,beakZ),this.project(cx,beakY,beakZ+.08),
+      this.project(cx+.065,beakY,beakZ),this.project(cx,beakY+.10,beakZ-.035)];
+    g.save();g.fillStyle='#ffd36b';drawPoly(g,[nose[0],nose[1],nose[3]]);g.fill();
+    g.fillStyle='#efa92e';drawPoly(g,[nose[1],nose[2],nose[3]]);g.fill();
+    g.fillStyle='#de9027';drawPoly(g,[nose[0],nose[2],nose[3]]);g.fill();g.restore();
+    var badge=this.project(cx,y1,.035+lift+h*.44);
+    g.save();g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=Math.max(1,this.cell*.017);
+    glyph(g,badge.x,badge.y,this.cell*.041,paletteOf(d.colour).shape);g.stroke();g.restore();
+  };
+
+  Renderer.prototype.drawCubePenguinFace=function(g,front,expression){
+    g.save();roundedPoly(g,front,this.cell*.05);g.clip();faceTransform(g,front,256);
+    var bib=g.createLinearGradient(40,30,160,252);bib.addColorStop(0,'#ffffff');bib.addColorStop(1,'#e4eff0');
+    g.fillStyle=bib;g.beginPath();g.moveTo(32,233);g.lineTo(32,108);
+    g.bezierCurveTo(32,23,88,21,128,69);g.bezierCurveTo(168,21,224,23,224,108);
+    g.lineTo(224,233);g.quadraticCurveTo(128,256,32,233);g.fill();
+    g.fillStyle='rgba(231,146,135,.35)';
+    g.beginPath();g.ellipse(54,164,17,12,0,0,Math.PI*2);g.ellipse(202,164,17,12,0,0,Math.PI*2);g.fill();
+    g.strokeStyle='#263d49';g.fillStyle='#263d49';g.lineWidth=9;g.lineCap='round';g.lineJoin='round';
+    var happy=expression==='good'||expression==='perfect'||expression==='clear';
+    var worried=expression==='danger'||expression==='bad';
+    [84,172].forEach(function(x){
+      g.beginPath();
+      if(expression==='perfect'){
+        g.moveTo(x,93);g.lineTo(x+7,110);g.lineTo(x+20,118);g.lineTo(x+7,126);
+        g.lineTo(x,143);g.lineTo(x-7,126);g.lineTo(x-20,118);g.lineTo(x-7,110);g.closePath();g.fill();
+      }
+      else if(happy){g.moveTo(x-15,131);g.quadraticCurveTo(x,expression==='clear'?83:103,x+15,131);g.stroke();}
+      else if(expression==='fail'){g.moveTo(x-12,104);g.lineTo(x+12,133);g.moveTo(x+12,104);g.lineTo(x-12,133);g.stroke();}
+      else if(expression==='miss'){g.moveTo(x-13,124);g.lineTo(x+13,124);g.stroke();}
+      else {g.ellipse(x,expression==='surprise'?114:122,expression==='surprise'?17:13,expression==='surprise'?25:20,0,0,Math.PI*2);g.fill();
+        g.fillStyle='#fff';g.beginPath();g.ellipse(x-4,112,4,6,0,0,Math.PI*2);g.fill();g.fillStyle='#263d49';}
+      if(worried){var slope=expression==='bad'?-1:1;
+        g.beginPath();g.moveTo(x-15,87+slope*(x<128?10:0));g.lineTo(x+15,87+slope*(x<128?0:10));g.stroke();}
+    });
+    g.restore();
   };
   /**
    * A drifting floe: a slab of old, dense ice that gravity moves and no aurora
    * will take.
    *
-   * The board is drawn strictly top-down (Z_X and Z_Y are zero), so a block's
-   * side faces have no area and every bit of the read has to come off the top.
-   * Two questions have to be answered from that one square. IS IT MINE — it is
+   * The front face and broad bevel make the thickness legible. IS IT MINE — it is
    * the only desaturated thing on the board: no face, no beak, no colour for an
    * aurora to match. CAN I PUSH IT — it sits ON the tray rather than being part
-   * of it: inset from the cell, rounded, with a contact shadow underneath,
-   * where a wall fills its cell edge to edge and casts nothing. The bevel does
+   * of it: inset from the cell, rounded, with a contact shadow underneath.
+   * The bevel does
    * most of that second job, which is why it is drawn wide enough to survive at
    * the 39px cell an iPhone SE gets: a flat grey square with no rim reads as a
    * hole cut in the ice, not a block resting on it.
@@ -781,11 +875,12 @@
     var inset=.10;
     var x0=p[0]+.5-(.5-inset)*sx,x1=p[0]+.5+(.5-inset)*sx;
     var y0=p[1]+.5-(.5-inset)*sy,y1=p[1]+.5+(.5-inset)*sy;
-    this.drawContactShadow(g,p[0]+.5,p[1]+.5,.37,.21,true);
-    var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+PENGUIN_HEIGHT,
-      material:'drifter',radius:this.cell*.12,
+    this.drawContactShadow(g,p[0]+.5,p[1]+.62,.44,.38,true);
+    var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+DRIFTER_HEIGHT,
+      material:'drifter',radius:this.cell*.075,
       textures:{top:null,south:null,east:null}});
-    this.drawFloeTop(g,f.top);
+    g.save();roundedPoly(g,f.top,this.cell*.075);g.strokeStyle='rgba(240,252,255,.65)';
+    g.lineWidth=1.2;g.stroke();g.restore();
   };
   Renderer.prototype.drawFloeTop=function(g,face){
     var r=this.cell*.12;
@@ -839,8 +934,13 @@
     g.restore();
   };
   Renderer.prototype.drawContactShadow=function(g,x,y,rx,ry,deep){
-    var c=this.project(x,y,.008);g.save();g.fillStyle=deep?THEME.contactDeep:THEME.contact;
-    g.beginPath();g.ellipse(c.x+this.cell*.035,c.y+this.cell*.075,this.cell*rx,this.cell*ry,0,0,Math.PI*2);g.fill();g.restore();
+    var c=this.project(x,y,.008);g.save();
+    g.translate(c.x+this.cell*.025,c.y+this.cell*.025);g.scale(this.cell*rx*1.2,this.cell*ry*1.1);
+    var shadow=g.createRadialGradient(0,0,.12,0,0,1);
+    shadow.addColorStop(0,deep?'rgba(24,65,85,.36)':'rgba(24,65,85,.42)');
+    shadow.addColorStop(.55,'rgba(24,65,85,.20)');
+    shadow.addColorStop(1,'rgba(24,65,85,0)');g.fillStyle=shadow;
+    g.fillRect(-1,-1,2,2);g.restore();
   };
   Renderer.prototype.drawPenguinFallback=function(g,f){
     g.save();roundedPoly(g,f.top,this.cell*.1);g.clip();faceTransform(g,f.top,256);
@@ -856,12 +956,40 @@
   };
   Renderer.prototype.drawParticle=function(g,p){
     var c=this.project(p.x,p.y,p.z),a=1-p.life/p.max,s=this.cell*p.size*(.45+a*.55);
+    if(p.kind){
+      g.save();g.globalAlpha=Math.min(1,a*2)*.9;
+      if(p.kind==='skate'){
+        g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=Math.max(.6,this.cell*.009);
+        var tail=this.project(p.x-p.dx*.17,p.y-p.dy*.17,.012);
+        g.beginPath();g.moveTo(tail.x,tail.y);g.lineTo(c.x,c.y);g.stroke();
+      }else if(p.kind==='frost'){
+        var mist=g.createRadialGradient(c.x,c.y,0,c.x,c.y,s*2.2);
+        mist.addColorStop(0,'rgba(247,255,255,.6)');mist.addColorStop(1,'rgba(220,248,255,0)');
+        g.fillStyle=mist;g.fillRect(c.x-s*2.2,c.y-s*2.2,s*4.4,s*4.4);
+      }else{
+        var ground=this.project(p.x,p.y,.01);
+        g.fillStyle='rgba(37,104,127,.12)';g.beginPath();
+        g.ellipse(ground.x+1,ground.y+1,s*.85,s*.35,0,0,Math.PI*2);g.fill();
+        g.translate(c.x,c.y);g.rotate(p.angle);
+        g.fillStyle=p.col;g.beginPath();g.moveTo(-s,-s*.35);g.lineTo(s*.2,-s);
+        g.lineTo(s,s*.3);g.lineTo(-s*.2,s*.7);g.closePath();g.fill();
+        g.fillStyle='#fff';g.beginPath();g.moveTo(-s,-s*.35);g.lineTo(s*.2,-s);
+        g.lineTo(s*.1,s*.12);g.closePath();g.fill();
+        g.strokeStyle='rgba(73,145,175,.65)';g.lineWidth=.5;g.beginPath();
+        g.moveTo(-s*.2,s*.7);g.lineTo(s,s*.3);g.stroke();
+        if(p.glint&&Math.sin(p.angle*2)>.94&&p.z>.055){
+          g.strokeStyle='#fff';g.lineWidth=.8;g.beginPath();
+          g.moveTo(-s*1.6,0);g.lineTo(s*1.6,0);g.moveTo(0,-s*1.6);g.lineTo(0,s*1.6);g.stroke();
+        }
+      }
+      g.restore();return;
+    }
     g.save();g.globalAlpha=a*.9;g.fillStyle=p.col;g.beginPath();g.arc(c.x,c.y,s,0,Math.PI*2);g.fill();
     g.fillStyle='rgba(255,255,255,.72)';g.beginPath();g.arc(c.x-s*.25,c.y-s*.3,s*.28,0,Math.PI*2);g.fill();g.restore();
   };
   Renderer.prototype.drawClearGlow=function(g,a){
-    var st=this.stage,p=[this.project(-1,-1,.03),this.project(st.w+1,-1,.03),
-      this.project(st.w+1,st.h+1,.03),this.project(-1,st.h+1,.03)];
+    var st=this.stage,p=[this.project(-.28,-.30,.03),this.project(st.w+.28,-.30,.03),
+      this.project(st.w+.28,st.h+.30,.03),this.project(-.28,st.h+.30,.03)];
     g.save();g.globalAlpha=a*.55;g.strokeStyle=THEME.clearRing;g.lineWidth=Math.max(2,this.cell*.035);
     g.lineJoin='round';drawPoly(g,p);g.stroke();g.restore();
   };

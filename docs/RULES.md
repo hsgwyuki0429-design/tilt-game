@@ -6,7 +6,7 @@ A swipe changes gravity to up, right, down, or left. Every live block moves at t
 
 ## Penguins and auroras
 
-A level contains one or two penguins, never two of a colour. Each penguin has one matching aurora, identified by the same small colour-and-shape badge. A penguin is collected only when it stops on its own aurora; crossing an aurora or stopping on the other badge does nothing.
+A level contains one or two penguins, never two of a colour. Each penguin has one matching aurora, identified by its colour. A penguin is collected only when it stops on its own aurora; crossing an aurora or stopping on another colour does nothing.
 
 ## Drifters
 
@@ -16,14 +16,18 @@ It is on the board to be in the way. It can brake a penguin in the middle of the
 
 ## Cracked ice
 
-A block may glide across cracked ice. If it comes to rest there — penguin or drifter — the tile breaks and the run ends. Undo returns to the state before that move.
+A block may glide across cracked ice. If it comes to rest there — penguin or drifter — the tile breaks and the run ends. Recovery returns to the most recent position that can still be solved.
 
 ## Dead ends
 
 Most boards have positions from which the level can no longer be won. Reaching
 one is not a loss and does not end the run: the position stands exactly where
-you put it, the game says so once, and undo and restart are both available. It
-never takes a move back for you.
+you put it, the game says so once, and recovery and restart are both available.
+The “手詰まりの前に戻す” button (also Z or Backspace) skips all moves made after
+the dead end and restores the last proven-solvable position, including its move
+count. It is disabled during ordinary solvable play and after clearing a stage.
+Recovery is always explicit; the game never takes a move back for you. A solver
+search that reaches its limit is unknown and is never used as a safe checkpoint.
 
 ## Clear condition
 
