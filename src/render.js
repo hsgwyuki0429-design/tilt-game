@@ -33,7 +33,7 @@
   var SQUASH = 150;
   var AIM_SLIDE = .3;
   var MAX_CELL = 112;
-  var MAX_PARTICLES = 3600;
+  var MAX_PARTICLES = 8000;
   var VANISH = 420;
   var TILT_DEG = 5;
 
@@ -668,7 +668,7 @@
     flake.setAttribute('position', new T.Float32BufferAttribute(fv, 3));
     var fx = []; for (fi = 1; fi <= FN; fi++) fx.push(0, fi, fi % FN + 1);
     flake.setIndex(fx);
-    this.grains = new T.InstancedMesh(flake, new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .92,
+    this.grains = new T.InstancedMesh(flake, new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 1,
       depthWrite: false, side: T.DoubleSide }), MAX_PARTICLES);
     this.grains.setColorAt(0, new T.Color('#fff'));
     this.grains.renderOrder = 6;
@@ -1044,12 +1044,12 @@
   };
   /* A white ribbon follows the contact patch, then dissolves into blue ice
      grains. Distance-based segments join at every refresh rate. */
-  var GRAIN_COLORS = ['#2f7df0', '#3a86f4', '#2a72e8', '#4592f6'];
+  var GRAIN_COLORS = ['#f2fbff'];
   Renderer.prototype.iceSpray = function (x, y, dx, dy, speed, impact) {
     if (this.reduceMotion) return;
     // One solid white streak right behind the slider, and a band of blue
     // blobs the width of the slider that thins out and fades behind it.
-    var count = impact ? 30 : (this.tier === 'lite' ? 16 : 36);
+    var count = impact ? 30 : (this.tier === 'lite' ? 60 : 140);
     for (var j = 0; j < count; j++) {
       var kind = !impact && j === 0 ? 'frost' : 'grain';
       var along, across;
@@ -1062,9 +1062,9 @@
       var p = { kind: kind, x: px, y: py, z: grain ? .016 + Math.random() * .03 : .012,
         vx: grain ? -dx * back - dy * drift : 0, vy: grain ? -dy * back + dx * drift : 0, vz: 0,
         life: 0, max: grain ? 480 + Math.random() * 640 : 340,
-        size: grain ? .07 + Math.random() * .12 : .86,
+        size: grain ? .016 + Math.random() * .026 : .86,
         angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .002,
-        aspect: .5 + Math.random() * 1.1, dx: dx, dy: dy };
+        aspect: .6 + Math.random() * .8, dx: dx, dy: dy };
       if (grain) p.col = GRAIN_COLORS[(Math.random() * GRAIN_COLORS.length) | 0];
       this.particles.push(p);
     }
@@ -1364,10 +1364,10 @@
         tmpM.compose(tmpV, tmpQ, tmpS); this.shards.geometry.attributes.wakeAlpha.setX(ns, Math.min(1, f * 2));
         this.shards.setMatrixAt(ns++, tmpM);
       } else if (p.kind === 'grain') {
-        var gs = p.size * (.35 + .65 * Math.sqrt(f));
+        var gs = p.size * (.3 + .7 * Math.sqrt(f));
         tmpE.set(0, p.angle, 0); tmpQ.setFromEuler(tmpE); tmpS.set(gs * p.aspect, 1, gs / p.aspect);
         tmpM.compose(tmpV, tmpQ, tmpS); tmpC.set(p.col);
-        this.grains.geometry.attributes.wakeAlpha.setX(ng, Math.min(1, f * 3));
+        this.grains.geometry.attributes.wakeAlpha.setX(ng, 1);
         this.grains.setColorAt(ng, tmpC); this.grains.setMatrixAt(ng++, tmpM);
       } else if (p.kind === 'frost') {
         var fs = p.size * (.6 + .4 * f);

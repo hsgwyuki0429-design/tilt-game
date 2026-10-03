@@ -101,7 +101,7 @@ corners and the bevel need no UV coordinates.
 |---|---|---|
 | pixel ratio cap | 2 | 1.5 |
 | shadow map | 2048² | 1024² |
-| particle budget | 3,600 | 1,400 |
+| particle budget | 8,000 | 3,000 |
 | layers looked into | 5 | 0 (one flat layer of fractures) |
 | detail texture | 512² | 256² |
 | caustics, glitter, foam | yes | no |
@@ -163,7 +163,7 @@ the direction gravity is about to go, and the water stays level around it.
 A sliding penguin leaves a solid white streak right behind it and, behind that,
 a band of blue **blobs** the width of the penguin, copied from the reference
 video. Every 0.075 cell on HIGH (0.12 on LITE) 36 (16) small rounded, stretched
-flakes in one slightly varied blue are laid on the ice; a stop adds thirty. They
+flakes in one flat ice-white are laid on the ice; a stop adds thirty. They
 overlap into ragged clumps, then shrink and fade over 0.5–1.1 s; the streak
 fades over 0.34 s. A per-instance alpha attribute lets each one fade on its
 own. All are instanced meshes with normal transparency and no depth writes,

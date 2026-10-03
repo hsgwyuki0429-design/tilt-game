@@ -151,7 +151,7 @@ function serve() {
       var origin=r.anim.t0;r.frame(16,origin-2);r.frame(16,origin-1);
       result.fresh=r.anim.trailTime===0&&r.particles.length===0;
       for(var k=0;k<100;k++)r.iceSpray(2.5,2.5,1,0,1,true);
-      result.bounded=r.particles.length<=3600;
+      result.bounded=r.particles.length<=8000;
       for(var tick=0;tick<120;tick++)r.updateEffects(16);
       result.expired=r.particles.length===0;
       r.iceSpray(2,2,1,0,1,false);r.reduceMotion=true;r.updateEffects(16);
