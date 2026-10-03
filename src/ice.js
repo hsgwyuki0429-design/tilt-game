@@ -491,7 +491,14 @@
   var FRAG_WATER_MAIN = [
     'float wsd = texture(uSdf, (vWp.xz - uSdfRect.xy) / uSdfRect.zw).r * 2.4 - 1.2;',
     'float dOut = max(-wsd, 0.0);',
+    // A pale far side, a deeper foreground and long world-space wavelets
+    // make the sea read as a surface receding behind the floe.
+    'float nearWater = smoothstep(-uBoard.y * 0.65, uBoard.y * 0.8, vWp.z);',
+    'diffuseColor.rgb = mix(diffuseColor.rgb * vec3(1.15, 1.18, 1.12), diffuseColor.rgb * vec3(0.62, 0.78, 0.88), nearWater);',
     'diffuseColor.rgb = mix(diffuseColor.rgb, uWaterShallow, exp(-dOut * 2.6) * 0.5);',
+    'float wave = sin(vWp.z * 18.0 + sin(vWp.x * 2.1 + uTime * 0.35) * 0.8 - uTime * 0.8);',
+    'float wavelet = smoothstep(0.95, 1.0, wave) * smoothstep(0.3, 0.8, iceNoise(vWp.xz * vec2(1.8, 3.0)));',
+    'diffuseColor.rgb = mix(diffuseColor.rgb, uWaterShallow, wavelet * 0.16 * smoothstep(0.2, 0.7, dOut));',
     'diffuseColor.rgb *= 1.0 - 0.30 * exp(-dOut * 14.0);',
     'diffuseColor.a *= mix(0.60, 1.0, smoothstep(0.0, 1.0, dOut));',
     'float foam = 0.0;',
@@ -599,7 +606,7 @@
     kit.waterMaterial = function (params) {
       var m = new T.MeshStandardMaterial(params);
       m.onBeforeCompile = function (shader) { injectWater(shader, u); };
-      m.customProgramCacheKey = function () { return 'tilt-ice-water-1'; };
+      m.customProgramCacheKey = function () { return 'tilt-ice-water-2'; };
       m.defines = m.defines || {};
       kit.water = m;
       kit.applyDefines();

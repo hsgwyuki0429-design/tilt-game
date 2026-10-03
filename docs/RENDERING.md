@@ -67,7 +67,9 @@ corners and the bevel need no UV coordinates.
 - The water is turquoise on the shelf around the ice and deeper away from it.
   It is see-through close to the wall so the submerged ice shows, with a
   broken line of foam where it meets the wall and a little slush. The floe's
-  shadow falls on it.
+  shadow falls on it. A broad water plane extends towards the viewer rather
+  than filling the height of the screen. Its pale far side, deeper blue
+  foreground and fine horizontal wavelets give the sea perspective.
 
 **How it is made**
 
@@ -158,13 +160,14 @@ off it. Collection flashes it and sends a coloured ring across the ice.
 When a swipe is held, the floe — not the canvas — leans up to 5° in 3D towards
 the direction gravity is about to go, and the water stays level around it.
 
-A sliding penguin leaves a narrow wake of translucent blue-white grains and
-soft frost along its trailing contact patch. Eight particles are emitted every
-0.09 cell on HIGH, or every 0.14 cell on LITE; a stop scatters eighteen. The
-small, flattened grains hop just above the surface, while pale frost and fine
-skate marks lie along the ice instead of forming an airborne cloud. They shrink
-away over 0.24–0.44 s (marks 0.36 s), leaving the floe's fractures, auroras and
-penguins visible. All are instanced meshes with normal transparency and no
+A sliding penguin leaves a continuous white ribbon with feathered cyan edges,
+which dissolves into scattered blue ice grains, following the reference video's
+bright trail and lingering flecks. Ten particles are emitted every 0.075 cell
+on HIGH, or every 0.12 cell on LITE; a stop scatters twenty-four grains.
+The ribbon lies on the ice and fades over 0.3 s, while small, flattened grains
+hop just above it and fade over 0.42–0.64 s (skate marks 0.42 s). A per-instance
+alpha attribute lets each segment fade independently instead of disappearing
+at full opacity. All are instanced meshes with normal transparency and no
 depth writes, within the tier's budget. Emission is distance-based at every
 refresh rate and starts only over ice. A shaving that lands
 on water sinks. A penguin stopped at the edge of the ice sends a ring across

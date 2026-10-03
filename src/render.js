@@ -135,6 +135,21 @@
     g.fillStyle = r; g.fillRect(0, 0, 256, 256);
     SHARED.poolAlpha = dataTexture(c);
 
+    // A continuous icy wake with feathered, uneven edges (not round smoke).
+    c = canvas(128, 128); g = c.getContext('2d');
+    for (var row = 0; row < 128; row++) {
+      var edge = 12 + hash(row * .13) * 5;
+      var band = g.createLinearGradient(edge, 0, 128 - edge, 0);
+      band.addColorStop(0, 'rgba(255,255,255,0)');
+      band.addColorStop(.18, 'rgba(134,220,246,.9)');
+      band.addColorStop(.5, '#fff');
+      band.addColorStop(.82, 'rgba(134,220,246,.9)');
+      band.addColorStop(1, 'rgba(255,255,255,0)');
+      g.globalAlpha = Math.min(1, row / 14, (127 - row) / 14);
+      g.fillStyle = band; g.fillRect(0, row, 128, 1);
+    }
+    SHARED.wake = colourTexture(c);
+
 
     // A ring for ripples.
     c = canvas(256, 256); g = c.getContext('2d');
@@ -617,8 +632,8 @@
 
     // The pool. The floe tilts in it; the water stays level.
     var water = this.water = new T.Mesh(new T.CircleGeometry(1, 96).rotateX(-Math.PI / 2),
-      this.ice.waterMaterial({ color: '#3f9fbe', roughness: .06, metalness: 0, transparent: true, opacity: .86,
-        normalMap: S.waterNormal, normalScale: new T.Vector2(.12, .12), alphaMap: S.poolAlpha,
+      this.ice.waterMaterial({ color: '#287f9f', roughness: .18, metalness: 0, transparent: true, opacity: .9,
+        normalMap: S.waterNormal, normalScale: new T.Vector2(.08, .08), alphaMap: S.poolAlpha,
         depthWrite: false }));
     water.receiveShadow = true;
     water.material.normalMap.repeat.set(3, 3);
@@ -636,11 +651,11 @@
     shard.setAttribute('position', new T.Float32BufferAttribute([0, .6, 0, -.5, -.4, .12, .55, -.35, -.1, 0, -.2, -.6], 3));
     shard.setIndex([0, 1, 2, 0, 2, 3, 0, 3, 1, 1, 3, 2]);
     shard.computeVertexNormals();
-    this.shards = new T.InstancedMesh(shard, new T.MeshPhysicalMaterial({ color: '#cce9ef', roughness: .32,
-      clearcoat: .45, transparent: true, opacity: .48, depthWrite: false }), MAX_PARTICLES);
+    this.shards = new T.InstancedMesh(shard, new T.MeshPhysicalMaterial({ color: '#8dd9eb', roughness: .32,
+      clearcoat: .45, transparent: true, opacity: .72, depthWrite: false }), MAX_PARTICLES);
     // Frost lies on the ice, using the same cool, soft tones as the floe.
-    this.puffs = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ map: S.blob, color: '#e0f1f4',
-      transparent: true, opacity: .18, depthWrite: false }), MAX_PARTICLES);
+    this.puffs = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ map: S.wake, color: '#f3fdff',
+      transparent: true, opacity: .88, depthWrite: false }), MAX_PARTICLES);
     this.marks = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({
       map: S.blob, color: '#d8edf1', transparent: true, opacity: .22, depthWrite: false }), MAX_PARTICLES);
     this.sparks = new T.InstancedMesh(new T.OctahedronGeometry(.5), new T.MeshBasicMaterial({ color: '#ffffff' }), 128);
@@ -648,6 +663,19 @@
       m.count = 0; m.frustumCulled = false; this.fxGroup.add(m);
     }, this);
     this.puffs.renderOrder = 6; this.marks.renderOrder = 1;
+    // Fade each segment independently so a white ribbon dissolves into grains.
+    [this.shards, this.puffs, this.marks].forEach(function (mesh) {
+      mesh.geometry.setAttribute('wakeAlpha', new T.InstancedBufferAttribute(new Float32Array(MAX_PARTICLES), 1));
+      mesh.material.onBeforeCompile = function (shader) {
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', '#include <common>\nattribute float wakeAlpha; varying float vWakeAlpha;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWakeAlpha = wakeAlpha;');
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying float vWakeAlpha;')
+          .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a *= vWakeAlpha;');
+      };
+      mesh.material.customProgramCacheKey = function () { return 'tilt-wake-fade-1'; };
+    });
     this.sparks.setColorAt(0, new T.Color('#fff'));
 
     // Ripple rings (pooled).
@@ -895,18 +923,19 @@
     var a = this.project(0, 0, 0), b = this.project(st.w, 0, 0), c = this.project(0, st.h, 0), d = this.project(st.w, st.h, 0);
     this.cell = Math.min(MAX_CELL, Math.max(8, ((b.x - a.x) + (d.x - c.x)) / 2 / st.w));
     this.boardBounds = { left: Math.min(a.x, c.x), right: Math.max(b.x, d.x), top: Math.min(a.y, b.y), bottom: Math.max(c.y, d.y) };
-    // The pool fills what the camera sees of the water, then fades out
-    // before the canvas edge, so it melts into the page.
+    // Keep a broad horizontal water plane. Stretching to the canvas height
+    // made the sea look like a vertical blue halo behind the floe.
     var reach = function (nx, ny) {
       var o = new T.Vector3(nx, ny, -1).unproject(cam), d = new T.Vector3(nx, ny, 1).unproject(cam).sub(o).normalize();
       var t = (-FREEBOARD - o.y) / d.y;
       return o.add(d.multiplyScalar(t));
     };
     var cy = new T.Vector3(0, -FREEBOARD, 0).project(cam).y;
-    var side = Math.abs(reach(1, cy).x), far = Math.abs(reach(0, 1).z), near = Math.abs(reach(0, -1).z);
-    var Rx = Math.min(side * .98, st.w / 2 + 3.2), Rz = Math.min(far, near) * .98;
-    Rz = Math.min(Rz, st.h / 2 + 3.2);
-    this.water.scale.set(Math.max(Rx, st.w / 2 + .8), 1, Math.max(Rz, st.h / 2 + .8));
+    var side = Math.abs(reach(1, cy).x);
+    var Rx = Math.max(st.w / 2 + .8, Math.min(side * .98, st.w / 2 + 2.5));
+    var Rz = Math.max(st.h / 2 + 1.5, Math.min(Rx * .95, st.h / 2 + 1.9));
+    this.water.scale.set(Rx, 1, Rz);
+    this.water.position.z = .65;
     var off = .7;
     this.markers.U.position.set(0, -.05, -st.h / 2 - off);
     this.markers.D.position.set(0, -.05, st.h / 2 + off);
@@ -999,28 +1028,27 @@
   Renderer.prototype.trimParticles = function () {
     if (this.particles.length > this.maxParticles) this.particles.splice(0, this.particles.length - this.maxParticles);
   };
-  /* A narrow wake of ice dust follows the contact patch. Keep the grains low
-     and short-lived so the floe's fractures and the penguins stay readable;
-     a stop gives a small extra scatter, with no airborne cloud. */
+  /* A white ribbon follows the contact patch, then dissolves into blue ice
+     grains. Distance-based segments join at every refresh rate. */
   Renderer.prototype.iceSpray = function (x, y, dx, dy, speed, impact) {
     if (this.reduceMotion) return;
-    var count = impact ? 18 : 8;
+    var count = impact ? 24 : 10;
     for (var j = 0; j < count; j++) {
-      var m = j % 8, kind = m === 0 ? 'frost' : (m === 1 && !impact) ? 'skate' : (m === 2 ? 'chip' : 'shard');
-      if (impact && m === 1) kind = 'frost';
+      var kind = !impact && j === 0 ? 'frost' : !impact && j === 1 ? 'skate' : j % 4 === 2 ? 'chip' : 'shard';
       var side = Math.random() < .5 ? -1 : 1, hard = impact ? 1.25 : 1;
       var spread = side * (.00012 + Math.random() * .00042) * hard;
       var back = (.00012 + Math.random() * .00032) * speed, along, across;
       if (impact) { along = .18 + Math.random() * .16; across = (Math.random() - .5) * .6; }
       else { along = -.36 + Math.random() * .14; across = (Math.random() - .5) * .54; }
+      if (kind === 'frost') { along = -.28; across = 0; }
       var px = x + dx * along - dy * across, py = y + dy * along + dx * across;
       if (this.groundAt(px, py) < 0) continue;
       var surface = kind === 'skate' || kind === 'frost';
       var up = surface ? 0 : (.00045 + Math.random() * .0009) * hard;
       this.particles.push({ kind: kind, x: px, y: py, z: surface ? .008 : .022,
         vx: surface ? 0 : -dx * back - dy * spread, vy: surface ? 0 : -dy * back + dx * spread, vz: up,
-        life: 0, max: kind === 'skate' ? 360 : 240 + Math.random() * 200,
-        size: kind === 'frost' ? .1 + Math.random() * .06 : kind === 'chip' ? .02 + Math.random() * .014 : .01 + Math.random() * .014,
+        life: 0, max: kind === 'frost' ? 300 : kind === 'skate' ? 420 : 420 + Math.random() * 220,
+        size: kind === 'frost' ? .5 : kind === 'chip' ? .035 + Math.random() * .018 : .018 + Math.random() * .018,
         angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .008,
         dx: dx, dy: dy });
     }
@@ -1036,7 +1064,7 @@
       var dx = q[0] - p[0], dy = q[1] - p[1], distance = Math.sqrt(dx * dx + dy * dy);
       if (distance < .0001) continue;
       dx /= distance; dy /= distance;
-      var spacing = this.tier === 'lite' ? .14 : .09, remainder = a.trailDistance[i] || 0;
+      var spacing = this.tier === 'lite' ? .12 : .075, remainder = a.trailDistance[i] || 0;
       for (var d = spacing - remainder; d <= distance; d += spacing) {
         var f = d / distance;
         this.iceSpray(p[0] + (q[0] - p[0]) * f + .5, p[1] + (q[1] - p[1]) * f + .5,
@@ -1086,8 +1114,9 @@
       if (p.life >= p.max) { this.particles.splice(i, 1); continue; }
       var step = Math.min(dt, 40);
       p.x += p.vx * step; p.y += p.vy * step;
-      var floor = this.groundAt(p.x, p.y) + .02;
-      if (p.kind === 'skate' || p.kind === 'frost') { p.z = .008; p.vx = 0; p.vy = 0; }
+      var surface = p.kind === 'skate' || p.kind === 'frost';
+      var floor = this.groundAt(p.x, p.y) + (surface ? .008 : .02);
+      if (surface) { p.z = .008; p.vx = 0; p.vy = 0; }
       else { p.z += p.vz * step; p.vz -= .000012 * step; }
       if (p.angle != null) p.angle += p.spin * step;
       var drag = Math.exp(-step * (p.z <= floor + .01 ? .013 : .002)); p.vx *= drag; p.vy *= drag;
@@ -1316,15 +1345,18 @@
       if (p.kind === 'shard' || p.kind === 'chip') {
         tmpE.set(p.angle, p.angle * .7, p.angle * 1.3); tmpQ.setFromEuler(tmpE);
         var s = p.size * Math.sqrt(f); tmpS.set(s, s * .55, s);
-        tmpM.compose(tmpV, tmpQ, tmpS); this.shards.setMatrixAt(ns++, tmpM);
+        tmpM.compose(tmpV, tmpQ, tmpS); this.shards.geometry.attributes.wakeAlpha.setX(ns, Math.min(1, f * 2));
+        this.shards.setMatrixAt(ns++, tmpM);
       } else if (p.kind === 'frost') {
-        var fs = p.size * Math.sqrt(f);
+        var fs = p.size * (.6 + .4 * f);
         tmpE.set(0, Math.atan2(p.dx, p.dy), 0); tmpQ.setFromEuler(tmpE);
-        tmpS.set(fs, 1, fs * 1.4);
-        tmpM.compose(tmpV, tmpQ, tmpS); this.puffs.setMatrixAt(np++, tmpM);
+        tmpS.set(fs, 1, .23);
+        tmpM.compose(tmpV, tmpQ, tmpS); this.puffs.geometry.attributes.wakeAlpha.setX(np, f * f);
+        this.puffs.setMatrixAt(np++, tmpM);
       } else if (p.kind === 'skate') {
         tmpQ.setFromAxisAngle(new T.Vector3(0, 1, 0), Math.atan2(p.dx, p.dy));
-        tmpS.set(.018 * f, 1, .18 * Math.sqrt(f)); tmpM.compose(tmpV, tmpQ, tmpS); this.marks.setMatrixAt(nm++, tmpM);
+        tmpS.set(.03 * f, 1, .24); tmpM.compose(tmpV, tmpQ, tmpS);
+        this.marks.geometry.attributes.wakeAlpha.setX(nm, f); this.marks.setMatrixAt(nm++, tmpM);
       } else if (p.kind === 'spark' && nk < 128) {
         tmpE.set(p.angle, p.angle, 0); tmpQ.setFromEuler(tmpE);
         var ks = p.size * Math.min(1, f * 1.6); tmpS.set(ks, ks, ks);
@@ -1336,6 +1368,9 @@
     this.shards.instanceMatrix.needsUpdate = true; this.puffs.instanceMatrix.needsUpdate = true;
     this.marks.instanceMatrix.needsUpdate = true; this.sparks.instanceMatrix.needsUpdate = true;
     if (this.sparks.instanceColor) this.sparks.instanceColor.needsUpdate = true;
+    this.shards.geometry.attributes.wakeAlpha.needsUpdate = true;
+    this.puffs.geometry.attributes.wakeAlpha.needsUpdate = true;
+    this.marks.geometry.attributes.wakeAlpha.needsUpdate = true;
   };
 
   Renderer.prototype.updateRipples = function () {
