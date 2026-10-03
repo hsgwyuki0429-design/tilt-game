@@ -1,129 +1,96 @@
-# Frontal ice diorama
+# A floe in real 3D
 
-The engine remains a deterministic 2D grid. The Canvas renderer gives objects
-height while keeping the view square to the board: rows horizontal, columns
-vertical, and no sideways camera angle. All four swipe directions still map
-directly to the screen.
+The engine remains a deterministic 2D grid and the single source of truth.
+`src/render.js` turns it into a WebGL scene with three.js: one thick slab of
+ice in the shape of the board's floor, floating in a pool of water, lit by a
+sky, a sun and the auroras. The previous renderer faked depth by painting
+projected faces onto a 2D canvas; this one has real geometry, real lights,
+real shadows and reflections, which is why it no longer looks thin.
 
-## Geometry and materials
+## Loading
 
-```text
-screenX = originX + x * cell
-screenY = originY + y * cell * 0.95 - z * cell * 0.30
-```
+three.js is vendored as one classic script, `src/vendor/three.js`, bundled by
+`tools/build-three.mjs` from the `three` dev dependency with only the classes
+the renderer uses. The game keeps no build step and still opens straight off
+disk, where ES modules would be refused. `src/vendor/three.LICENSE` carries
+its MIT licence.
 
-Penguins are constructed as 0.76-cell cubes, with gradients and joined rounded
-geometry for their upward and front planes. The upward face is drawn with
-vector eyes, cheeks, and a white bib. A small faceted beak projects above that
-plane. No penguin image is pasted onto the geometry. Nine expression drawings
-follow the existing reaction controller and retain its movement poses.
+## Coordinates and camera
 
-The elevated frontal camera shortens the visible side without flattening the
-cube geometry. Walls fill a complete 1-cell footprint, so adjacent obstacles
-meet edge to edge, with an inward glass bevel and small corner rounding.
-Penguins have lighter upward planes, darker front planes, a crisp shared edge,
-and a square contact footprint with a soft cast shadow toward the lower right.
-The front-face shade is applied explicitly before the upward plane is painted.
+World units are cells. Board x is world +X, board y is world +Z (towards the
+camera), height is +Y, and the ice surface is at 0. A perspective camera looks
+down the board from the front at a fixed 52° elevation with no yaw, so rows
+stay level, the centre column stays upright, and the four swipe directions
+still map straight to the screen. `frameCamera()` fits the floe, the far row's
+penguins and the aim markers into whatever canvas it gets — phone, landscape
+or desktop.
 
-Ice walls have the same 0.76-cell height as penguins, with a full-cell footprint
-and a glass bevel, so they read as solid obstacles rather than floor tiles.
-Grey drifters retain their 0.19-cell height. The yellow aurora receives a warm
-screen blend to lift its dark areas while preserving the original spiral artwork.
+## The floe
 
-The tray has a continuous snowy rim, a translucent blue side, and a soft cast
-shadow. Floor texture is softly blended from the original ice artwork, sampling
-its interior to avoid repeated baked borders. Cracked ice retains stronger
-contrast. Goals retain the original `goal-top.png` aurora artwork, colour filter,
-pulse, and collection flash. A rounded clip trims the asset's black corner
-padding without replacing the aurora design.
+`floorLoops()` walks the boundary of the ice cells into closed loops: the
+outer rim and one loop per hole. Where two cells touch only at a corner the
+walk turns back around its own cell, so ice never joins through a point. Each
+loop is inset, its corners rounded (generously outside, tightly inside), and
+extruded with a bevel into one slab 1.5 cells thick, 0.36 of it above the
+water line.
 
-## Material detail
+- **Top:** packed snow and ice, computed per pixel into typed arrays: a tint
+  and soft drift per tile, fine grain and sparkle, and the seams between
+  neighbouring cells engraved into a matching normal map, so the grid is
+  something the light falls into rather than a line drawn on top.
+- **Sides:** vertex colours from white at the lip through clear blue at the
+  waterline to deep blue below, with clearcoat, so the slab reads as ice.
+- **Water:** a level pool that fades into the page at the edge of what the
+  camera sees. The submerged part of the floe shows through it; a soft dark
+  ring marks the waterline; slow ripples drift across it.
 
-The design — shapes, palette, layout and proportions — is unchanged; only the
-surfaces carry more realistic detail, all procedural and deterministic:
+When a swipe is held, the floe — not the canvas — leans up to 5° in 3D towards
+the direction gravity is about to go, and the water stays level around it.
 
-- **Floor ice** is baked into the base cache cell by cell. Each tile takes its
-  own rotated, mirrored window into `ice-top.png`, plus depth shading, frozen
-  bubbles, a polished sheen and a lit bevel, so the tray never repeats one tile.
-- **Snow rim** gains soft drifts, sparkling grains and a bevel; the slab side
-  shows faint glacier layering.
-- **Low ice walls** keep their colours, with internal frost clouds, bubbles, a
-  specular glint and a refraction band on the front face.
-- **Penguins** keep their amber/violet cubes, bib, eyes, cheeks and beak; the
-  plumage gets overlapping contour feathers, the bib a feathered edge and down,
-  the eyes iris depth and a second catchlight, the beak horn-like shading.
-- **The drifter** keeps its grey slab with mottled density, frozen grit and a
-  snow dusting.
+## Penguins
 
-A `hash()` seed drives every scatter, so nothing shimmers between frames.
+Each penguin is a rounded cube in its colour (amber or violet) with plumage
+textures, a white bib and face on the front, its colour's glyph on the crown, a
+real beak, feet and two flippers. They cast real shadows and sit on a soft
+contact shadow. The nine expressions are drawn procedurally into canvas
+textures (cached per colour) and swapped onto the front face; poses from
+`src/expression.js` move and scale the whole penguin. While gliding a penguin
+leans back and lifts its flippers; on impact it squashes along the slide; when
+collected it spins up into the aurora and vanishes.
 
-## Swipe response
+## Auroras
 
-The whole canvas tilts by up to 4.5 degrees around X or Y in CSS perspective.
-Drag progress controls the angle; a committed slide carries that lean through
-its movement, then settles exactly to level. Cancelling a drag returns to level
-without changing game state. Existing fractional previews only move pieces
-that the engine would actually allow to move.
+The original `goal-top.png` artwork, recoloured to the penguin's colour and
+emissive, lies on the cell with a soft glow; motes of coloured light drift up
+off it. Collection flashes it and sends a coloured ring across the ice.
 
-Tilt never changes engine coordinates, move counts, history, or swipe axes.
-Layout reads untransformed client dimensions, so resizing during a gesture
-cannot feed perspective distortion back into sizing. Reduced motion immediately
-clears the tilt and retains expression changes without poses.
+## Effects
 
-## Expressions and home
+Ice shavings, frost puffs and skate marks keep the old emission model —
+spaced by distance, thrown backwards and to the sides, capped at 420 and
+expiring within 760 ms — and are drawn as instanced meshes. A shaving that
+lands on water sinks. A penguin stopped at the edge of the ice sends a ring
+across the water. A clear rings the whole pool. Reduced motion turns off
+tilt, shake, particles and idle motion; expressions stay.
 
-`src/expression.js` owns the nine reaction states, their priorities, and their
-expiry times. The renderer reads `visualFor().expression` and draws the matching
-vector eyes on the same top plane. The existing image bank remains available
-for compatibility; the current penguin renderer does not use its artwork.
-Expressions expire on the frame clock, so no stale timer can replace a newer
-reaction. Poses never feed back into the engine's grid position.
+## Performance
 
-Home uses a static instance of the same renderer and a small 4×4 composition.
-It repaints on asset decode or ResizeObserver notifications without an extra
-animation loop. Its cubes, shallow obstacles, and original auroras match play.
-
-## Ordering and performance
-
-Floor and goals paint first. Raised walls and penguins share a pass sorted by
-their ground footprint, so floor tiles cannot paint over a sliding piece.
-Soft radial contact shadows anchor the pieces. Skate marks paint over the floor;
-ice fragments share the objects' depth pass so they cannot spray over a nearer
-wall or penguin. Goal celebration particles paint last.
-
-## Ice slide effects
-
-Actual animation displacement emits shavings from the block's whole footprint —
-front to back and side to side — spaced by distance rather than frame count.
-Skate marks lie in four fixed lanes under the body so they read as parallel
-tracks. Faceted, spinning fragments
-fan backward and sideways, bounce and lose speed, while fine frost and short
-skate marks dissolve. Stop events add a concentrated spray at the leading edge.
-Sparse glints and tiny ground shadows give the fragments volume. Positions,
-sizes, rotation, and lifetimes vary so the trail does not become a regular grid.
-
-Effects are capped at 420 particles and expire within 760ms. Large clock jumps
-do not dump an entire move's particles. Reduced motion suppresses shavings;
-restoring a state or loading a stage clears them. Particle simulation never
-changes engine positions or move history.
-
-- Device pixel ratio is capped at 2.
-- Five terrain variants and the complete tray are cached on layout or decode.
-- No per-frame canvas allocation or image decode is needed.
-- No runtime dependency or build step is added.
+- Device pixel ratio is capped at 2; one 2048² shadow map from one light.
+- Geometry and textures are rebuilt only when a stage loads.
+- Reflections come from a small painted sky turned into an environment map
+  once per renderer.
+- The game loop still drops to about 20 fps while the board is at rest.
 
 ## Verification
 
-- `npm test`: campaign rules, solver agreement, and expression decisions.
-- `npm run test:render`: frontal geometry, cube proportions, shallow obstacles,
-  no raster penguin/wall art, nine distinct vector expressions, real touch drags
-  and cancellation in all four directions, reduced motion, and responsive fit.
-  Also checks four-direction ice trails, frame-rate-independent emission,
-  occlusion, budget, expiry, stationary blocks, and recovery cleanup.
-- `npm run test:expression`: reaction triggers, expiry, poses, and silhouette.
-- `npm run test:recovery`: multiple dead-end moves, nearest solvable recovery,
-  restart reversal, keyboard input, cancellation, unknown solver results, and
-  recovery-button fit at 320px, 390px, and landscape widths.
-- `npm run qa`: all 100 campaign stages and interaction checks.
-- `npm run qa -- --fast-campaign`: the same checks with only campaign animations
-  advanced to their endpoints; interruption and gesture probes keep real timing.
+- `npm test`: engine, campaign, floe accelerator and analysis contracts.
+- `npm run test:render`: WebGL scene, projection and screen-aligned axes,
+  ice under every ice cell and water under every hole (by ray cast), shadows,
+  penguin model, nine distinct expression drawings, a pixel check that a hole
+  is drawn as water, ice shavings, 3D tilt and its cancellation, reduced
+  motion, and fit at 320 px, 390 px, landscape and desktop.
+- `npm run test:expression`, `npm run test:recovery`, `npm run qa`: reactions,
+  recovery and every campaign stage played through real input.
+
+Headless browsers on machines without a GPU get WebGL through SwiftShader;
+`tools/lib/browser.js` asks for it explicitly.

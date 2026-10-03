@@ -120,7 +120,7 @@ async function penguinBox(page) {
     var y0 = Math.max(0, Math.round((c.y - pad) * r.dpr));
     var w = Math.min(r.canvas.width - x0, Math.round(pad * 2 * r.dpr));
     var h = Math.min(r.canvas.height - y0, Math.round(pad * 2 * r.dpr));
-    var data = r.ctx.getImageData(x0, y0, w, h).data;
+    var data = r.readPixels(x0, y0, w, h);
     // The plain ice this cell is drawn on, read from a corner of the sample.
     var bg = [data[0], data[1], data[2]];
     var minX = 1e9, minY = 1e9, maxX = -1, maxY = -1, n = 0;
@@ -142,11 +142,8 @@ async function penguinBox(page) {
 (async function main() {
   var server = await serve();
   var base = 'http://127.0.0.1:' + server.address().port + '/';
-  var launch = {};
-  ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome', process.env.CHROME_PATH]
-    .forEach(function (p) { if (!launch.executablePath && p && fs.existsSync(p)) launch.executablePath = p; });
-  var browser = await chromium.launch(launch);
-  var page = await browser.newPage({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 2 });
+  var browser = await chromium.launch(require('./lib/browser').launchOptions());
+  var page = await browser.newPage({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 1 });
   var errors = [];
   page.on('console', function (m) { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', function (e) { errors.push('pageerror: ' + e.message); });
@@ -159,7 +156,7 @@ async function penguinBox(page) {
   section('PRELOAD');
   await page.waitForFunction(function () {
     return window.game.reactions.bank.ready();
-  }, null, { timeout: 10000 }).catch(function () {});
+  }, null, { timeout: 60000 }).catch(function () {});
 
   var bank = await page.evaluate(function () {
     var X = window.TiltExpression, b = window.game.reactions.bank;

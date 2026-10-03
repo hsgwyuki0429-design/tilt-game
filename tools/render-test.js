@@ -1,6 +1,6 @@
 'use strict';
 
-/* Focused contracts for the 2.5D renderer. This deliberately complements the
+/* Focused contracts for the WebGL floe renderer. This deliberately complements the
  * campaign/interaction QA rather than duplicating it. */
 var http = require('http');
 var fs = require('fs');
@@ -45,11 +45,7 @@ function serve() {
   var server = await serve();
   var browser;
   try {
-    var launch = {};
-    if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
-      launch.executablePath = process.env.CHROME_PATH;
-    }
-    browser = await chromium.launch(launch);
+    browser = await chromium.launch(require('./lib/browser').launchOptions());
     var page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
     var errors = [];
     page.on('console', function (m) { if (m.type() === 'error') errors.push(m.text()); });
@@ -58,91 +54,72 @@ function serve() {
     await page.waitForFunction(function () {
       var bank=window.game&&window.game.renderer&&window.game.renderer.textureBank;
       return bank&&bank.loaded===bank.expected;
-    }, null, { timeout: 10000 });
+    }, null, { timeout: 60000 });
     await page.click('#btn-home-play');
 
     console.log('\n\u001b[1mRENDER ARCHITECTURE\u001b[0m');
     var architecture = await page.evaluate(function () {
-      var r = window.game.renderer;
-      var p0 = r.project(0, 0, 0), px = r.project(1, 0, 0);
-      var py = r.project(0, 1, 0), pz = r.project(0, 0, 1);
-      var geometry = r.boxGeometry({ x0: 0, y0: 0, x1: 1, y1: 1, z0: 0, z1: 1 });
-      r.commands.length = 0;
-      r.pushCommand('floor', 1, 1, 0, 0, {});
-      r.pushCommand('goal', 1, 1, .012, 1, {});
-      r.pushCommand('penguin', 1, 1, .035, 4, {});
-      var commandProbe = r.commands.map(function (c) {
-        return { depth: c.depth, layer: c.layer, pass: c.pass };
-      });
-      var names = ['top', 'bottom', 'north', 'south', 'east', 'west'];
-      var materials = ['ice', 'wall-smooth', 'wall-brick', 'cracked', 'goal',
-        'penguin-orange', 'penguin-purple'];
+      var r = window.game.renderer, T = window.THREE, E = window.TiltEngine;
+      var st = E.compile({ id: 'probe', board: ['A..#', '.#..', '...b', 'aB..'] });
+      r.setStage(st, E.initialState(st)); r.frame(16, performance.now());
+      var p0 = r.project(0, 0, 0), px = r.project(1, 0, 0), py = r.project(0, 1, 0), pz = r.project(0, 0, 1);
+      var row0 = r.project(0, 0, 0), row4 = r.project(4, 0, 0);
+      var midTop = r.project(2, 0, 0), midBottom = r.project(2, 4, 0);
       var input = window.game.input;
-      var facesReady = materials.every(function (material) {
-        return names.every(function (face) {
-          var image = r.textureBank.faces[material] && r.textureBank.faces[material][face];
-          return image && image.width === 512 && image.height === 512;
-        });
-      });
+      // Ray down through every cell centre: ice under ice cells, water under holes.
+      var ray = new T.Raycaster(), cells = true;
+      r.world.updateMatrixWorld(true);
+      for (var y = 0; y < 4; y++) for (var x = 0; x < 4; x++) {
+        ray.set(new T.Vector3(r.wx(x + .5), 3, r.wz(y + .5)), new T.Vector3(0, -1, 0));
+        var hit = ray.intersectObject(r.floe, false)[0];
+        var ice = st.terrain[y * 4 + x] !== E.WALL;
+        if (ice !== !!(hit && Math.abs(hit.point.y) < .02)) cells = false;
+      }
+      var body = r.blocks[0].children[0].children[0];
+      var kinds = r.blocks.map(function (b) { return b.userData.colour; }).join(',');
       return {
-        projection: px.x > p0.x && px.y === p0.y && py.x === p0.x && py.y > p0.y &&
-          pz.x === p0.x && pz.y < p0.y,
-        height: geometry.south[2].y > geometry.south[1].y && geometry.east[2].x === geometry.east[0].x,
+        webgl: r.gl instanceof T.WebGLRenderer && !!r.gl.getContext(),
+        projection: px.x > p0.x && py.y > p0.y && pz.y < p0.y,
+        level: Math.abs(row0.y - row4.y) < .5 && Math.abs(midTop.x - midBottom.x) < .5,
         swipes: input.classify(60, 0, false) === 'R' && input.classify(-60, 0, false) === 'L' &&
           input.classify(0, 60, false) === 'D' && input.classify(0, -60, false) === 'U',
-        faces: names.every(function (name) { return geometry[name] && geometry[name].length === 4; }),
-        facesReady: facesReady,
-        suppliedTextures: Object.keys(window.TiltRender.TEXTURE_FILES).length,
-        loadedTextures: r.textureBank.loaded,
-        footprintDepth: commandProbe.every(function (c) { return c.depth === commandProbe[0].depth; }),
-        layers: commandProbe.map(function (c) { return c.layer; }).join(','),
-        passes: commandProbe.map(function (c) { return c.pass; }).join(','),
-        penguinFaceOnTop: r.textureBank.faces['penguin-orange'].top === r.textureBank.images.penguinFront,
-        staticSprites: Object.keys(r.staticSprites || {}).length,
+        cells: cells,
+        shadows: r.gl.shadowMap.enabled && body.castShadow && r.floe.receiveShadow,
+        penguin: Array.isArray(body.material) && body.material.length === 6 &&
+          body.material[4].map && body.material[4].map.isTexture,
+        kinds: kinds,
+        textures: r.textureBank.loaded === r.textureBank.expected && !!r.textureBank.images.goalTop,
+        goals: r.goals.length === 2,
         dpr: r.dpr
       };
     });
-    check('grid stays screen-aligned and perpendicular while height projects upward', architecture.projection);
-    check('frontal view shows height without a sideways camera angle', architecture.height);
-    check('four swipe directions map to the same four screen-aligned grid axes', architecture.swipes);
-    check('box geometry exposes all six named faces', architecture.faces);
-    check('all standalone supplied textures decode into semantic 512px faces',
-      architecture.facesReady && architecture.suppliedTextures === 16 && architecture.loadedTextures === 16,
-      'configured=' + architecture.suppliedTextures + ' loaded=' + architecture.loadedTextures);
-    check('depth key uses the shared footprint, not object height', architecture.footprintDepth);
-    check('equal-footprint layers remain floor → goal → penguin', architecture.layers === '0,1,4');
-    check('terrain is fully painted before raised penguins', architecture.passes === '0,0,1');
-    check('penguins and wall cubes render without raster artwork',await page.evaluate(function(){
-      var r=game.renderer,called=0,old=r.drawFace;
-      r.drawFace=function(g,pts,texture){if(texture)called++;return old.apply(this,arguments);};
-      try{
-        r.drawPenguin(r.ctx,{pos:[0,0],colour:1,react:{expression:'normal',scale:1,dx:0,dy:0,lift:0}});
-        r._buildingSprites=true;r.drawWall(r.ctx,{x:0,y:0});
-      }finally{r._buildingSprites=false;r.drawFace=old;}
-      return called===0;
-    }));
-    check('all nine procedural expressions have distinct drawings',await page.evaluate(function(){
-      var r=game.renderer,c=document.createElement('canvas');c.width=c.height=256;
-      var g=c.getContext('2d'),faces=new Set();
-      TiltExpression.EXPRESSIONS.forEach(function(e){g.clearRect(0,0,256,256);
-        r.drawCubePenguinFace(g,[{x:0,y:0},{x:256,y:0},{x:256,y:256},{x:0,y:256}],e);
-        faces.add(c.toDataURL());});return faces.size===9;
-    }));
-    check('penguin is a cube with its face on top; walls match its height and drifters stay low',await page.evaluate(function(){
-      var r=game.renderer,oldBox=r.drawBox,oldFace=r.drawCubePenguinFace,boxes=[],topFace=false,last;
-      r.drawBox=function(g,o){boxes.push(o);last=oldBox.apply(this,arguments);return last;};
-      r.drawCubePenguinFace=function(g,face){topFace=face===last.top;return oldFace.apply(this,arguments);};
-      try{
-        r.drawPenguin(r.ctx,{pos:[0,0],colour:1,react:{expression:'normal',scale:1,dx:0,dy:0,lift:0}});
-        r._buildingSprites=true;r.drawWall(r.ctx,{x:1,y:1});r.drawDrifter(r.ctx,{pos:[2,2]});
-      }finally{r._buildingSprites=false;r.drawBox=oldBox;r.drawCubePenguinFace=oldFace;}
-      var p=boxes[0],w=boxes[1],d=boxes[2];
-      return topFace&&Math.abs((p.x1-p.x0)-(p.z1-p.z0))<.001&&
-        Math.abs((w.z1-w.z0)-(p.z1-p.z0))<.001&&Math.abs((d.z1-d.z0)-.19)<.001;
-    }));
-    check('five used terrain variants are cached', architecture.staticSprites === 5,
-      'sprites=' + architecture.staticSprites);
+    check('a WebGL scene renders the board', architecture.webgl);
+    check('board x runs right, y runs down the screen, height rises', architecture.projection);
+    check('rows stay level and the centre column stays upright', architecture.level);
+    check('four swipe directions map to the same four screen axes', architecture.swipes);
+    check('one floe: ice under every ice cell, open water under every hole', architecture.cells);
+    check('penguins cast real shadows onto the floe', architecture.shadows);
+    check('penguins are solid cubes with a face on the front', architecture.penguin && architecture.kinds === '1,2',
+      'kinds=' + architecture.kinds);
+    check('the aurora artwork decodes and both auroras are placed', architecture.textures && architecture.goals);
     check('devicePixelRatio is capped at 2', architecture.dpr <= 2, 'dpr=' + architecture.dpr);
+    check('all nine expressions have distinct face drawings', await page.evaluate(function () {
+      var faces = new Set();
+      TiltExpression.EXPRESSIONS.forEach(function (e) { faces.add(TiltRender.drawFace(1, e).toDataURL()); });
+      return faces.size === 9;
+    }));
+    check('a hole is drawn as water and ice is drawn as ice', await page.evaluate(function () {
+      var r = game.renderer, E = TiltEngine;
+      var st = E.compile({ id: 'water', board: ['A...', '.##.', '.##.', '...a'] });
+      r.setStage(st, E.initialState(st)); r.gesture = false; r.frame(16, performance.now());
+      function lum(x, y) {
+        var p = r.project(x, y, 0), d = r.dpr, px = r.readPixels(Math.round(p.x * d) - 2, Math.round(p.y * d) - 2, 4, 4), s = 0;
+        for (var i = 0; i < 16; i++) s += .3 * px[i * 4] + .59 * px[i * 4 + 1] + .11 * px[i * 4 + 2];
+        return { l: s / 16, b: px[2] - px[0] };
+      }
+      var ice = lum(2.5, .5), water = lum(2, 2.1);
+      return ice.l > water.l + 25 && water.b > 40;
+    }));
 
     console.log('\n\u001b[1mICE SHAVINGS\u001b[0m');
     var ice=await page.evaluate(function(){
@@ -160,8 +137,8 @@ function serve() {
         result.types=result.types&&['shard','skate','frost'].every(function(kind){
           return r.particles.some(function(p){return p.kind===kind;});
         });
-        r.collectCommands(96);
-        result.occlusion=r.commands.filter(function(c){return c.kind==='particle';}).every(function(c){return c.pass<=1;});
+        r.frame(16,r.anim.t0+96);
+        result.occlusion=r.shards.count+r.puffs.count+r.marks.count>0;
       });
       [8,16,32].forEach(function(dt){
         r.setStage(st,E.initialState(st));r.playMove(E.simulate(st,r.state,'R'),function(){});
@@ -184,7 +161,7 @@ function serve() {
       game.loadStage(9);return result;
     });
     check('all four directions throw shavings backward from moving contact edges',ice.directions);
-    check('shards, frost and skate marks are distinct and depth-occluded',ice.types&&ice.occlusion);
+    check('shards, frost and skate marks are distinct and drawn as instanced meshes',ice.types&&ice.occlusion);
     check('emission density matches at 30, 60 and 120 Hz',ice.refresh);
     check('a fresh swipe tolerates RAF timestamps just before its input event',ice.fresh);
     check('effects have a fixed budget and expire completely',ice.bounded&&ice.expired);
@@ -203,23 +180,25 @@ function serve() {
         touch('touchstart',rect.x+rect.width/2,rect.y+rect.height/2);
         touch('touchmove',rect.x+rect.width/2+dv[0]*90,rect.y+rect.height/2+dv[1]*90);
       },dir);
-      await page.waitForTimeout(220);
-      var aim=await page.evaluate(function(){return {tilt:game.renderer.tilt,transform:game.canvas.style.transform,state:JSON.stringify(game.state)};});
+      // Software WebGL is slow; wait for the lean rather than for a fixed time.
+      await page.waitForFunction(function(d){var t=game.renderer.tilt,a=d==='L'||d==='R'?t.y:t.x;
+        return Math.abs(a)>1;},dir,{timeout:8000}).catch(function(){});
+      var aim=await page.evaluate(function(){var w=game.renderer.world.rotation;return {tilt:game.renderer.tilt,rot:[w.x,w.z],state:JSON.stringify(game.state)};});
       var angle=dir==='L'||dir==='R'?aim.tilt.y:aim.tilt.x;
       var sign=dir==='R'||dir==='U'?1:-1;
-      check(dir+' drag tilts the tray without committing a grid move',
-        angle*sign>1 && Math.abs(angle)<=4.5 && aim.state===before && /perspective/.test(aim.transform));
+      check(dir+' drag tilts the floe in 3D without committing a grid move',
+        angle*sign>1 && Math.abs(angle)<=5 && aim.state===before && Math.abs(aim.rot[0])+Math.abs(aim.rot[1])>.01);
       await page.evaluate(function(){document.getElementById('board-area').dispatchEvent(new Event('touchcancel'));});
-      await page.waitForTimeout(700);
-      check(dir+' cancelled drag settles exactly level',await page.evaluate(function(){return game.canvas.style.transform==='none';}));
+      await page.waitForFunction(function(){var w=game.renderer.world.rotation;return w.x===0&&w.z===0;},null,{timeout:8000}).catch(function(){});
+      check(dir+' cancelled drag settles exactly level',await page.evaluate(function(){var w=game.renderer.world.rotation;return w.x===0&&w.z===0;}));
     }
     check('reduced motion immediately clears existing tilt and keeps the preview level',await page.evaluate(function(){
       var r=game.renderer;r.tilt.x=4;r.tilt.y=-4;r.reduceMotion=true;r.aimDir='R';r.aimAmount=1;
-      r.frame(16,performance.now());var pass=r.tilt.x===0&&r.tilt.y===0&&r.canvas.style.transform==='none';
+      r.frame(16,performance.now());var pass=r.tilt.x===0&&r.tilt.y===0&&r.world.rotation.x===0&&r.world.rotation.z===0;
       r.aimDir=null;r.aimAmount=0;r.reduceMotion=false;return pass;
     }));
 
-    console.log('\n\u001b[1mRESPONSIVE ICE DIORAMA\u001b[0m');
+    console.log('\n\u001b[1mRESPONSIVE FLOE\u001b[0m');
     var viewports = [
       { width: 320, height: 568, name: 'iPhone SE' },
       { width: 390, height: 844, name: 'iPhone 12' },
@@ -241,14 +220,9 @@ function serve() {
           r.layout();
           r.frame(16, performance.now());
           var b = r.boardBounds;
-          var sorted = r.commands.every(function (c, i, all) {
-            if (!i) return true;
-            var p = all[i - 1];
-            if (p.pass !== c.pass) return p.pass < c.pass;
-            if (Math.abs(p.depth - c.depth) > .01) return p.depth < c.depth;
-            if (p.layer !== c.layer) return p.layer < c.layer;
-            return p.tie <= c.tie;
-          });
+          // The far row's penguins and the near rim both stay inside the canvas.
+          var top = r.project(0, 0, .8), bottom = r.project(n, n, -.36);
+          var sorted = top.y >= 0 && bottom.y <= r.cssH;
           return {
             inside: b.left >= -.5 && b.top >= -.5 && b.right <= r.cssW + .5 && b.bottom <= r.cssH + .5,
             cell: r.cell,

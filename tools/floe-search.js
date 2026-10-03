@@ -2,7 +2,7 @@
 /*
  * Every floe board, measured.
  *
- *   node tools/floe-search.js [--w 4] [--h 4] [--out file.json] [--runs 240]
+ *   node tools/floe-search.js [--w 4] [--h 4] [--out file.json] [--runs 24]
  *
  * Enumerates every edge-connected ice shape that spans the full W×H rectangle
  * (water where the old campaign had walls), every placement of one or two
@@ -40,7 +40,7 @@ function arg(name, def) {
 }
 var W = +arg('w', 4), H = +arg('h', 4);
 var OUT = arg('out', path.join(__dirname, '.floe-cache', 'pool-' + W + 'x' + H + '.json'));
-var RUNS = +arg('runs', 240);
+var RUNS = +arg('runs', 24);
 var MIN_PAR = +arg('min-par', 3);
 /* How far ahead the explorer sees a finish: once the board is two swipes
    from clear, a person sees it, so the explorer plays it. */

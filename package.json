@@ -20,7 +20,8 @@
     "search:fun": "node tools/fun-search.js"
   },
   "devDependencies": {
-    "playwright": "^1.49.0"
+    "esbuild": "^0.28.2",
+    "playwright": "^1.49.0",
+    "three": "^0.186.1"
   }
 }
-
