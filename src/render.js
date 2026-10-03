@@ -1142,7 +1142,7 @@
   };
 
   // ── the frame ───────────────────────────────────────────────────────────
-  Renderer.prototype.frame = function (dt, now) {
+  Renderer.prototype.frame = function (dt, now, gap) {
     this.time = now; var st = this.stage; if (!st || this.lost) return false;
     var busy = false, elapsed = 0, i;
     if (this.anim) {
@@ -1220,7 +1220,7 @@
     if (this.gesture && !this.reduceMotion) busy = true;
     if (this.clearGlow > 0) { this.clearGlow = Math.max(0, this.clearGlow - dt / 900); busy = true; }
     if (this.shaderBroken) this.recoverShaders();
-    if (this.monitor && this.monitor.observe(dt, busy) === 'slow') this.downgrade('slow');
+    if (this.monitor && this.monitor.observe(gap || dt, busy) === 'slow') this.downgrade('slow');
     return busy;
   };
 

@@ -107,6 +107,9 @@
   var SEVERE_N = 10;        // the latest frames judged on their own...
   var SEVERE_MS = 80;       // ...and the average that fails them
   var WARMUP = 12;          // busy frames ignored after start() / reset()
+  var STALL_MS = 200;       // a frame this long is a stall; STALL_N in a row is a verdict,
+  var STALL_N = 5;          // even inside the warm-up: nobody should wait for 50 frames
+  var STALL_AFTER = 3;      // busy frames allowed to hitch before stalls start to count
   var MAX_SAMPLE = 120;     // one frame never speaks for more than this
 
   function FrameMonitor(opts) {
@@ -121,11 +124,14 @@
     this.skip = this.warmup;
     this.prevBusy = false;
     this.verdict = null;
+    this.seen = 0;
+    this.stalls = 0;
   };
   /* A new stage is loading: ignore the next few busy frames (geometry and
      textures are being uploaded) but keep what has been measured so far, so a
      player who solves short stages still builds up a verdict. */
   FrameMonitor.prototype.settle = function (frames) {
+    this.seen = 0; this.stalls = 0;
     this.skip = Math.max(this.skip, frames == null ? 8 : frames);
     this.prevBusy = false;
   };
@@ -138,6 +144,10 @@
     var counted = this.prevBusy && dt > 0;
     this.prevBusy = !!busy;
     if (!counted || this.verdict) return null;
+    if (this.seen++ >= STALL_AFTER) {
+      this.stalls = dt >= STALL_MS ? this.stalls + 1 : 0;
+      if (this.stalls >= STALL_N) { this.verdict = 'slow'; return 'slow'; }
+    }
     if (this.skip > 0) { this.skip--; return null; }
     this.samples.push(Math.min(dt, MAX_SAMPLE));
     if (this.samples.length > this.window) this.samples.shift();

@@ -1721,7 +1721,8 @@
     // A sheet covers the board completely; there is nothing to spend frames on.
     if (this.sheets.length) { this.running = false; return; }
 
-    var dt = Math.min(64, now - this.last);
+    var gap = now - this.last;
+    var dt = Math.min(64, gap);
 
     // While the board is at rest, drop to a low frame rate. Thinking time is the
     // longest part of this game and it should not cost the player battery.
@@ -1731,7 +1732,15 @@
     }
 
     this.last = now;
-    this.busyFrames = this.renderer.frame(dt, now);
+    // The monitor gets the real gap: dt is clamped for the animation, and a
+    // clamped 500 ms frame looks like a merely slow one.
+    try {
+      this.busyFrames = this.renderer.frame(dt, now, gap);
+    } catch (e) {
+      // A failed frame must never end the loop: the buttons live outside it.
+      this.busyFrames = true;
+      if (window.console) console.error(e);
+    }
     requestAnimationFrame(this.loop);
   };
 

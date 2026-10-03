@@ -100,7 +100,7 @@ var shaky = fill(400, 16.7); for (var i = 0; i < 400; i += 9) shaky[i] = 70;
 assert.deepStrictEqual(run(shaky), [], 'an occasional slow frame is not a verdict');
 
 // The shader-compile hitch at the start of every stage is skipped.
-var warm = fill(12, 400).concat(fill(300, 16.7));
+var warm = fill(6, 400).concat(fill(300, 16.7));
 assert.deepStrictEqual(run(warm), [], 'warm-up frames are ignored');
 
 // reset() starts a fresh verdict (a new stage, a new context).
@@ -122,5 +122,13 @@ for (k = 0; k < 40 && !got; k++) got = kept.observe(60, true);
 assert.strictEqual(got, 'slow', 'and the earlier samples still count towards the verdict');
 assert(k <= 20, 'the verdict arrives early because samples were kept: ' + k);
 assert(k > 0);
+
+// A device that takes half a second a frame is told after a handful of frames,
+// not after the whole warm-up and window (that would be ~25 s of dead UI).
+var stalled = run(fill(100, 500));
+assert.strictEqual(stalled.length, 1, 'stalls are a verdict');
+assert(stalled[0] <= 3 + 5 + 2, 'and a prompt one: ' + stalled[0]);
+assert.deepStrictEqual(run(fill(3, 16.7).concat([900, 900, 900, 16.7, 900, 900, 900, 16.7], fill(300, 16.7))), [], 'hitches that are not consecutive are not a verdict');
+assert.deepStrictEqual(run([900, 900, 900, 900, 900, 900].concat(fill(300, 16.7))), [], 'stalls inside the first frames (shader compile) are ignored');
 
 console.log('PASS: quality tiers — detection, AUTO/HIGH/LITE resolution, cost table, frame monitor');

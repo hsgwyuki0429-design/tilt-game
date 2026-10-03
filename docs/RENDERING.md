@@ -123,7 +123,7 @@ game loop idles at about 20 fps on purpose when the board is at rest. It
 skips the first twelve (shaders and textures are being uploaded), then fails a
 device whose 36-frame average gap exceeds 38 ms, or whose latest ten average
 80 ms. 38 ms is above iOS Low Power Mode and 30 Hz battery savers (33 ms),
-which are choices and not weakness. A verdict drops to LITE once, tells the
+which are choices and not weakness. The monitor is fed the real gap between frames (not the 64 ms the animation clamps to), and five busy frames in a row of 200 ms or more fail a device at once, even inside the warm-up, so a very weak phone is not left half a minute with a frozen UI. A verdict drops to LITE once, tells the
 player with a toast, and is remembered for two weeks (`qualityLearned` in the
 save) so the next launch starts in LITE instead of stuttering through it
 again. Any explicit choice in Settings forgets it.
