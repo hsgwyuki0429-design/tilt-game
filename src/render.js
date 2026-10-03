@@ -82,6 +82,9 @@
      the move itself having happened. */
   var AIM_SLIDE = .3;
   var MAX_CELL = 112;
+  /* Ceiling on live particles. Slides spray from the whole block, so a long
+     two-penguin move needs more headroom than the old edge-only trail. */
+  var MAX_PARTICLES = 420;
   /* Frontal elevation: grid X and Y remain perpendicular on screen.
      Height reveals only the front face, with no sideways camera angle. */
   var GRID_X = 1;
@@ -448,24 +451,31 @@
   // peels from a rear contact edge, fans sideways, then tumbles onto the ice.
   Renderer.prototype.iceSpray=function(x,y,dx,dy,speed,impact){
     if(this.reduceMotion)return;
-    var count=impact?18:4;
+    /* A sliding block grinds the ice along its whole underside, so the
+       shavings come from the full footprint — front to back, side to side —
+       not only the trailing edge. Skate lines lie in fixed lanes under the
+       body so they read as parallel tracks; shards and frost start anywhere
+       under it and get thrown backward and out to the sides. */
+    var count=impact?26:11,LANES=[-.3,-.1,.1,.3];
     for(var j=0;j<count;j++){
-      var side=j%2?1:-1,spread=side*(.00045+Math.random()*.00125);
-      var back=(.0004+Math.random()*.0008)*speed;
-      var kind=j%4===0?'frost':j%4===1&&!impact?'skate':'shard';
-      var edge=impact?.34:-.26-Math.random()*.12;
-      var across=(impact?Math.random()*.5:.22+Math.random()*.15)*side;
-      var px=x+dx*edge-dy*across,py=y+dy*edge+dx*across;
+      var kind=j%5===0?'frost':(j%5===1&&!impact)?'skate':'shard';
+      var side=Math.random()<.5?-1:1,spread=side*(.00045+Math.random()*.0015)*(impact?1.5:1);
+      var back=(.0004+Math.random()*.0009)*speed;
+      var along,across;
+      if(impact){along=.12+Math.random()*.26;across=(Math.random()-.5)*.8;}
+      else if(kind==='skate'){along=-.38+Math.random()*.2;across=LANES[j%LANES.length]+(Math.random()-.5)*.04;}
+      else{along=-.38+Math.random()*.74;across=(Math.random()-.5)*.78;}
+      var px=x+dx*along-dy*across,py=y+dy*along+dx*across;
       if(px<.025||py<.025||px>this.stage.w-.025||py>this.stage.h-.025)continue;
       this.particles.push({kind:kind,x:px,y:py,z:.025,
         vx:-dx*back-dy*spread,vy:-dy*back+dx*spread,
-        vz:kind==='skate'?0:(.0012+Math.random()*.0022)*(impact?1.3:1),
-        life:0,max:kind==='skate'?220:380+Math.random()*260,
-        size:kind==='frost'?.035+Math.random()*.035:.018+Math.random()*.032,
-        angle:Math.random()*Math.PI*2,spin:(Math.random()-.5)*.018,glint:Math.random()<.22,
+        vz:kind==='skate'?0:(.0012+Math.random()*.0024)*(impact?1.3:1),
+        life:0,max:kind==='skate'?340:420+Math.random()*320,
+        size:kind==='frost'?.04+Math.random()*.04:.018+Math.random()*.034,
+        angle:Math.random()*Math.PI*2,spin:(Math.random()-.5)*.018,glint:Math.random()<.26,
         dx:dx,dy:dy,col:j%3?'#e4faff':'#83bed3'});
     }
-    if(this.particles.length>260)this.particles.splice(0,this.particles.length-260);
+    if(this.particles.length>MAX_PARTICLES)this.particles.splice(0,this.particles.length-MAX_PARTICLES);
   };
   Renderer.prototype.emitSlideIce=function(elapsed){
     var a=this.anim,previous=a.trailTime;a.trailTime=elapsed;
