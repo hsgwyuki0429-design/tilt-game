@@ -721,8 +721,8 @@
        reads as "movable, but not yours" against both. The top-to-side falloff
        is wide on purpose — it is what makes the slab read as a solid object at
        39px rather than a grey square. */
-    'penguin-amber-solid':{top:['#ffe3a2','#efbb54'],south:['#e6ac43','#c48726'],east:['#d79c38','#af782b']},
-    'penguin-violet-solid':{top:['#d8ccf7','#a88ddd'],south:['#997acc','#7657ad'],east:['#9073bb','#6c5393']},
+    'penguin-amber-solid':{top:['#ffe5aa','#f2c366'],south:['#bd842e','#96601f'],east:['#ae7429','#85521f']},
+    'penguin-violet-solid':{top:['#e1d7fb','#bca2e6'],south:['#8260b3','#5f438d'],east:['#72529f','#513977']},
     drifter:{top:['#B2C1CF','#71818F'],south:['#A3AFBB','#76828F'],east:['#8F9CA9','#64717F']}
   };
 
@@ -748,6 +748,8 @@
     }
     if(Math.abs(f.east[2].x-f.east[0].x)>.01)
       this.drawFace(g,f.east,texture('east'),s.east,o.eastShade,o.radius,.24);
+    if(o.southShade!=null)
+      this.drawFace(g,f.south,texture('south'),s.south,o.southShade,o.radius,.24);
     this.drawFace(g,f.top,texture(o.topTextureFace||'top'),s.top,o.topShade,o.radius,o.textureAlpha,o.textureInset);
     return f;
   };
@@ -837,10 +839,10 @@
   Renderer.prototype.drawWall=function(g,c){
     var key=c.outer?'wall:outer':'wall:smooth';
     if(this.blitStaticSprite(g,key,c.x,c.y))return;
-    var gap=.13;
+    var gap=0;
     this.drawContactShadow(g,c.x+.5,c.y+.62,.40,.36,true);
     var f=this.drawBox(g,{x0:c.x+gap,y0:c.y+gap,x1:c.x+1-gap,y1:c.y+1-gap,
-      z0:.015,z1:WALL_HEIGHT,material:'wall-brick',radius:this.cell*.045,
+      z0:.015,z1:WALL_HEIGHT,material:'wall-brick',radius:this.cell*.012,
       textures:{top:null,south:null,east:null}});
     this.drawIceFront(g,f.south);
     this.drawIceBevel(g,f.top);
@@ -963,13 +965,27 @@
        under it. Everything else drags its shadow along unchanged. */
     this.drawContactShadow(g,cx,p[1]+.64+rdy*(1-lift),
       .43*(1-lift*.16),.33*(1-lift*.20),false);
+    // A grounded square footprint and a soft south-east cast make the volume
+    // readable without changing the screen-aligned camera or cube dimensions.
+    var ground=this.topFace(x0,y0,x1,y1,.008);
+    g.save();g.shadowColor='rgba(23,49,67,.34)';g.shadowBlur=this.cell*(.065+lift*.12);
+    g.shadowOffsetX=this.cell*.035;g.shadowOffsetY=this.cell*(.055+lift*.06);
+    g.fillStyle='rgba(23,49,67,'+(.23-lift*.12)+')';
+    roundedPoly(g,ground,this.cell*.025);g.fill();g.restore();
     var style=d.colour===2?'penguin-violet-solid':'penguin-amber-solid';
     var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035+lift,z1:.035+h+lift,
-      material:style,radius:this.cell*.075,topShade:'rgba(255,255,255,.012)',
+      material:style,radius:this.cell*.035,topShade:'rgba(255,255,255,.012)',
       textures:{top:null,south:null,east:null},
       southShade:d.inert?'rgba(185,213,220,.22)':'rgba(0,18,30,.025)',
       eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
     this.drawPlumage(g,f.south,1);
+    g.save();g.strokeStyle='rgba(63,43,53,.32)';g.lineWidth=Math.max(.7,this.cell*.012);
+    g.beginPath();g.moveTo(f.south[0].x+this.cell*.035,f.south[0].y);
+    g.lineTo(f.south[1].x-this.cell*.035,f.south[1].y);g.stroke();
+    g.strokeStyle='rgba(255,249,230,.62)';g.lineWidth=Math.max(.7,this.cell*.014);
+    g.beginPath();g.moveTo(f.top[3].x+this.cell*.008,f.top[3].y-this.cell*.035);
+    g.lineTo(f.top[0].x+this.cell*.008,f.top[0].y+this.cell*.035);
+    g.lineTo(f.top[1].x-this.cell*.035,f.top[1].y+this.cell*.008);g.stroke();g.restore();
     // The readable face is formed on the upward plane of the solid cube.
     this.drawCubePenguinFace(g,f.top,re?re.expression:'normal');
     var beakZ=.035+lift+h+.015,beakY=cy+.13;
