@@ -27,7 +27,7 @@
   var SQUASH = 150;
   var AIM_SLIDE = .3;
   var MAX_CELL = 112;
-  var MAX_PARTICLES = 420;
+  var MAX_PARTICLES = 3600;
   var VANISH = 420;
   var TILT_DEG = 5;
 
@@ -263,7 +263,7 @@
   function iceSurface(stage) {
     var P = 128, w = stage.w, h = stage.h, W = w * P, H = h * P, x, y;
     function ice(cx, cy) { return cx >= 0 && cy >= 0 && cx < w && cy < h && stage.terrain[cy * w + cx] !== E.WALL; }
-    var height = new Float32Array(W * H);
+    var height = new Float32Array(W * H), rough = new Float32Array(W * H);
     var col = canvas(W, H), g = col.getContext('2d'), img = g.createImageData(W, H), px = img.data;
     var tint = [];
     for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
@@ -281,6 +281,11 @@
         seam = Math.min(1, seam);
         var n1 = grainAt(x / W * w * .9, y / H * h * .9), n2 = grainAt(x / W * w * 3.1 + 7, y / H * h * 3.1 + 3);
         height[i] = n1 * .5 + n2 * .25 + (seam - 1) * 1.6;
+        // Glossy melt-polished ice with frosted, snow-dusted patches and fine
+        // scratches: roughness varies across the slab rather than sitting at
+        // one plastic value.
+        var frost = grainAt(x / W * w * 1.7 + 31, y / H * h * 1.7 + 17);
+        rough[i] = .16 + Math.max(0, frost - .42) * 1.9 + n2 * .16 + (1 - seam) * .3;
         // Colour: packed snow, a soft drift per tile, cool in the seams.
         var drift = Math.max(0, 1 - Math.hypot(fx - t[2], fy - t[3]) * 1.4);
         var lr = 238 + t[0] * 10 + n1 * 12 + drift * 8 - (x / W + y / H) * 9;
@@ -299,7 +304,50 @@
         px[o] = Math.min(255, lr); px[o + 1] = Math.min(255, lg); px[o + 2] = Math.min(255, lb); px[o + 3] = 255;
       }
     }
+    // Hairline fractures: short random walks, pale in the colour, a thin
+    // groove in the height field, and a dull line in the roughness.
+    function stamp(cx2, cy2, depth) {
+      var ix = Math.round(cx2), iy = Math.round(cy2);
+      if (ix < 1 || iy < 1 || ix >= W - 1 || iy >= H - 1) return;
+      var ii = iy * W + ix;
+      height[ii] -= depth; rough[ii] = Math.min(1, rough[ii] + .35);
+      var o2 = ii * 4;
+      px[o2] = px[o2] * .93 + 12; px[o2 + 1] = px[o2 + 1] * .96 + 8; px[o2 + 2] = Math.min(255, px[o2 + 2] + 4);
+    }
+    for (var cr = 0; cr < w * h * 2; cr++) {
+      var sx = hash(cr * 3.3 + w) * W, sy = hash(cr * 5.9 + h) * H, ang = hash(cr * 7.7) * 6.283;
+      var len = 18 + hash(cr * 2.1) * 70;
+      for (var st2 = 0; st2 < len; st2++) {
+        ang += (hash(cr * 11.3 + st2 * .7) - .5) * .5;
+        sx += Math.cos(ang); sy += Math.sin(ang);
+        stamp(sx, sy, 1.1 * (1 - st2 / len));
+        if (hash(cr * 1.9 + st2 * 3.1) > .985) {   // a branch
+          var bx = sx, by = sy, ba = ang + (hash(st2 + cr) > .5 ? .9 : -.9);
+          for (var bs = 0; bs < len * .35; bs++) { ba += (hash(bs * 2.7 + cr) - .5) * .4; bx += Math.cos(ba); by += Math.sin(ba); stamp(bx, by, .7); }
+        }
+      }
+    }
+    // Trapped air: tiny bright bubbles with a dark rim, scattered below the surface.
+    for (var bb = 0; bb < w * h * 22; bb++) {
+      var bx2 = hash(bb * 4.1 + 2) * W, by2 = hash(bb * 6.3 + 5) * H, br = 1 + hash(bb * 9.7) * 2.6;
+      for (var dyb = -3; dyb <= 3; dyb++) for (var dxb = -3; dxb <= 3; dxb++) {
+        var dd = Math.hypot(dxb, dyb); if (dd > br) continue;
+        var qx = Math.round(bx2) + dxb, qy = Math.round(by2) + dyb;
+        if (qx < 0 || qy < 0 || qx >= W || qy >= H) continue;
+        var qo = (qy * W + qx) * 4, edge = dd > br - 1.1;
+        px[qo] = edge ? px[qo] * .82 : Math.min(255, px[qo] + 10);
+        px[qo + 1] = edge ? px[qo + 1] * .9 : Math.min(255, px[qo + 1] + 8);
+        px[qo + 2] = edge ? px[qo + 2] * .96 : 255;
+        rough[qy * W + qx] = edge ? .5 : .1;
+      }
+    }
     g.putImageData(img, 0, 0);
+    var rm = canvas(W, H), rg = rm.getContext('2d'), rimg = rg.createImageData(W, H), rd = rimg.data;
+    for (y = 0; y < H * W; y++) {
+      var rv = Math.max(.04, Math.min(1, rough[y])) * 255, ro = y * 4;
+      rd[ro] = rd[ro + 1] = rd[ro + 2] = rv; rd[ro + 3] = 255;
+    }
+    rg.putImageData(rimg, 0, 0);
     var nm = canvas(W, H), ng = nm.getContext('2d'), nimg = ng.createImageData(W, H), nd = nimg.data;
     for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
       var dx = height[y * W + Math.min(W - 1, x + 1)] - height[y * W + Math.max(0, x - 1)];
@@ -309,7 +357,36 @@
       nd[q + 2] = (1 / len * .5 + .5) * 255; nd[q + 3] = 255;
     }
     ng.putImageData(nimg, 0, 0);
-    return { map: colourTexture(col), normal: dataTexture(nm) };
+    return { map: colourTexture(col), normal: dataTexture(nm), rough: dataTexture(rm) };
+  }
+
+  /* The flank of the slab: columns of clear ice, trapped bubbles and old
+     fractures, multiplied over the depth gradient in the vertex colours. The
+     sides are projected straight down, so the texture streaks vertically. */
+  function sideSurface() {
+    var N = 256, c = canvas(N, N), g = c.getContext('2d'), img = g.createImageData(N, N), d = img.data, x, y;
+    for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
+      var col = grainAt(x / N * 1.3, 0.5) * .6 + grainAt(x / N * 5.1 + 3, y / N * .35) * .4;
+      var v = 214 + col * 40 - (grainAt(x / N * 2.2 + 9, y / N * 1.1 + 4) > .7 ? 26 : 0);
+      var o = (y * N + x) * 4;
+      d[o] = v * .94; d[o + 1] = v * .985; d[o + 2] = Math.min(255, v + 6); d[o + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    g.lineCap = 'round';
+    for (var k = 0; k < 26; k++) {
+      var sx = hash(k * 3.7) * N, sy = hash(k * 5.3) * N, a = (hash(k * 1.3) - .5) * 1.6 + Math.PI / 2;
+      g.strokeStyle = 'rgba(255,255,255,' + (.25 + hash(k) * .3) + ')'; g.lineWidth = 1 + hash(k * 9) * 1.4;
+      g.beginPath(); g.moveTo(sx, sy);
+      for (var s2 = 0; s2 < 6; s2++) { a += (hash(k * 7 + s2) - .5) * .9; sx += Math.cos(a) * 12; sy += Math.sin(a) * 12; g.lineTo(sx, sy); }
+      g.stroke();
+    }
+    for (k = 0; k < 90; k++) {
+      var bx = hash(k * 2.9 + 1) * N, by = hash(k * 4.7 + 2) * N, r = .8 + hash(k * 8.1) * 2.4;
+      g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.arc(bx, by, r, 0, 6.283); g.fill();
+      g.strokeStyle = 'rgba(40,110,150,.4)'; g.lineWidth = .8; g.stroke();
+    }
+    var t = colourTexture(c, true);
+    return t;
   }
 
   // ── penguins ────────────────────────────────────────────────────────────
@@ -608,11 +685,11 @@
     shard.setIndex([0, 1, 2, 0, 2, 3, 0, 3, 1, 1, 3, 2]);
     shard.computeVertexNormals();
     this.shards = new T.InstancedMesh(shard, new T.MeshPhysicalMaterial({ color: '#eefbff', roughness: .12,
-      clearcoat: 1, transparent: true, opacity: .92 }), MAX_PARTICLES);
+      clearcoat: 1, transparent: true, opacity: .94 }), MAX_PARTICLES);
     this.puffs = new T.InstancedMesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: S.blob, color: '#ffffff',
       transparent: true, opacity: .75, depthWrite: false }), MAX_PARTICLES);
     this.marks = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({
-      map: S.blob, color: '#9cc9dc', transparent: true, opacity: .55, depthWrite: false }), MAX_PARTICLES);
+      map: S.blob, color: '#7fb4cc', transparent: true, opacity: .7, depthWrite: false }), MAX_PARTICLES);
     this.sparks = new T.InstancedMesh(new T.OctahedronGeometry(.5), new T.MeshBasicMaterial({ color: '#ffffff' }), 128);
     [this.shards, this.puffs, this.marks, this.sparks].forEach(function (m) {
       m.count = 0; m.frustumCulled = false; this.fxGroup.add(m);
@@ -764,9 +841,11 @@
     geo.setAttribute('color', new T.BufferAttribute(colours, 3));
     var surface = this.surface = iceSurface(st);
     this.topMaterial = new T.MeshPhysicalMaterial({ map: surface.map, normalMap: surface.normal,
-      normalScale: new T.Vector2(.9, .9), roughness: .38, clearcoat: .55, clearcoatRoughness: .22,
+      roughnessMap: surface.rough, normalScale: new T.Vector2(1.1, 1.1), roughness: 1, clearcoat: .8, clearcoatRoughness: .12,
+      ior: 1.31, specularIntensity: 1, sheen: .25, sheenColor: new T.Color('#dff4ff'),
       emissive: new T.Color('#9fe6ff'), emissiveIntensity: 0 });
-    this.sideMaterial = new T.MeshPhysicalMaterial({ vertexColors: true, roughness: .1, clearcoat: 1,
+    if (!this.sideTex) this.sideTex = sideSurface();
+    this.sideMaterial = new T.MeshPhysicalMaterial({ vertexColors: true, map: this.sideTex, roughness: .08, clearcoat: 1,
       clearcoatRoughness: .08, ior: 1.31, specularIntensity: 1, emissive: new T.Color('#2d8fb8'), emissiveIntensity: .12 });
     var floe = new T.Mesh(geo, [this.topMaterial, this.sideMaterial]);
     floe.receiveShadow = true;
@@ -968,25 +1047,30 @@
     if (this.particles.length > MAX_PARTICLES) this.particles.splice(0, this.particles.length - MAX_PARTICLES);
   };
   /* A sliding block grinds the ice along its whole underside: shavings come
-     from the full footprint and are thrown backwards and out to the sides. */
+     from the full footprint — front to back, side to side — and are thrown
+     backwards, sideways and up. Heavy, fast and many: chunks that tumble and
+     bounce, a haze of fine splinters, frost clouds, and scratches that stay
+     on the ice after the penguin has gone. */
   Renderer.prototype.iceSpray = function (x, y, dx, dy, speed, impact) {
     if (this.reduceMotion) return;
-    var count = impact ? 22 : 9, LANES = [-.26, -.09, .09, .26];
+    var count = impact ? 100 : 32, LANES = [-.34, -.2, -.07, .07, .2, .34];
     for (var j = 0; j < count; j++) {
-      var kind = j % 5 === 0 ? 'frost' : (j % 5 === 1 && !impact) ? 'skate' : 'shard';
-      var side = Math.random() < .5 ? -1 : 1, spread = side * (.00045 + Math.random() * .0015) * (impact ? 1.5 : 1);
-      var back = (.0004 + Math.random() * .0009) * speed, along, across;
-      if (impact) { along = .12 + Math.random() * .26; across = (Math.random() - .5) * .8; }
-      else if (kind === 'skate') { along = -.34 + Math.random() * .2; across = LANES[j % LANES.length] + (Math.random() - .5) * .04; }
-      else { along = -.36 + Math.random() * .7; across = (Math.random() - .5) * .72; }
+      var m = j % 8, kind = m === 0 ? 'frost' : (m === 1 && !impact) ? 'skate' : (m === 2 ? 'chip' : 'shard');
+      if (impact && m === 1) kind = 'frost';
+      var side = Math.random() < .5 ? -1 : 1, hard = impact ? 1.8 : 1;
+      var spread = side * (.0006 + Math.random() * .0026) * hard;
+      var back = (.0006 + Math.random() * .0016) * speed * (kind === 'chip' ? 1.5 : 1), along, across;
+      if (impact) { along = .05 + Math.random() * .42; across = (Math.random() - .5) * .9; }
+      else if (kind === 'skate') { along = -.42 + Math.random() * .3; across = LANES[j % LANES.length] + (Math.random() - .5) * .03; }
+      else { along = -.5 + Math.random() * .95; across = (Math.random() - .5) * .86; }
       var px = x + dx * along - dy * across, py = y + dy * along + dx * across;
-      if (kind === 'skate' && this.groundAt(px, py) < 0) continue;
+      if ((kind === 'skate') && this.groundAt(px, py) < 0) continue;
+      var up = kind === 'skate' ? 0 : (.0018 + Math.random() * .0042) * (impact ? 1.4 : 1) * (kind === 'chip' ? 1.3 : 1);
       this.particles.push({ kind: kind, x: px, y: py, z: .03,
-        vx: -dx * back - dy * spread, vy: -dy * back + dx * spread,
-        vz: kind === 'skate' ? 0 : (.0013 + Math.random() * .0024) * (impact ? 1.3 : 1),
-        life: 0, max: kind === 'skate' ? 420 : 420 + Math.random() * 320,
-        size: kind === 'frost' ? .07 + Math.random() * .07 : .022 + Math.random() * .03,
-        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .018,
+        vx: -dx * back - dy * spread, vy: -dy * back + dx * spread, vz: up,
+        life: 0, max: kind === 'skate' ? 1000 : 600 + Math.random() * 500,
+        size: kind === 'frost' ? .09 + Math.random() * .1 : kind === 'chip' ? .04 + Math.random() * .045 : .016 + Math.random() * .03,
+        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .03,
         dx: dx, dy: dy });
     }
     this.trimParticles();
@@ -1001,7 +1085,7 @@
       var dx = q[0] - p[0], dy = q[1] - p[1], distance = Math.sqrt(dx * dx + dy * dy);
       if (distance < .0001) continue;
       dx /= distance; dy /= distance;
-      var spacing = .085, remainder = a.trailDistance[i] || 0;
+      var spacing = .032, remainder = a.trailDistance[i] || 0;
       for (var d = spacing - remainder; d <= distance; d += spacing) {
         var f = d / distance;
         this.iceSpray(p[0] + (q[0] - p[0]) * f + .5, p[1] + (q[1] - p[1]) * f + .5,
@@ -1273,16 +1357,16 @@
     for (var i = 0; i < this.particles.length; i++) {
       var p = this.particles[i], f = 1 - p.life / p.max;
       tmpV.set(this.wx(p.x), p.z, this.wz(p.y));
-      if (p.kind === 'shard') {
+      if (p.kind === 'shard' || p.kind === 'chip') {
         tmpE.set(p.angle, p.angle * .7, p.angle * 1.3); tmpQ.setFromEuler(tmpE);
-        var s = p.size * (.35 + .65 * f) * 1.6; tmpS.set(s, s, s);
+        var s = p.size * (.35 + .65 * f) * 2.7; tmpS.set(s, s, s);
         tmpM.compose(tmpV, tmpQ, tmpS); this.shards.setMatrixAt(ns++, tmpM);
       } else if (p.kind === 'frost') {
-        var fs = p.size * (1.2 - .5 * f) * Math.min(1, f * 2.2); tmpS.set(fs, fs, fs);
+        var fs = p.size * 1.5 * (1.2 - .5 * f) * Math.min(1, f * 2.2); tmpS.set(fs, fs, fs);
         tmpM.compose(tmpV, faceCam, tmpS); this.puffs.setMatrixAt(np++, tmpM);
       } else if (p.kind === 'skate') {
         tmpQ.setFromAxisAngle(new T.Vector3(0, 1, 0), Math.atan2(p.dx, p.dy));
-        tmpS.set(.035 * f, 1, .2 * (.5 + .5 * f)); tmpM.compose(tmpV, tmpQ, tmpS); this.marks.setMatrixAt(nm++, tmpM);
+        tmpS.set(.03 * (.4 + .6 * f), 1, .34 * (.5 + .5 * f)); tmpM.compose(tmpV, tmpQ, tmpS); this.marks.setMatrixAt(nm++, tmpM);
       } else if (p.kind === 'spark' && nk < 128) {
         tmpE.set(p.angle, p.angle, 0); tmpQ.setFromEuler(tmpE);
         var ks = p.size * Math.min(1, f * 1.6); tmpS.set(ks, ks, ks);

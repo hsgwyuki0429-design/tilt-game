@@ -134,7 +134,7 @@ function serve() {
         result.directions=result.directions&&r.particles.length>0&&r.particles.every(function(p){
           return p.dx===dv[0]&&p.dy===dv[1]&&p.vx*dv[0]+p.vy*dv[1]<=0;
         });
-        result.types=result.types&&['shard','skate','frost'].every(function(kind){
+        result.types=result.types&&['shard','skate','frost','chip'].every(function(kind){
           return r.particles.some(function(p){return p.kind===kind;});
         });
         r.frame(16,r.anim.t0+96);
@@ -150,8 +150,8 @@ function serve() {
       var origin=r.anim.t0;r.frame(16,origin-2);r.frame(16,origin-1);
       result.fresh=r.anim.trailTime===0&&r.particles.length===0;
       for(var k=0;k<100;k++)r.iceSpray(2.5,2.5,1,0,1,true);
-      result.bounded=r.particles.length<=420;
-      for(var tick=0;tick<80;tick++)r.updateEffects(16);
+      result.bounded=r.particles.length<=3600;
+      for(var tick=0;tick<120;tick++)r.updateEffects(16);
       result.expired=r.particles.length===0;
       r.iceSpray(2,2,1,0,1,false);r.reduceMotion=true;r.updateEffects(16);
       r.iceSpray(2,2,1,0,1,true);result.reduced=r.particles.length===0;r.reduceMotion=false;
