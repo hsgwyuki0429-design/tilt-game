@@ -91,7 +91,7 @@
   var GRID_Y = .95;
   var Z_X = 0;
   var Z_Y = .30;
-  var WALL_HEIGHT = .30;
+  var WALL_HEIGHT = .775;
   var DRIFTER_HEIGHT = .19;
   var PENGUIN_HEIGHT = .76;
   var FACE_SIZE = 512;
@@ -939,6 +939,10 @@
     g.globalCompositeOperation='color';g.globalAlpha=.64;g.fillStyle=pal.mid;
     g.fillRect(0,0,FACE_SIZE,FACE_SIZE);
     g.globalCompositeOperation='source-over';g.globalAlpha=1;
+    if(st.goalColour&&st.goalColour[c.i]===1){
+      g.globalCompositeOperation='screen';g.fillStyle='rgba(255,222,120,.32)';
+      g.fillRect(0,0,FACE_SIZE,FACE_SIZE);
+    }
     var glow=g.createRadialGradient(256,256,18,256,256,218);
     glow.addColorStop(0,'rgba(255,255,255,'+(pulse+flash*.18)+')');
     glow.addColorStop(.58,'rgba(255,255,255,'+(pulse*.32)+')');
