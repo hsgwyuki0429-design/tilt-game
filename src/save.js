@@ -112,18 +112,14 @@
   };
 
   /**
-   * How far ahead of your progress you may reach.
+   * Every stage is open from the start.
    *
-   * With a hundred stages, strict one-at-a-time progression means a single
-   * board you cannot see the trick to ends the game for you. A small window
-   * past the frontier keeps the sequence meaningful while making sure nobody is
-   * ever completely walled off by one puzzle.
+   * The campaign used to unlock one stage at a time, with a small window past
+   * the frontier. Players now choose any board they like, so nothing is
+   * locked. `unlocked` is still recorded, because it is what "continue" uses
+   * to land on the furthest stage reached.
    */
-  Save.SKIP_WINDOW = 2;
-
-  Save.prototype.isUnlocked = function (id) {
-    return id <= this.data.unlocked + Save.SKIP_WINDOW;
-  };
+  Save.prototype.isUnlocked = function () { return true; };
 
   /** The next stage the player has not beaten — where "continue" should land. */
   Save.prototype.frontier = function () { return this.data.unlocked; };
