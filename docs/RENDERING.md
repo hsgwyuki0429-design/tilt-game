@@ -91,14 +91,16 @@ wall or penguin. Goal celebration particles paint last.
 
 ## Ice slide effects
 
-Actual animation displacement emits paired shavings from the trailing contact
-edges, spaced by distance rather than frame count. Faceted, spinning fragments
+Actual animation displacement emits shavings from the block's whole footprint —
+front to back and side to side — spaced by distance rather than frame count.
+Skate marks lie in four fixed lanes under the body so they read as parallel
+tracks. Faceted, spinning fragments
 fan backward and sideways, bounce and lose speed, while fine frost and short
 skate marks dissolve. Stop events add a concentrated spray at the leading edge.
 Sparse glints and tiny ground shadows give the fragments volume. Positions,
 sizes, rotation, and lifetimes vary so the trail does not become a regular grid.
 
-Effects are capped at 260 particles and expire within 640ms. Large clock jumps
+Effects are capped at 420 particles and expire within 760ms. Large clock jumps
 do not dump an entire move's particles. Reduced motion suppresses shavings;
 restoring a state or loading a stage clears them. Particle simulation never
 changes engine positions or move history.
