@@ -22,12 +22,12 @@ const names = [
   'ShadowMaterial', 'ShaderMaterial', 'SpriteMaterial', 'Sprite',
   'HemisphereLight', 'DirectionalLight', 'AmbientLight', 'PointLight',
   'CanvasTexture', 'Texture', 'DataTexture', 'PMREMGenerator',
-  'Color', 'Vector2', 'Vector3', 'Vector4', 'Matrix4', 'Quaternion', 'Euler', 'MathUtils', 'Box3', 'Sphere',
+  'Color', 'Vector2', 'Vector3', 'Vector4', 'Matrix3', 'Matrix4', 'Quaternion', 'Euler', 'MathUtils', 'Box3', 'Sphere',
   'SRGBColorSpace', 'LinearSRGBColorSpace', 'PCFSoftShadowMap', 'PCFShadowMap', 'VSMShadowMap',
   'NeutralToneMapping', 'ACESFilmicToneMapping', 'AgXToneMapping', 'NoToneMapping',
   'AdditiveBlending', 'NormalBlending', 'MultiplyBlending', 'DoubleSide', 'FrontSide', 'BackSide',
   'RepeatWrapping', 'ClampToEdgeWrapping', 'MirroredRepeatWrapping', 'LinearFilter',
-  'LinearMipmapLinearFilter', 'EquirectangularReflectionMapping', 'NearestFilter', 'RGBAFormat', 'UnsignedByteType', 'FloatType', 'HalfFloatType',
+  'LinearMipmapLinearFilter', 'EquirectangularReflectionMapping', 'NearestFilter', 'RGBAFormat', 'RedFormat', 'NoColorSpace', 'UnsignedByteType', 'FloatType', 'HalfFloatType',
   'Raycaster', 'REVISION'
 ];
 const entry = `export { ${names.join(', ')} } from 'three';

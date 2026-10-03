@@ -16,10 +16,16 @@
  * (towards the camera), and height is world +Y with the ice surface at 0.
  * Swipes still map straight to the screen: the camera looks down the board
  * from the front, so rows stay level and columns stay upright.
+ *
+ * The ice and the water around it are src/ice.js's; which of the two graphics
+ * tiers is drawn (and when to fall back from HIGH to LITE) is src/quality.js's
+ * decision, carried out here.
  */
 (function (root) {
   var E = root.TiltEngine;
   var T = root.THREE;
+  var Ice = root.TiltIce;
+  var Q = root.TiltQuality;
 
   // ── timing and motion (shared with the game clock) ──────────────────────
   var TICK = 54;
@@ -32,10 +38,10 @@
   var TILT_DEG = 5;
 
   // ── the floe ────────────────────────────────────────────────────────────
-  var FREEBOARD = .36;        // ice above the water line
-  var DRAFT = 1.5;            // total slab thickness; the rest is under water
-  var BEVEL = .075;
-  var INSET = .018;
+  var FREEBOARD = Ice.FREEBOARD;   // ice above the water line
+  var DRAFT = Ice.DRAFT;           // total slab thickness; the rest is under water
+  var BEVEL = Ice.BEVEL;
+  var INSET = Ice.INSET;
   var CORNER = .2;            // rounding on the outside of a corner
   var NOTCH = .07;            // rounding inside a corner
   var PENGUIN = .74;
@@ -87,10 +93,15 @@
     g.fillStyle = r; g.fillRect(0, 0, 128, 128);
     SHARED.blob = colourTexture(c);
 
-    // Contact shadow: dense in the middle of a square footprint.
+    /* Contact shadow: dense in the middle of a square footprint. Built from
+       stacked translucent rounded squares rather than a canvas blur filter,
+       because Safari has no `ctx.filter` and would draw a hard-edged box. */
     c = canvas(128, 128); g = c.getContext('2d');
-    g.filter = 'blur(10px)'; g.fillStyle = 'rgba(255,255,255,1)';
-    g.beginPath(); g.roundRect(30, 30, 68, 68, 18); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.06)';
+    for (var k = 0; k < 26; k++) {
+      var ins = 12 + k * 1.5;
+      g.beginPath(); g.roundRect(ins, ins, 128 - ins * 2, 128 - ins * 2, 30 - k * .5); g.fill();
+    }
     SHARED.contact = colourTexture(c);
 
     // Water ripples: a tileable height field of crossing swells, as normals.
@@ -127,8 +138,11 @@
 
     // A ring for ripples.
     c = canvas(256, 256); g = c.getContext('2d');
-    g.strokeStyle = 'rgba(255,255,255,1)'; g.lineWidth = 10; g.filter = 'blur(3px)';
-    g.beginPath(); g.arc(128, 128, 112, 0, Math.PI * 2); g.stroke();
+    var rg = g.createRadialGradient(128, 128, 88, 128, 128, 128);
+    rg.addColorStop(0, 'rgba(255,255,255,0)'); rg.addColorStop(.38, 'rgba(255,255,255,.4)');
+    rg.addColorStop(.6, 'rgba(255,255,255,1)'); rg.addColorStop(.82, 'rgba(255,255,255,.4)');
+    rg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, 256, 256);
     SHARED.ring = colourTexture(c);
     return SHARED;
   }
@@ -240,124 +254,6 @@
       });
       return s;
     });
-  }
-
-  // ── the top of the ice ──────────────────────────────────────────────────
-  /* Snow-packed ice with the cell seams engraved into it: the colour and a
-     matching normal map, so the grid is something the light falls into, not
-     a line painted on top. Computed pixel by pixel into typed arrays — one
-     putImageData each — because hundreds of small canvas draws are slow on a
-     phone and slower still in a software renderer. */
-  var GRAIN = null;
-  function grainAt(u, v) {
-    if (!GRAIN) {
-      GRAIN = new Float32Array(64 * 64);
-      for (var k = 0; k < GRAIN.length; k++) GRAIN[k] = hash(k * 1.731 + 11);
-    }
-    var x = u * 64, y = v * 64, x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
-    var a = GRAIN[(y0 & 63) * 64 + (x0 & 63)], b = GRAIN[(y0 & 63) * 64 + ((x0 + 1) & 63)];
-    var c = GRAIN[((y0 + 1) & 63) * 64 + (x0 & 63)], d = GRAIN[((y0 + 1) & 63) * 64 + ((x0 + 1) & 63)];
-    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
-    return lerp(lerp(a, b, fx), lerp(c, d, fx), fy);
-  }
-  function iceSurface(stage) {
-    var P = 128, w = stage.w, h = stage.h, W = w * P, H = h * P, x, y;
-    function ice(cx, cy) { return cx >= 0 && cy >= 0 && cx < w && cy < h && stage.terrain[cy * w + cx] !== E.WALL; }
-    var height = new Float32Array(W * H), rough = new Float32Array(W * H);
-    var col = canvas(W, H), g = col.getContext('2d'), img = g.createImageData(W, H), px = img.data;
-    var tint = [];
-    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
-      var sd = w * 31 + h * 7 + y * 13 + x * 5;
-      tint.push([hash(sd) - .5, hash(sd + 1) - .5, hash(sd + 3), hash(sd + 4)]);
-    }
-    for (y = 0; y < H; y++) {
-      var cy = (y / P) | 0, fy = y / P - cy;
-      for (x = 0; x < W; x++) {
-        var cx = (x / P) | 0, fx = x / P - cx, i = y * W + x, t = tint[cy * w + cx];
-        // Distance to an engraved seam: only where the neighbour is ice too.
-        var seam = 1;
-        if (fx > .5 ? ice(cx + 1, cy) : ice(cx - 1, cy)) seam = Math.min(seam, (fx > .5 ? 1 - fx : fx) * P / 3.2);
-        if (fy > .5 ? ice(cx, cy + 1) : ice(cx, cy - 1)) seam = Math.min(seam, (fy > .5 ? 1 - fy : fy) * P / 3.2);
-        seam = Math.min(1, seam);
-        var n1 = grainAt(x / W * w * .9, y / H * h * .9), n2 = grainAt(x / W * w * 3.1 + 7, y / H * h * 3.1 + 3);
-        height[i] = n1 * .5 + n2 * .25 + (seam - 1) * 1.6;
-        // Glossy melt-polished ice with frosted, snow-dusted patches and fine
-        // scratches: roughness varies across the slab rather than sitting at
-        // one plastic value.
-        var frost = grainAt(x / W * w * 1.7 + 31, y / H * h * 1.7 + 17);
-        rough[i] = .16 + Math.max(0, frost - .42) * 1.9 + n2 * .16 + (1 - seam) * .3;
-        // Colour: packed snow, a soft drift per tile, cool in the seams.
-        var drift = Math.max(0, 1 - Math.hypot(fx - t[2], fy - t[3]) * 1.4);
-        var lr = 238 + t[0] * 10 + n1 * 12 + drift * 8 - (x / W + y / H) * 9;
-        var lg = 247 + n1 * 7 + drift * 6 - (x / W + y / H) * 6;
-        var lb = 252 + t[1] * 4;
-        var sparkle = hash(i * .37 + 1);
-        if (sparkle > .996) { lr = lg = lb = 255; }
-        else if (sparkle < .004) { lr -= 30; lg -= 18; lb -= 8; }
-        var k = 1 - seam;
-        lr = lr * (1 - k * .32); lg = lg * (1 - k * .2); lb = lb * (1 - k * .08);
-        if (stage.terrain[cy * w + cx] === E.HAZARD) {
-          var crack = Math.abs(Math.sin((fx * 7 + fy * 3) * 3.1 + t[0] * 9) * Math.cos((fy * 6 - fx * 2) * 2.7));
-          if (crack < .06) { lr *= .55; lg *= .7; lb *= .82; height[i] -= .8; }
-        }
-        var o = i * 4;
-        px[o] = Math.min(255, lr); px[o + 1] = Math.min(255, lg); px[o + 2] = Math.min(255, lb); px[o + 3] = 255;
-      }
-    }
-    // Hairline fractures: short random walks, pale in the colour, a thin
-    // groove in the height field, and a dull line in the roughness.
-    function stamp(cx2, cy2, depth) {
-      var ix = Math.round(cx2), iy = Math.round(cy2);
-      if (ix < 1 || iy < 1 || ix >= W - 1 || iy >= H - 1) return;
-      var ii = iy * W + ix;
-      height[ii] -= depth; rough[ii] = Math.min(1, rough[ii] + .35);
-      var o2 = ii * 4;
-      px[o2] = px[o2] * .93 + 12; px[o2 + 1] = px[o2 + 1] * .96 + 8; px[o2 + 2] = Math.min(255, px[o2 + 2] + 4);
-    }
-    for (var cr = 0; cr < w * h * 2; cr++) {
-      var sx = hash(cr * 3.3 + w) * W, sy = hash(cr * 5.9 + h) * H, ang = hash(cr * 7.7) * 6.283;
-      var len = 18 + hash(cr * 2.1) * 70;
-      for (var st2 = 0; st2 < len; st2++) {
-        ang += (hash(cr * 11.3 + st2 * .7) - .5) * .5;
-        sx += Math.cos(ang); sy += Math.sin(ang);
-        stamp(sx, sy, 1.1 * (1 - st2 / len));
-        if (hash(cr * 1.9 + st2 * 3.1) > .985) {   // a branch
-          var bx = sx, by = sy, ba = ang + (hash(st2 + cr) > .5 ? .9 : -.9);
-          for (var bs = 0; bs < len * .35; bs++) { ba += (hash(bs * 2.7 + cr) - .5) * .4; bx += Math.cos(ba); by += Math.sin(ba); stamp(bx, by, .7); }
-        }
-      }
-    }
-    // Trapped air: tiny bright bubbles with a dark rim, scattered below the surface.
-    for (var bb = 0; bb < w * h * 22; bb++) {
-      var bx2 = hash(bb * 4.1 + 2) * W, by2 = hash(bb * 6.3 + 5) * H, br = 1 + hash(bb * 9.7) * 2.6;
-      for (var dyb = -3; dyb <= 3; dyb++) for (var dxb = -3; dxb <= 3; dxb++) {
-        var dd = Math.hypot(dxb, dyb); if (dd > br) continue;
-        var qx = Math.round(bx2) + dxb, qy = Math.round(by2) + dyb;
-        if (qx < 0 || qy < 0 || qx >= W || qy >= H) continue;
-        var qo = (qy * W + qx) * 4, edge = dd > br - 1.1;
-        px[qo] = edge ? px[qo] * .82 : Math.min(255, px[qo] + 10);
-        px[qo + 1] = edge ? px[qo + 1] * .9 : Math.min(255, px[qo + 1] + 8);
-        px[qo + 2] = edge ? px[qo + 2] * .96 : 255;
-        rough[qy * W + qx] = edge ? .5 : .1;
-      }
-    }
-    g.putImageData(img, 0, 0);
-    var rm = canvas(W, H), rg = rm.getContext('2d'), rimg = rg.createImageData(W, H), rd = rimg.data;
-    for (y = 0; y < H * W; y++) {
-      var rv = Math.max(.04, Math.min(1, rough[y])) * 255, ro = y * 4;
-      rd[ro] = rd[ro + 1] = rd[ro + 2] = rv; rd[ro + 3] = 255;
-    }
-    rg.putImageData(rimg, 0, 0);
-    var nm = canvas(W, H), ng = nm.getContext('2d'), nimg = ng.createImageData(W, H), nd = nimg.data;
-    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
-      var dx = height[y * W + Math.min(W - 1, x + 1)] - height[y * W + Math.max(0, x - 1)];
-      var dy = height[Math.min(H - 1, y + 1) * W + x] - height[Math.max(0, y - 1) * W + x];
-      var nx = -dx * 1.4, ny = dy * 1.4, len = Math.sqrt(nx * nx + ny * ny + 1), q = (y * W + x) * 4;
-      nd[q] = (nx / len * .5 + .5) * 255; nd[q + 1] = (ny / len * .5 + .5) * 255;
-      nd[q + 2] = (1 / len * .5 + .5) * 255; nd[q + 3] = 255;
-    }
-    ng.putImageData(nimg, 0, 0);
-    return { map: colourTexture(col), normal: dataTexture(nm), rough: dataTexture(rm) };
   }
 
   // ── penguins ────────────────────────────────────────────────────────────
@@ -574,11 +470,45 @@
   }
 
   // ── the renderer ────────────────────────────────────────────────────────
-  function Renderer(canvasEl) {
+  /* What the browser will say about this GPU and machine. Every field may be
+     missing; quality.js never counts a missing field against the device. */
+  function deviceInfo(gl) {
+    var nav = typeof navigator !== 'undefined' ? navigator : {};
+    var info = { cores: nav.hardwareConcurrency || 0, memory: nav.deviceMemory || 0 };
+    try {
+      var ctx = gl.getContext(), ext = ctx.getExtension('WEBGL_debug_renderer_info');
+      info.renderer = ext ? ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ctx.getParameter(ctx.RENDERER);
+      info.maxTexture = ctx.getParameter(ctx.MAX_TEXTURE_SIZE);
+    } catch (e) { /* the browser said nothing */ }
+    return info;
+  }
+
+  /**
+   * opts.mode     'auto' (default) | 'high' | 'lite' — what the player chose
+   * opts.learned  { at } if AUTO once had to drop this device to LITE
+   * opts.tier     force a tier, ignoring all of the above (the home preview)
+   */
+  function Renderer(canvasEl, opts) {
     var self = this;
+    opts = opts || {};
     if (!T) throw new Error('three.js is missing (src/vendor/three.js)');
     this.canvas = canvasEl;
     this.gl = new T.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    // Only the ice's own shaders are worth falling back for; a failure in some
+    // other material is three.js's to report and the rest of the scene to survive.
+    this.gl.debug.onShaderError = function (ctx, program, vs, fs) {
+      var src = '';
+      try { src = ctx.getShaderSource(fs) || ''; } catch (e) { /* unknown: assume it was ours */ }
+      if (!src || /vIceNrm|uWaterShallow/.test(src)) self.shaderBroken = true;
+    };
+    this.mode = Q.validMode(opts.mode);
+    this.hint = Q.detect(deviceInfo(this.gl));
+    var pick = opts.tier ? { tier: opts.tier, reason: 'forced' } : Q.resolve(this.mode, this.hint, opts.learned || null, Date.now());
+    this.tier = pick.tier; this.tierReason = pick.reason;
+    this.maxParticles = Q.TIER[this.tier].particles;
+    this.onQualityChange = null; this.shaderBroken = false;
+    this.armMonitor();
+    this.ice = Ice.create({ tier: this.tier, onDetail: function () { if (self.onInvalidate) self.onInvalidate(); } });
     this.gl.setClearColor(0x000000, 0);
     this.gl.toneMapping = T.NeutralToneMapping;
     this.gl.toneMappingExposure = 1.04;
@@ -604,11 +534,66 @@
     canvasEl.addEventListener('webglcontextlost', function (e) { e.preventDefault(); self.lost = true; }, false);
     canvasEl.addEventListener('webglcontextrestored', function () {
       self.lost = false;
+      if (self.monitor) self.monitor.reset();
       self.buildEnvironment();
       if (self.stage) self.setStage(self.stage, self.state);
       if (self.onInvalidate) self.onInvalidate();
     }, false);
   }
+
+  // ── graphics tiers ──────────────────────────────────────────────────────
+  Renderer.prototype.armMonitor = function () {
+    this.monitor = (this.mode === 'auto' && this.tier === 'high') ? new Q.FrameMonitor() : null;
+  };
+  Renderer.prototype.applyTier = function () {
+    var spec = Q.TIER[this.tier], sh = this.keyLight && this.keyLight.shadow;
+    this.maxParticles = spec.particles;
+    if (this.particles.length > this.maxParticles) this.particles.splice(0, this.particles.length - this.maxParticles);
+    this.ice.setTier(this.tier);
+    if (sh && sh.mapSize.x !== spec.shadow) {
+      sh.mapSize.set(spec.shadow, spec.shadow);
+      if (sh.map) { sh.map.dispose(); sh.map = null; }
+    }
+    this.layout();
+  };
+  Renderer.prototype.setTier = function (tier, reason) {
+    if (tier !== 'high' && tier !== 'lite') return;
+    var changed = tier !== this.tier;
+    this.tier = tier; this.tierReason = reason || this.tierReason;
+    this.armMonitor();
+    if (!changed) return;
+    this.applyTier();
+    if (this.onQualityChange) this.onQualityChange({ tier: tier, reason: reason, mode: this.mode });
+  };
+  /* Compile every shader now, in the background where the browser allows it,
+     so that the first swipe is not the frame that pays for them. */
+  Renderer.prototype.precompile = function () {
+    try {
+      if (this.gl.compileAsync) this.gl.compileAsync(this.scene, this.camera).catch(function () {});
+      else this.gl.compile(this.scene, this.camera);
+    } catch (e) { /* the first frame compiles what it needs */ }
+  };
+  /* The player's choice, from Settings. */
+  Renderer.prototype.setMode = function (mode, learned) {
+    this.mode = Q.validMode(mode);
+    var pick = Q.resolve(this.mode, this.hint, learned || null, Date.now());
+    this.setTier(pick.tier, pick.reason);
+    this.armMonitor();
+  };
+  /* The device cannot keep up (the frame monitor's verdict). */
+  Renderer.prototype.downgrade = function (reason) {
+    if (this.tier !== 'high') return;
+    this.setTier('lite', reason || 'slow');
+  };
+  /* A shader failed to compile on this GPU: plain materials, so the game
+     still shows a floe and a pool. */
+  Renderer.prototype.recoverShaders = function () {
+    this.shaderBroken = false;
+    if (this.ice.fallback) return;
+    var f = this.ice.useFallback();
+    if (this.floe) this.floe.material = [f, f];
+    this.fallbackUsed = true;
+  };
 
   Renderer.prototype.buildScene = function () {
     var S = shared();
@@ -621,7 +606,7 @@
     var key = this.keyLight = new T.DirectionalLight('#fff4e4', 2.8);
     key.position.set(-4.2, 7, 2.6);
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 3;
+    key.shadow.mapSize.set(Q.TIER[this.tier].shadow, Q.TIER[this.tier].shadow); key.shadow.radius = 3;
     key.shadow.camera.left = -4; key.shadow.camera.right = 4;
     key.shadow.camera.top = 4; key.shadow.camera.bottom = -4;
     key.shadow.camera.near = 1; key.shadow.camera.far = 20;
@@ -632,17 +617,13 @@
 
     // The pool. The floe tilts in it; the water stays level.
     var water = this.water = new T.Mesh(new T.CircleGeometry(1, 96).rotateX(-Math.PI / 2),
-      new T.MeshStandardMaterial({ color: '#3f9fbe', roughness: .06, metalness: 0, transparent: true, opacity: .86,
+      this.ice.waterMaterial({ color: '#3f9fbe', roughness: .06, metalness: 0, transparent: true, opacity: .86,
         normalMap: S.waterNormal, normalScale: new T.Vector2(.12, .12), alphaMap: S.poolAlpha,
         depthWrite: false }));
+    water.receiveShadow = true;
     water.material.normalMap.repeat.set(3, 3);
     water.position.y = -FREEBOARD; water.renderOrder = 2;
     scene.add(water);
-    // A soft dark ring where the floe meets the water.
-    this.waterline = new T.Mesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-      new T.MeshBasicMaterial({ map: S.contact, color: '#0d4b66', transparent: true, opacity: .28, depthWrite: false }));
-    this.waterline.position.y = -FREEBOARD + .004; this.waterline.renderOrder = 3;
-    scene.add(this.waterline);
 
     this.world = new T.Group(); scene.add(this.world);
     this.floeGroup = new T.Group(); this.world.add(this.floeGroup);
@@ -697,6 +678,9 @@
     sky.mapping = T.EquirectangularReflectionMapping;
     if (this.scene.environment) this.scene.environment.dispose();
     this.scene.environment = pmrem.fromEquirectangular(sky).texture;
+    // Ice shows the sky in its gloss. The scene's own environment strength is
+    // right for the penguins; the floe takes its own (see ice.js).
+    this.ice.setEnvironment(this.scene.environment);
     sky.dispose(); pmrem.dispose();
   };
 
@@ -709,9 +693,15 @@
     sky.addColorStop(0, '#f6fbff'); sky.addColorStop(.42, '#d8eef7'); sky.addColorStop(.5, '#ffffff');
     sky.addColorStop(.56, '#9fd2e3'); sky.addColorStop(1, '#2f7f9f');
     g.fillStyle = sky; g.fillRect(0, 0, 256, 128);
-    g.filter = 'blur(4px)'; g.fillStyle = '#ffffff';
-    g.fillRect(52, 20, 44, 26); g.fillRect(170, 28, 30, 18);
-    g.fillStyle = 'rgba(255,240,220,.9)'; g.fillRect(110, 8, 36, 14);
+    // Soft windows: radial falloff scaled to an ellipse (no canvas blur, see above).
+    function window_(x, y, w, h, colour) {
+      g.save(); g.translate(x + w / 2, y + h / 2); g.scale(w / 2, h / 2);
+      var rg = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+      rg.addColorStop(0, colour); rg.addColorStop(.55, colour); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = rg; g.fillRect(-1, -1, 2, 2); g.restore();
+    }
+    window_(46, 14, 56, 38, '#ffffff'); window_(164, 22, 42, 30, '#ffffff');
+    window_(104, 4, 48, 22, 'rgba(255,240,220,.9)');
     return c;
   }
 
@@ -765,6 +755,7 @@
     this.clearGlow = 0; this.shake = 0; this.nudge = null;
     this.shift.x = this.shift.y = 0; this.tilt.x = this.tilt.y = 0;
     this.onEvent = null;
+    if (this.monitor) this.monitor.settle(8);
     this.buildFloe(); this.buildGoals(); this.buildBlocks();
     this.layout();
   };
@@ -787,7 +778,6 @@
     var st = this.stage;
     this.floeGroup.children.slice().forEach(function (o) { disposeTree(o); });
     this.floeGroup.clear();
-    if (this.surface) { this.surface.map.dispose(); this.surface.normal.dispose(); }
     var shapes = floeShapes(st, INSET + BEVEL);
     var geo = new T.ExtrudeGeometry(shapes, {
       depth: DRAFT, steps: 10, bevelEnabled: true, bevelThickness: BEVEL, bevelSize: BEVEL,
@@ -796,29 +786,22 @@
     // Lay it down: shape x → world x, shape y → world z, extrusion → down.
     geo.rotateX(Math.PI / 2);
     geo.translate(0, -BEVEL, 0);
-    var pos = geo.attributes.position, uv = geo.attributes.uv, n = pos.count, colours = new Float32Array(n * 3);
-    var top = new T.Color('#f2fbfe'), lip = new T.Color('#bfe7f3'), line = new T.Color('#6cc4de'),
-      deep = new T.Color('#2a7fa6'), abyss = new T.Color('#195f86'), c = new T.Color();
-    for (var i = 0; i < n; i++) {
-      var x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-      uv.setXY(i, (x + st.w / 2) / st.w, 1 - (z + st.h / 2) / st.h);
-      if (y > -.03) c.copy(top);
-      else if (y > -.16) c.copy(top).lerp(lip, (-.03 - y) / .13);
-      else if (y > -FREEBOARD) c.copy(lip).lerp(line, (-.16 - y) / (FREEBOARD - .16));
-      else if (y > -.9) c.copy(line).lerp(deep, (-FREEBOARD - y) / (.9 - FREEBOARD));
-      else c.copy(deep).lerp(abyss, Math.min(1, (-.9 - y) / .7));
-      colours[i * 3] = c.r; colours[i * 3 + 1] = c.g; colours[i * 3 + 2] = c.b;
+    // The extruder gives every triangle its own flat normal, which facets the
+    // rounded corners. Weld the vertices and let the normals average.
+    geo.deleteAttribute('normal'); geo.deleteAttribute('uv');
+    geo = T.mergeVertices(geo, 1e-4);
+    geo.computeVertexNormals();
+    // Two groups: what faces up (the top and the upper bevel), and the rest.
+    var index = geo.index.array, nrm = geo.attributes.normal, up = [], rest = [];
+    for (var t = 0; t < index.length; t += 3) {
+      var a = index[t], b = index[t + 1], c = index[t + 2];
+      ((nrm.getY(a) + nrm.getY(b) + nrm.getY(c)) / 3 > .5 ? up : rest).push(a, b, c);
     }
-    geo.setAttribute('color', new T.BufferAttribute(colours, 3));
-    var surface = this.surface = iceSurface(st);
-    this.topMaterial = new T.MeshPhysicalMaterial({ map: surface.map, normalMap: surface.normal,
-      roughnessMap: surface.rough, normalScale: new T.Vector2(1.1, 1.1), roughness: 1, clearcoat: .8, clearcoatRoughness: .12,
-      ior: 1.31, specularIntensity: 1, sheen: .25, sheenColor: new T.Color('#dff4ff'),
-      emissive: new T.Color('#9fe6ff'), emissiveIntensity: 0 });
-    this.sideMaterial = new T.MeshPhysicalMaterial({ vertexColors: true, roughness: .08, clearcoat: 1,
-      clearcoatRoughness: .08, ior: 1.31, specularIntensity: 1, emissive: new T.Color('#2d8fb8'), emissiveIntensity: .12 });
-    var floe = new T.Mesh(geo, [this.topMaterial, this.sideMaterial]);
-    floe.receiveShadow = true;
+    geo.setIndex(up.concat(rest));
+    geo.clearGroups(); geo.addGroup(0, up.length, 0); geo.addGroup(up.length, rest.length, 1);
+    this.ice.setStage(st);
+    var floe = new T.Mesh(geo, [this.ice.floeMaterial, this.ice.sideMaterial]);
+    floe.receiveShadow = true; floe.castShadow = true;
     this.floeGroup.add(floe);
     this.floe = floe;
   };
@@ -870,7 +853,7 @@
 
   Renderer.prototype.layout = function () {
     var w = Math.max(1, this.canvas.clientWidth), h = Math.max(1, this.canvas.clientHeight);
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var dpr = Math.min(window.devicePixelRatio || 1, Q.TIER[this.tier].dpr);
     this.dpr = dpr; this.cssW = w; this.cssH = h;
     this.gl.setPixelRatio(dpr);
     this.gl.setSize(w, h, false);
@@ -923,7 +906,6 @@
     var Rx = Math.min(side * .98, st.w / 2 + 3.2), Rz = Math.min(far, near) * .98;
     Rz = Math.min(Rz, st.h / 2 + 3.2);
     this.water.scale.set(Math.max(Rx, st.w / 2 + .8), 1, Math.max(Rz, st.h / 2 + .8));
-    this.waterline.scale.set(st.w + 1.1, 1, st.h + 1.1);
     var off = .7;
     this.markers.U.position.set(0, -.05, -st.h / 2 - off);
     this.markers.D.position.set(0, -.05, st.h / 2 + off);
@@ -1014,7 +996,7 @@
     if (this.ripples.length > this.ringPool.length) this.ripples.shift();
   };
   Renderer.prototype.trimParticles = function () {
-    if (this.particles.length > MAX_PARTICLES) this.particles.splice(0, this.particles.length - MAX_PARTICLES);
+    if (this.particles.length > this.maxParticles) this.particles.splice(0, this.particles.length - this.maxParticles);
   };
   /* A sliding block grinds the ice along its whole underside: shavings come
      from the full footprint — front to back, side to side — and are thrown
@@ -1222,6 +1204,11 @@
       this.camera.position.set(this.camBase.x + sx * px, this.camBase.y + sy * px, this.camBase.z);
     }
 
+    this.ice.setTime(this.reduceMotion ? 0 : now / 1000);
+    this.camera.updateMatrixWorld(); this.world.updateMatrixWorld();
+    this.ice.setView(this.camera, this.world);
+    // The sun wanders a hair, so glitter on the frost twinkles instead of sitting still.
+    if (this.tier === 'high' && !this.reduceMotion) this.keyLight.position.set(-4.2 + Math.sin(now / 5200) * .22, 7, 2.6 + Math.cos(now / 6100) * .18);
     this.updateBlocks(elapsed);
     this.updateGoals(now);
     this.updateWater(now);
@@ -1232,6 +1219,8 @@
     this.gl.render(this.scene, this.camera);
     if (this.gesture && !this.reduceMotion) busy = true;
     if (this.clearGlow > 0) { this.clearGlow = Math.max(0, this.clearGlow - dt / 900); busy = true; }
+    if (this.shaderBroken) this.recoverShaders();
+    if (this.monitor && this.monitor.observe(dt, busy) === 'slow') this.downgrade('slow');
     return busy;
   };
 
@@ -1428,6 +1417,6 @@
   root.TiltRender = {
     Renderer: Renderer, PALETTE: PALETTE, TICK: TICK, TAIL: TAIL, MAX_CELL: MAX_CELL,
     TEXTURE_FILES: TEXTURE_FILES, FREEBOARD: FREEBOARD, PENGUIN: PENGUIN,
-    floorLoops: floorLoops, drawFace: drawFace
+    floorLoops: floorLoops, drawFace: drawFace, deviceInfo: deviceInfo
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -236,6 +236,134 @@ function serve() {
           'cell=' + fit.cell + ' sorted=' + fit.sorted + ' scroll=' + fit.scroll);
       }
     }
+    console.log('\n\u001b[1mGRAPHICS TIERS\u001b[0m');
+    await page.setViewportSize({ width: 390, height: 844 });
+    var tiers = await page.evaluate(async function () {
+      var r = game.renderer, E = TiltEngine, Q = TiltQuality, out = {}, shots = {};
+      function until(pred) { return new Promise(function (res) { var t = setInterval(function () { if (pred()) { clearInterval(t); res(); } }, 40); }); }
+      var st = E.compile({ id: 'tiers', board: ['A..#', '.#..', '...b', 'aB..'] });
+      var d = null;
+      for (var tier of ['high', 'lite']) {
+        r.setMode(tier);
+        await until(function () { return r.ice.uniforms.uDetail.value.image && r.ice.uniforms.uDetail.value.image.width >= Q.TIER[tier].detail; });
+        r.setStage(st, E.initialState(st)); r.gesture = false; r.layout();
+        var gl = r.gl.getContext(), spec = Q.TIER[tier];
+        var dprOk = r.dpr === Math.min(devicePixelRatio, spec.dpr);
+        // Compare the tiers pixel for pixel: draw both at one pixel per CSS pixel.
+        r.gl.setPixelRatio(1); r.gl.setSize(r.cssW, r.cssH, false); r.dpr = 1;
+        r.frame(16, performance.now());
+        var c = r.project(1.5, 1.5, 0), x = Math.round((c.x - 1.6 * r.cell) * r.dpr), y = Math.round((c.y - 1.2 * r.cell) * r.dpr);
+        var w = Math.round(3.2 * r.cell * r.dpr), h = Math.round(2.4 * r.cell * r.dpr);
+        shots[tier] = r.readPixels(x, y, w, h);
+        var lum = 0; for (var i = 0; i < shots[tier].length; i += 4) lum += shots[tier][i] + shots[tier][i + 1] + shots[tier][i + 2];
+        out[tier] = {
+          glError: gl.getError(),
+          layers: r.ice.floeMaterials.every(function (m) { return m.defines.ICE_LAYERS === String(spec.interior); }),
+          caustics: ('ICE_CAUSTICS' in r.ice.floeMaterial.defines) === spec.caustics,
+          glitter: ('ICE_GLITTER' in r.ice.floeMaterial.defines) === spec.glitter,
+          foam: ('ICE_FOAM' in r.ice.water.defines) === spec.foam,
+          shadow: r.keyLight.shadow.mapSize.x === spec.shadow,
+          dpr: dprOk,
+          particles: r.maxParticles === spec.particles,
+          drawn: lum / (shots[tier].length / 4 * 3) > 60,
+          size: [w, h]
+        };
+        for (var k = 0; k < 6000; k++) r.iceSpray(2, 2, 1, 0, 1, true);
+        out[tier].capped = r.particles.length <= spec.particles;
+        r.particles.length = 0;
+        d = r.ice.uniforms.uDetail.value.image;
+      }
+      // the two tiers really draw differently
+      var a = shots.high, b = shots.lite, diff = 0, n = Math.min(a.length, b.length);
+      for (var j = 0; j < n; j++) diff += Math.abs(a[j] - b[j]);
+      out.diff = diff / n;
+      // the generated detail is sane in every channel
+      var bank = TiltIce.Bank.data, mean = [0, 0, 0, 0], px = bank.size * bank.size;
+      for (var p = 0; p < bank.detail.length; p++) mean[p & 3] += bank.detail[p];
+      out.mean = mean.map(function (m) { return +(m / px / 255).toFixed(3); });
+      out.bank = bank.size;
+      out.programs = r.gl.info.programs.length;
+      return out;
+    });
+    ['high', 'lite'].forEach(function (tier) {
+      var t = tiers[tier];
+      check(tier.toUpperCase() + ' draws the floe with no GL error', t.glError === 0 && t.drawn, 'glError=' + t.glError);
+      check(tier.toUpperCase() + ' sets its shader features, shadow map, pixel ratio and particle budget',
+        t.layers && t.caustics && t.glitter && t.foam && t.shadow && t.dpr && t.particles, JSON.stringify(t));
+      check(tier.toUpperCase() + ' never holds more particles than its budget', t.capped);
+    });
+    check('HIGH and LITE draw the ice differently', tiers.diff > 2, 'mean difference ' + tiers.diff.toFixed(2) + '/255');
+    check('the generated ice detail has grain, frost, fractures and bubbles',
+      tiers.mean[0] > .35 && tiers.mean[0] < .65 && tiers.mean[1] > .25 && tiers.mean[1] < .75 &&
+      tiers.mean[2] > .02 && tiers.mean[2] < .25 && tiers.mean[3] > .004 && tiers.mean[3] < .2,
+      'means ' + tiers.mean.join(' / ') + ' at ' + tiers.bank + 'px');
+    check('the ice shaders compiled', tiers.programs > 0 && errors.length === 0, errors.join(' | '));
+
+    var guard = await page.evaluate(async function () {
+      var B = TiltIce.Bank, saved = B.data, real = HTMLCanvasElement.prototype.getContext, refused = 0;
+      B.reset();
+      // A canvas that will not draw, as on a starved phone: only while the generator runs.
+      HTMLCanvasElement.prototype.getContext = function () {
+        if (B.running && this.width === 256 && this.height === 256) { refused++; throw new Error('canvas refused'); }
+        return real.apply(this, arguments);
+      };
+      var data = await new Promise(function (res) { B.request(256, res); });
+      HTMLCanvasElement.prototype.getContext = real;
+      var sum = [0, 0, 0, 0];
+      for (var p = 0; p < data.detail.length; p++) sum[p & 3] += data.detail[p];
+      B.data = saved;
+      return { size: data.size, refused: refused, grain: sum[0] > 0 && sum[1] > 0, crack: sum[2], bubble: sum[3] };
+    });
+    check('if the canvas refuses to draw, the ice is plainer but still arrives',
+      guard.size === 256 && guard.refused >= 2 && guard.grain && guard.crack === 0 && guard.bubble === 0, JSON.stringify(guard));
+
+    var watch = await page.evaluate(function () {
+      var r = game.renderer, Q = TiltQuality, out = {}, events = [], realRender = r.gl.render;
+      r.gl.render = function () {};          // the verdict is about the gaps between frames, not the pixels
+      r.onQualityChange = function (e) { events.push(e); };
+      r.gesture = true;                      // keeps the loop busy, as a slide would
+      function drive(gap, n) { var t = performance.now(); for (var i = 0; i < n; i++) { t += gap; r.frame(gap, t); } }
+      r.setMode('high'); r.mode = 'auto'; r.armMonitor(); events.length = 0;
+      drive(16.7, 160);
+      out.fastKept = r.tier === 'high' && events.length === 0;
+      drive(33.4, 160);
+      out.lowPowerKept = r.tier === 'high' && events.length === 0;
+      drive(60, 120);
+      out.dropped = r.tier === 'lite' && events.length === 1 && events[0].reason === 'slow' && events[0].tier === 'lite' && events[0].mode === 'auto';
+      out.lite = r.ice.floeMaterials.every(function (m) { return m.defines.ICE_LAYERS === '0'; }) && r.keyLight.shadow.mapSize.x === Q.TIER.lite.shadow && r.maxParticles === Q.TIER.lite.particles;
+      out.monitorOff = r.monitor === null;
+      drive(60, 160);
+      out.onceOnly = events.length === 1;
+      r.setMode('high'); events.length = 0; drive(90, 200);
+      out.chosenKept = r.tier === 'high' && events.length === 0 && r.monitor === null;
+      r.setMode('auto'); r.mode = 'auto'; r.setMode('high'); r.mode = 'auto'; r.armMonitor(); events.length = 0;
+      r.reduceMotion = true; drive(90, 200); r.reduceMotion = false;
+      out.idleKept = true;
+      r.gl.render = realRender; r.gesture = false; r.onQualityChange = null;
+      r.setMode('auto');
+      return out;
+    });
+    check('60 fps and 30 fps (Low Power Mode) keep HIGH on AUTO', watch.fastKept && watch.lowPowerKept);
+    check('a sustained slow frame rate drops AUTO to LITE, once, and says why', watch.dropped && watch.onceOnly);
+    check('LITE then really is lighter: no layers, smaller shadow map, smaller particle budget', watch.lite && watch.monitorOff);
+    check('a tier the player chose is never taken away', watch.chosenKept);
+
+    var fb = await page.evaluate(function () {
+      var r = game.renderer, E = TiltEngine, st = E.compile({ id: 'fb', board: ['A..#', '.#..', '...b', 'aB..'] });
+      r.setMode('high'); r.setStage(st, E.initialState(st));
+      r.gl.debug.onShaderError();            // what three.js calls when a program fails to link
+      r.frame(16, performance.now());
+      var m = [].concat(r.floe.material)[0], out = {
+        swapped: r.fallbackUsed === true && m.isMeshStandardMaterial === true && !m.isMeshPhysicalMaterial,
+        again: false
+      };
+      r.setStage(st, E.initialState(st));    // and the next stage keeps the plain ice
+      r.frame(16, performance.now() + 16);
+      out.again = [].concat(r.floe.material)[0].isMeshStandardMaterial === true && r.gl.getContext().getError() === 0;
+      return out;
+    });
+    check('a shader that will not compile falls back to plain ice instead of an empty pool', fb.swapped && fb.again);
+
     check('no console errors during renderer contracts', errors.length === 0, errors.join(' | '));
   } finally {
     if (browser) await browser.close();
