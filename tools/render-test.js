@@ -134,7 +134,7 @@ function serve() {
         result.directions=result.directions&&r.particles.length>0&&r.particles.every(function(p){
           return p.dx===dv[0]&&p.dy===dv[1]&&p.vx*dv[0]+p.vy*dv[1]<=0;
         });
-        result.types=result.types&&['shard','skate','frost','grain'].every(function(kind){
+        result.types=result.types&&['frost','grain'].every(function(kind){
           return r.particles.some(function(p){return p.kind===kind;});
         });
         r.frame(16,r.anim.t0+96);
@@ -142,8 +142,9 @@ function serve() {
       });
       [8,16,32].forEach(function(dt){
         r.setStage(st,E.initialState(st));r.playMove(E.simulate(st,r.state,'R'),function(){});
+        var calls=0,orig=r.iceSpray;r.iceSpray=function(){calls++;return orig.apply(r,arguments);};
         for(var time=dt;time<=96;time+=dt)r.emitSlideIce(time);
-        counts.push(r.particles.length);
+        r.iceSpray=orig;counts.push(calls);
       });
       result.refresh=counts.every(function(n){return n===counts[0];});
       r.setStage(st,E.initialState(st));r.playMove(E.simulate(st,r.state,'R'),function(){});

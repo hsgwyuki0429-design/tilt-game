@@ -660,13 +660,15 @@
       map: S.blob, color: '#d8edf1', transparent: true, opacity: .22, depthWrite: false }), MAX_PARTICLES);
     // Grains: thousands of tiny ragged flakes lying on the ice behind a slider,
     // a spray that thins out and fades rather than a painted stroke.
-    var flake = new T.BufferGeometry(), fv = [], fa = [0, .9, 1.9, 2.7, 3.9, 5.2], fr = [.5, .28, .55, .3, .5, .26], fi;
-    fv.push(0, 0, 0);
-    for (fi = 0; fi < fa.length; fi++) fv.push(Math.cos(fa[fi]) * fr[fi], 0, Math.sin(fa[fi]) * fr[fi]);
+    var flake = new T.BufferGeometry(), fv = [0, 0, 0], fi, FN = 11;
+    for (fi = 0; fi < FN; fi++) {
+      var fa = fi / FN * Math.PI * 2, fr = .5 * (.8 + .2 * Math.sin(fi * 2.7 + 1.3) * Math.cos(fi * 1.1));
+      fv.push(Math.cos(fa) * fr, 0, Math.sin(fa) * fr);
+    }
     flake.setAttribute('position', new T.Float32BufferAttribute(fv, 3));
-    var fx = []; for (fi = 1; fi <= fa.length; fi++) fx.push(0, fi, fi % fa.length + 1);
+    var fx = []; for (fi = 1; fi <= FN; fi++) fx.push(0, fi, fi % FN + 1);
     flake.setIndex(fx);
-    this.grains = new T.InstancedMesh(flake, new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .95,
+    this.grains = new T.InstancedMesh(flake, new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .92,
       depthWrite: false, side: T.DoubleSide }), MAX_PARTICLES);
     this.grains.setColorAt(0, new T.Color('#fff'));
     this.grains.renderOrder = 6;
@@ -1042,29 +1044,28 @@
   };
   /* A white ribbon follows the contact patch, then dissolves into blue ice
      grains. Distance-based segments join at every refresh rate. */
-  var GRAIN_COLORS = ['#ffffff', '#e6f8ff', '#a9dcff', '#74c0fa', '#4a9cf0', '#3a82e6'];
+  var GRAIN_COLORS = ['#2f7df0', '#3a86f4', '#2a72e8', '#4592f6'];
   Renderer.prototype.iceSpray = function (x, y, dx, dy, speed, impact) {
     if (this.reduceMotion) return;
-    var count = impact ? 28 : (this.tier === 'lite' ? 16 : 38);
+    // One solid white streak right behind the slider, and a band of blue
+    // blobs the width of the slider that thins out and fades behind it.
+    var count = impact ? 30 : (this.tier === 'lite' ? 16 : 36);
     for (var j = 0; j < count; j++) {
-      var kind = !impact && j === 0 ? 'frost' : !impact && j === 1 ? 'skate' : j % 6 === 2 ? 'shard' : 'grain';
-      var along, across, hard = impact ? 1.25 : 1;
-      if (impact) { along = .12 + Math.random() * .2; across = (Math.random() - .5) * .8; }
-      else { along = -.08 - Math.random() * .5; across = (Math.random() * 2 - 1) * .42; }
-      if (kind === 'frost') { along = -.28; across = 0; }
+      var kind = !impact && j === 0 ? 'frost' : 'grain';
+      var along, across;
+      if (impact) { along = .1 + Math.random() * .25; across = (Math.random() * 2 - 1) * .5; }
+      else { along = -.1 - Math.random() * .75; across = (Math.random() * 2 - 1) * .46; }
+      if (kind === 'frost') { along = -.3; across = 0; }
       var px = x + dx * along - dy * across, py = y + dy * along + dx * across;
       if (this.groundAt(px, py) < 0) continue;
-      var surface = kind === 'skate' || kind === 'frost';
-      var grain = kind === 'grain';
-      var drift = (Math.random() - .5) * .00022 * hard, back = (.00004 + Math.random() * .00014) * speed;
-      var up = surface ? 0 : grain ? Math.random() * .00018 : (.00045 + Math.random() * .0009) * hard;
-      var p = { kind: kind, x: px, y: py, z: surface ? .008 : grain ? .016 + Math.random() * .05 : .022,
-        vx: surface ? 0 : -dx * back - dy * drift, vy: surface ? 0 : -dy * back + dx * drift, vz: up,
-        life: 0, max: kind === 'frost' ? 300 : kind === 'skate' ? 420 : grain ? 650 + Math.random() * 800 : 420 + Math.random() * 220,
-        size: kind === 'frost' ? .5 : grain ? .05 + Math.random() * .1 : .018 + Math.random() * .018,
-        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * (grain ? .004 : .008),
-        dx: dx, dy: dy };
-      if (grain) p.col = GRAIN_COLORS[(Math.random() * Math.random() * GRAIN_COLORS.length) | 0];
+      var grain = kind === 'grain', drift = (Math.random() - .5) * .00012, back = Math.random() * .00006 * speed;
+      var p = { kind: kind, x: px, y: py, z: grain ? .016 + Math.random() * .03 : .012,
+        vx: grain ? -dx * back - dy * drift : 0, vy: grain ? -dy * back + dx * drift : 0, vz: 0,
+        life: 0, max: grain ? 480 + Math.random() * 640 : 340,
+        size: grain ? .07 + Math.random() * .12 : .86,
+        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .002,
+        aspect: .5 + Math.random() * 1.1, dx: dx, dy: dy };
+      if (grain) p.col = GRAIN_COLORS[(Math.random() * GRAIN_COLORS.length) | 0];
       this.particles.push(p);
     }
     this.trimParticles();
@@ -1363,16 +1364,16 @@
         tmpM.compose(tmpV, tmpQ, tmpS); this.shards.geometry.attributes.wakeAlpha.setX(ns, Math.min(1, f * 2));
         this.shards.setMatrixAt(ns++, tmpM);
       } else if (p.kind === 'grain') {
-        var gs = p.size * (.45 + .55 * Math.sqrt(f));
-        tmpE.set(0, p.angle, 0); tmpQ.setFromEuler(tmpE); tmpS.set(gs, 1, gs * (.7 + .3 * Math.sin(p.angle * 3)));
+        var gs = p.size * (.35 + .65 * Math.sqrt(f));
+        tmpE.set(0, p.angle, 0); tmpQ.setFromEuler(tmpE); tmpS.set(gs * p.aspect, 1, gs / p.aspect);
         tmpM.compose(tmpV, tmpQ, tmpS); tmpC.set(p.col);
-        this.grains.geometry.attributes.wakeAlpha.setX(ng, Math.min(1, f * 1.8));
+        this.grains.geometry.attributes.wakeAlpha.setX(ng, Math.min(1, f * 3));
         this.grains.setColorAt(ng, tmpC); this.grains.setMatrixAt(ng++, tmpM);
       } else if (p.kind === 'frost') {
         var fs = p.size * (.6 + .4 * f);
         tmpE.set(0, Math.atan2(p.dx, p.dy), 0); tmpQ.setFromEuler(tmpE);
-        tmpS.set(fs, 1, .23);
-        tmpM.compose(tmpV, tmpQ, tmpS); this.puffs.geometry.attributes.wakeAlpha.setX(np, f * f);
+        tmpS.set(fs, 1, .34);
+        tmpM.compose(tmpV, tmpQ, tmpS); this.puffs.geometry.attributes.wakeAlpha.setX(np, Math.min(1, f * 1.6));
         this.puffs.setMatrixAt(np++, tmpM);
       } else if (p.kind === 'skate') {
         tmpQ.setFromAxisAngle(new T.Vector3(0, 1, 0), Math.atan2(p.dx, p.dy));
