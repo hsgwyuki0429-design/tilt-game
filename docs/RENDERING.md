@@ -101,7 +101,7 @@ corners and the bevel need no UV coordinates.
 |---|---|---|
 | pixel ratio cap | 2 | 1.5 |
 | shadow map | 2048² | 1024² |
-| particle budget | 8,000 | 3,000 |
+| particle budget | 5,000 | 2,600 |
 | layers looked into | 5 | 0 (one flat layer of fractures) |
 | detail texture | 512² | 256² |
 | caustics, glitter, foam | yes | no |
@@ -161,12 +161,15 @@ When a swipe is held, the floe — not the canvas — leans up to 5° in 3D towa
 the direction gravity is about to go, and the water stays level around it.
 
 A sliding penguin leaves a solid white streak right behind it and, behind that,
-a band of **tiny flakes** the width of the penguin, copied from the reference
-video. Every 0.075 cell on HIGH (0.12 on LITE) 140 (60) rounded flakes, a few
-hundredths of a cell across, are laid on the ice in one flat ice-white, fully
-opaque and unlit, so where they overlap nothing shows: the band reads as one
-grainy mass. A stop adds thirty. The flakes shrink away over 0.5–1.1 s and the
-streak fades over 0.34 s. All are instanced meshes with no depth writes,
+a band of **ice flakes** about the penguin's width, copied from the reference
+video frame by frame. Every 0.075 cell on HIGH (0.12 on LITE) 46 (44) small
+rounded flakes, 0.06–0.12 cell across, are laid on the ice, denser in the middle
+than at the ragged edges, enough to hide the floor under the band. They are one
+flat white, opaque, unlit and outside tone mapping, so the band stands out from
+pale ice and overlapping flakes never show as layers. The streak fades in
+0.13 s, so only the stretch just behind the penguin is solid; the flakes creep
+outward, shrink and vanish over 0.5–1.1 s, oldest end first. A stop adds
+thirty. All are instanced meshes with no depth writes,
 within the tier's budget. Emission is distance-based at every
 refresh rate and starts only over ice. A flake that lands
 on water sinks. A penguin stopped at the edge of the ice sends a ring across

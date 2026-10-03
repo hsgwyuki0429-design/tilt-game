@@ -33,7 +33,7 @@
   var SQUASH = 150;
   var AIM_SLIDE = .3;
   var MAX_CELL = 112;
-  var MAX_PARTICLES = 8000;
+  var MAX_PARTICLES = 5000;
   var VANISH = 420;
   var TILT_DEG = 5;
 
@@ -653,9 +653,9 @@
     shard.computeVertexNormals();
     this.shards = new T.InstancedMesh(shard, new T.MeshPhysicalMaterial({ color: '#8dd9eb', roughness: .32,
       clearcoat: .45, transparent: true, opacity: .72, depthWrite: false }), MAX_PARTICLES);
-    // Frost lies on the ice, using the same cool, soft tones as the floe.
-    this.puffs = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ map: S.wake, color: '#f3fdff',
-      transparent: true, opacity: .88, depthWrite: false }), MAX_PARTICLES);
+    // The streak right behind a slider: flat, solid white, like the flakes.
+    this.puffs = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: '#ffffff',
+      toneMapped: false, transparent: true, opacity: 1, depthWrite: false }), MAX_PARTICLES);
     this.marks = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({
       map: S.blob, color: '#d8edf1', transparent: true, opacity: .22, depthWrite: false }), MAX_PARTICLES);
     // Grains: thousands of tiny ragged flakes lying on the ice behind a slider,
@@ -668,7 +668,9 @@
     flake.setAttribute('position', new T.Float32BufferAttribute(fv, 3));
     var fx = []; for (fi = 1; fi <= FN; fi++) fx.push(0, fi, fi % FN + 1);
     flake.setIndex(fx);
-    this.grains = new T.InstancedMesh(flake, new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 1,
+    // Opaque, unlit and outside tone mapping: the brightest white the screen
+    // has, so the band stands out from pale ice and overlaps never show.
+    this.grains = new T.InstancedMesh(flake, new T.MeshBasicMaterial({ color: '#ffffff', toneMapped: false,
       depthWrite: false, side: T.DoubleSide }), MAX_PARTICLES);
     this.grains.setColorAt(0, new T.Color('#fff'));
     this.grains.renderOrder = 6;
@@ -1049,20 +1051,23 @@
     if (this.reduceMotion) return;
     // One solid white streak right behind the slider, and a band of blue
     // blobs the width of the slider that thins out and fades behind it.
-    var count = impact ? 30 : (this.tier === 'lite' ? 60 : 140);
+    var count = impact ? 30 : (this.tier === 'lite' ? 44 : 46);
     for (var j = 0; j < count; j++) {
       var kind = !impact && j === 0 ? 'frost' : 'grain';
       var along, across;
       if (impact) { along = .1 + Math.random() * .25; across = (Math.random() * 2 - 1) * .5; }
-      else { along = -.1 - Math.random() * .75; across = (Math.random() * 2 - 1) * .46; }
+      // Denser in the middle with ragged edges, never a hard-edged rectangle.
+      else { along = -.1 - Math.random() * .75; across = (Math.random() + Math.random() + Math.random() - 1.5) * .4; }
       if (kind === 'frost') { along = -.3; across = 0; }
       var px = x + dx * along - dy * across, py = y + dy * along + dx * across;
       if (this.groundAt(px, py) < 0) continue;
-      var grain = kind === 'grain', drift = (Math.random() - .5) * .00012, back = Math.random() * .00006 * speed;
+      var grain = kind === 'grain', back = Math.random() * .00006 * speed;
+      // Flakes creep outward from the path as they fade, as in the reference.
+      var drift = (across < 0 ? -1 : 1) * (.00003 + Math.random() * .00017);
       var p = { kind: kind, x: px, y: py, z: grain ? .016 + Math.random() * .03 : .012,
         vx: grain ? -dx * back - dy * drift : 0, vy: grain ? -dy * back + dx * drift : 0, vz: 0,
-        life: 0, max: grain ? 480 + Math.random() * 640 : 340,
-        size: grain ? .016 + Math.random() * .026 : .86,
+        life: 0, max: grain ? 480 + Math.random() * 640 : 130,
+        size: grain ? .06 + Math.random() * .06 : .86,
         angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .002,
         aspect: .6 + Math.random() * .8, dx: dx, dy: dy };
       if (grain) p.col = GRAIN_COLORS[(Math.random() * GRAIN_COLORS.length) | 0];
@@ -1135,7 +1140,7 @@
       if (surface) { p.z = .008; p.vx = 0; p.vy = 0; }
       else { p.z += p.vz * step; p.vz -= .000012 * step; }
       if (p.angle != null) p.angle += p.spin * step;
-      var drag = Math.exp(-step * (p.z <= floor + .01 ? .013 : .002)); p.vx *= drag; p.vy *= drag;
+      var drag = Math.exp(-step * (p.kind === 'grain' ? .002 : p.z <= floor + .01 ? .013 : .002)); p.vx *= drag; p.vy *= drag;
       if (p.z < floor) {
         if (floor < 0) { p.life = Math.max(p.life, p.max - 60); }   // into the water
         p.z = floor; p.vz *= -.22; p.spin *= .55;
