@@ -1,10 +1,15 @@
 # Supplied ice-world face textures
 
-The live renderer uses the 16 standalone PNGs in `faces/`. They are the supplied
-game assets, resized from 1254×1254 to 512×512 for mobile decode cost. No artwork
-is regenerated and no contact sheet is sliced at runtime.
+The WebGL floe renderer maps one of these images: `goal-top.png`, recoloured
+per penguin, is the aurora on the ice. The ice, water and penguins are geometry
+and procedural textures, and there are no walls any more, so the other face
+PNGs below are retained as supplied source material but not loaded by the game.
+The expression drawings (`penguin-face-*`, `penguin-orange-*`,
+`penguin-purple-*`) are still preloaded by `src/expression.js`.
 
-## Semantic face map
+They were resized from 1254×1254 to 512×512 for mobile decode cost.
+
+## Semantic face map (the earlier 2D renderer)
 
 - `ice-top.png`: normal ice top; reused on normal-ice sides because no separate
   side was supplied.

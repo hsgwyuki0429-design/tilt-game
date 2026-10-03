@@ -711,12 +711,13 @@ async function swipe(page, x, y, dx, dy) {
     await page.evaluate(function (i) { window.game.loadStage(i); }, biggest.index);
     await page.waitForTimeout(260);
     var fit = await page.evaluate(function () {
-      var g = window.game, r = g.renderer;
-      var bw = r.cell * g.stage.w, bh = r.cell * g.stage.h;
+      var g = window.game, r = g.renderer, b = r.boardBounds;
+      // The far row's penguin tops and the near rim of the floe stay in view.
+      var top = r.project(0, 0, .8), bottom = r.project(g.stage.w, g.stage.h, -.36);
       var doc = document.documentElement;
       return {
         cell: r.cell,
-        fits: r.ox >= 0 && r.oy >= 0 && bw <= r.cssW + 0.5 && bh <= r.cssH + 0.5,
+        fits: b.left >= -.5 && b.right <= r.cssW + .5 && top.y >= 0 && bottom.y <= r.cssH + .5,
         hScroll: doc.scrollWidth > doc.clientWidth,
         vScroll: doc.scrollHeight > doc.clientHeight
       };

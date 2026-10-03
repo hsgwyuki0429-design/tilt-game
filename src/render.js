@@ -452,7 +452,7 @@
     body.position.y = PENGUIN * .53 + .01;
     body.castShadow = true; body.receiveShadow = true;
     var beak = new T.Mesh(kit.beak, kit.orange);
-    beak.position.set(0, PENGUIN * .6, PENGUIN * .46 + .07); beak.castShadow = true;
+    beak.position.set(0, PENGUIN * .6, PENGUIN * .46 + .07);
     var feet = [-1, 1].map(function (s) {
       var f = new T.Mesh(kit.foot, kit.orange); f.position.set(s * .15, .03, PENGUIN * .46 - .03); return f;
     });
@@ -489,7 +489,7 @@
     var key = colour + (img ? ':img' : ':plain');
     if (AURORA[key]) return AURORA[key];
     var S = 256, c = canvas(S, S), g = c.getContext('2d'), pal = paletteOf(colour);
-    g.save(); g.beginPath(); g.roundRect(10, 10, S - 20, S - 20, 34); g.clip();
+    g.save(); g.beginPath(); g.roundRect(8, 8, S - 16, S - 16, 58); g.clip();
     if (img) g.drawImage(img, 0, 0, S, S);
     else {
       var r = g.createRadialGradient(S / 2, S / 2, 4, S / 2, S / 2, S * .55);
@@ -554,6 +554,7 @@
     canvasEl.addEventListener('webglcontextlost', function (e) { e.preventDefault(); self.lost = true; }, false);
     canvasEl.addEventListener('webglcontextrestored', function () {
       self.lost = false;
+      self.buildEnvironment();
       if (self.stage) self.setStage(self.stage, self.state);
       if (self.onInvalidate) self.onInvalidate();
     }, false);
@@ -563,13 +564,8 @@
     var S = shared();
     var scene = this.scene = new T.Scene();
     this.camera = new T.PerspectiveCamera(30, 1, .1, 100);
-    var pmrem = new T.PMREMGenerator(this.gl);
-    var sky = colourTexture(skyCanvas());
-    sky.mapping = T.EquirectangularReflectionMapping;
-    scene.environment = pmrem.fromEquirectangular(sky).texture;
-    sky.dispose();
+    this.buildEnvironment();
     scene.environmentIntensity = .55;
-    pmrem.dispose();
 
     scene.add(new T.HemisphereLight('#f4fbff', '#4f9fbd', .95));
     var key = this.keyLight = new T.DirectionalLight('#fff4e4', 2.8);
@@ -586,9 +582,9 @@
 
     // The pool. The floe tilts in it; the water stays level.
     var water = this.water = new T.Mesh(new T.CircleGeometry(1, 96).rotateX(-Math.PI / 2),
-      new T.MeshPhysicalMaterial({ color: '#3f9fbe', roughness: .06, metalness: 0, transparent: true, opacity: .86,
+      new T.MeshStandardMaterial({ color: '#3f9fbe', roughness: .06, metalness: 0, transparent: true, opacity: .86,
         normalMap: S.waterNormal, normalScale: new T.Vector2(.12, .12), alphaMap: S.poolAlpha,
-        clearcoat: 1, clearcoatRoughness: .05, depthWrite: false }));
+        depthWrite: false }));
     water.material.normalMap.repeat.set(3, 3);
     water.position.y = -FREEBOARD; water.renderOrder = 2;
     scene.add(water);
@@ -643,6 +639,15 @@
       var tr = new T.Sprite(new T.SpriteMaterial({ map: S.blob, color: '#1d3a5e', transparent: true, depthTest: false, opacity: 0 }));
       tr.renderOrder = 20; tr.visible = false; this.scene.add(tr); this.cueTrail.push(tr);
     }
+  };
+
+  Renderer.prototype.buildEnvironment = function () {
+    var pmrem = new T.PMREMGenerator(this.gl);
+    var sky = colourTexture(skyCanvas());
+    sky.mapping = T.EquirectangularReflectionMapping;
+    if (this.scene.environment) this.scene.environment.dispose();
+    this.scene.environment = pmrem.fromEquirectangular(sky).texture;
+    sky.dispose(); pmrem.dispose();
   };
 
   /* A small studio sky for reflections: pale overhead, a bright horizon,
@@ -758,7 +763,7 @@
     this.sideMaterial = new T.MeshPhysicalMaterial({ vertexColors: true, roughness: .1, clearcoat: 1,
       clearcoatRoughness: .08, ior: 1.31, specularIntensity: 1, emissive: new T.Color('#2d8fb8'), emissiveIntensity: .12 });
     var floe = new T.Mesh(geo, [this.topMaterial, this.sideMaterial]);
-    floe.receiveShadow = true; floe.castShadow = true;
+    floe.receiveShadow = true;
     this.floeGroup.add(floe);
     this.floe = floe;
   };
@@ -774,11 +779,11 @@
       var pal = paletteOf(col), grp = new T.Group();
       grp.position.set(this.wx(gx + .5), 0, this.wz(gy + .5));
       var tex = auroraTexture(col, img);
-      var decal = new T.Mesh(new T.PlaneGeometry(.9, .9).rotateX(-Math.PI / 2),
+      var decal = new T.Mesh(new T.PlaneGeometry(.8, .8).rotateX(-Math.PI / 2),
         new T.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: new T.Color('#ffffff'),
           emissiveIntensity: .55, roughness: .3, transparent: true, polygonOffset: true, polygonOffsetFactor: -2 }));
       decal.position.y = .004; decal.receiveShadow = true; decal.renderOrder = 1;
-      var glow = new T.Mesh(new T.PlaneGeometry(1.08, 1.08).rotateX(-Math.PI / 2),
+      var glow = new T.Mesh(new T.PlaneGeometry(.95, .95).rotateX(-Math.PI / 2),
         new T.MeshBasicMaterial({ map: S.blob, color: new T.Color(pal.hi), transparent: true, opacity: .32,
           blending: T.AdditiveBlending, depthWrite: false }));
       glow.position.y = .012; glow.renderOrder = 2;
