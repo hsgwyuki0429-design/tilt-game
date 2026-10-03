@@ -93,28 +93,20 @@
 
   // -- the vocabulary ---------------------------------------------------------
 
-  /* One shared bed of ice texture, built once: white noise roughened by a
-     slowly wandering grain, with sparse crystalline ticks scattered through it
-     (the tiny chips and ridges a sliding body runs over). Every slide plays a
-     different stretch of it, at a slightly different speed, so no two slides
-     sound the same and nothing is allocated per move. */
-  Audio.prototype.iceBed = function () {
-    if (this._ice) return this._ice;
-    var c = this.ctx, sr = c.sampleRate, len = Math.floor(sr * 2.5);
-    var buf = c.createBuffer(1, len, sr), d = buf.getChannelData(0);
-    var rough = 0, tickAmp = 0, decay = Math.exp(-1 / (sr * 0.0006)), i;
+  /* One soft bed of air, built once and shared: smooth noise with no ticks
+     or grit, so a slide is a breath and never a scrape. Every slide plays a
+     different stretch of it. */
+  Audio.prototype.airBed = function () {
+    if (this._air) return this._air;
+    var c = this.ctx, sr = c.sampleRate, len = Math.floor(sr * 2), i;
+    var buf = c.createBuffer(1, len, sr), d = buf.getChannelData(0), last = 0;
     for (i = 0; i < len; i++) {
-      // Grain: a random walk, low-passed to tens of hertz, modulates the depth.
-      rough += ((Math.random() * 2 - 1) - rough) * (360 / sr);
-      var n = (Math.random() * 2 - 1) * (0.62 + 0.38 * Math.max(-1, Math.min(1, rough * 3)));
-      // Ticks: ~900 a second, each a very short, sharp, decaying spike.
-      if (Math.random() < 900 / sr) tickAmp = (0.5 + Math.random()) * (Math.random() < 0.5 ? -1 : 1);
-      var tick = tickAmp * (Math.random() * 0.6 + 0.4); tickAmp *= decay;
-      d[i] = n * 0.55 + tick;
+      // A touch of smoothing takes the fizz off the top.
+      last = last * 0.35 + (Math.random() * 2 - 1) * 0.65;
+      d[i] = last;
     }
-    // Fade both ends so a random start never clicks.
     for (i = 0; i < 256; i++) { d[i] *= i / 256; d[len - 1 - i] *= i / 256; }
-    this._ice = buf;
+    this._air = buf;
     return buf;
   };
 
@@ -130,9 +122,9 @@
   }
 
   /**
-   * A body sliding on ice: a hiss that is bright and loud while it is fast and
-   * dulls as it slows, a faint glassy ring from the sheet itself, and the low
-   * weight of the body pressing on it.
+   * A slide: a soft, rounded "shhh" that swells in and settles as the penguin
+   * slows, with a quiet, gliding hum underneath that makes it feel smooth
+   * rather than noisy. Nothing harsh: no grit, no clicks, no top end.
    *   start  seconds from now      dur   seconds until it comes to rest
    *   cells  how far it travels    pan   -1 (left) .. 1 (right)
    */
@@ -140,92 +132,69 @@
     if (this.muted) return;
     var c = this.ensure();
     if (!c || !(dur > 0)) return;
-    var t0 = c.currentTime + Math.max(0, start || 0), tail = 0.07, span = dur + tail;
-    var bed = this.iceBed(), d = Math.min(cells || 1, 5), k;
-    var src = c.createBufferSource();
-    src.buffer = bed;
-    // A faster body runs over more of the sheet's grain per second, so the
-    // texture itself sinks in pitch and thins out as it slows.
-    var rate = 0.92 + Math.random() * 0.16;
-    src.playbackRate.setValueCurveAtTime(speedCurve(48, rate * 0.55, rate * 1.25, 1), t0, span);
+    var t0 = c.currentTime + Math.max(0, start || 0), tail = 0.09, span = dur + tail;
+    var d = Math.min(cells || 1, 5);
     var out = c.createGain();
-    out.gain.value = 0.62 + d * 0.07;
+    out.gain.value = 0.5 + d * 0.06;
     if (c.createStereoPanner && pan) {
       var panner = c.createStereoPanner();
-      panner.pan.value = Math.max(-0.6, Math.min(0.6, pan * 0.6));
+      panner.pan.value = Math.max(-0.45, Math.min(0.45, pan * 0.45));
       out.connect(panner); panner.connect(this.master);
     } else {
       out.connect(this.master);
     }
 
-    // 1. The scrape: high-passed grain whose brightness follows the speed.
-    var hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1300; hp.Q.value = 0.6;
-    var pk = c.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 4600; pk.Q.value = 0.9; pk.gain.value = 7;
-    var lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.5;
-    var scrape = c.createGain();
-    src.connect(hp); hp.connect(pk); pk.connect(lp); lp.connect(scrape); scrape.connect(out);
+    // The breath: band-passed air whose centre follows the speed.
+    var bed = this.airBed(), src = c.createBufferSource();
+    src.buffer = bed;
+    var bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+    var soft = c.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 5200; soft.Q.value = 0.4;
+    var air = c.createGain();
+    src.connect(bp); bp.connect(soft); soft.connect(air); air.connect(out);
+    var centre = 1700 + Math.random() * 200;
+    bp.frequency.setValueCurveAtTime(speedCurve(48, centre * 0.45, centre, 1), t0, span);
 
-    // 2. The ring: narrow resonances of the sheet, sinking a little as the
-    //    body slows. Quiet, but it is what makes the hiss sound like glass.
-    var ring = c.createGain(), ringLp = c.createBiquadFilter();
-    ringLp.type = 'lowpass'; ringLp.Q.value = 0.5;
-    ring.connect(ringLp); ringLp.connect(out);
-    var base = 2350 + Math.random() * 300, ratios = [1, 1.61, 2.47, 3.38], levels = [1, 0.7, 0.45, 0.3];
-    for (k = 0; k < ratios.length; k++) {
-      var bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 38 + k * 6;
-      bp.frequency.setValueAtTime(base * ratios[k], t0);
-      bp.frequency.linearRampToValueAtTime(base * ratios[k] * 0.93, t0 + span);
-      var bg = c.createGain(); bg.gain.value = levels[k] * 6;
-      src.connect(bp); bp.connect(bg); bg.connect(ring);
-    }
+    // The hum: a mellow glide down a fourth, quiet, an octave set by distance
+    // so a long slide sits a little lower than a short one.
+    var hum = c.createOscillator(), humGain = c.createGain(), humLp = c.createBiquadFilter();
+    hum.type = 'triangle';
+    var f = 392 * Math.pow(2, -(d - 1) / 12);
+    hum.frequency.setValueCurveAtTime(speedCurve(32, f * 0.75, f, 1), t0, span);
+    humLp.type = 'lowpass'; humLp.frequency.value = 1200; humLp.Q.value = 0.3;
+    hum.connect(humLp); humLp.connect(humGain); humGain.connect(out);
 
-    // 3. The weight: a low rumble of the body on the sheet.
-    var low = c.createBiquadFilter(); low.type = 'lowpass'; low.frequency.value = 280; low.Q.value = 0.7;
-    var body = c.createGain();
-    src.connect(low); low.connect(body); body.connect(out);
-
-    // Every level rides the speed curve, after a few ms of attack (no click).
-    function ride(param, hi, power) {
+    // Envelopes: a rounded swell in (no click), then ride the speed down.
+    function ride(param, hi, power, attack) {
       param.setValueAtTime(0.0001, t0);
-      param.linearRampToValueAtTime(hi, t0 + 0.012);
-      param.setValueCurveAtTime(speedCurve(48, 0.0001, hi, power), t0 + 0.013, Math.max(0.02, span - 0.013));
+      param.linearRampToValueAtTime(hi, t0 + attack);
+      param.setValueCurveAtTime(speedCurve(48, 0.0001, hi, power), t0 + attack + 0.001, Math.max(0.02, span - attack - 0.001));
     }
-    ride(scrape.gain, 0.55, 1.1);
-    ride(ring.gain, 0.5, 0.8);
-    ride(body.gain, 0.9, 1.4);
-    lp.frequency.setValueCurveAtTime(speedCurve(48, 2200, 12000, 1), t0, span);
-    ringLp.frequency.setValueCurveAtTime(speedCurve(48, 2600, 14000, 1), t0, span);
+    ride(air.gain, 0.75, 1.2, 0.03);
+    ride(humGain.gain, 0.05, 0.9, 0.04);
 
-    var offset = Math.random() * Math.max(0, bed.duration - span * 1.3 - 0.1);
+    var offset = Math.random() * Math.max(0, bed.duration - span - 0.1);
     src.start(t0, offset);
     src.stop(t0 + span + 0.05);
+    hum.start(t0);
+    hum.stop(t0 + span + 0.05);
   };
 
   /* A swipe: a breath of air as the floe leans. The slide carries the rest. */
   Audio.prototype.tilt = function () {
-    this.noise(0.12, 0.035, 1800);
+    this.noise(0.12, 0.03, 1400);
   };
 
-  /* Struck ice: the inharmonic partials of a small block, each dying fast. */
-  Audio.prototype.clink = function (when, f0, vol) {
-    var c = this.ctx, t0 = c.currentTime + when;
-    var ratios = [1, 2.32, 4.25, 6.63, 9.1], decays = [0.16, 0.1, 0.06, 0.04, 0.025];
-    for (var k = 0; k < ratios.length; k++) {
-      var o = c.createOscillator(), g = c.createGain();
-      o.type = 'sine';
-      o.frequency.value = f0 * ratios[k] * (1 + (Math.random() - 0.5) * 0.01);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.linearRampToValueAtTime(vol / (1 + k * 0.6), t0 + 0.002);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + decays[k]);
-      o.connect(g); g.connect(this.master);
-      o.start(t0); o.stop(t0 + decays[k] + 0.02);
-    }
+  /* A soft, round, pitched knock: a sine that drops a little as it dies, with
+     its octave on top for body. Marimba-ish, never a click. */
+  Audio.prototype.pluck = function (f, dur, vol) {
+    this.tone({ type: 'sine', freq: f, to: f * 0.92, dur: dur, vol: vol });
+    this.tone({ type: 'sine', freq: f * 2, to: f * 1.86, dur: dur * 0.45, vol: vol * 0.28 });
   };
 
   /**
-   * A slide ending. At the edge of the ice: a short scrape-stop and a soft
-   * thump. Against another penguin: two blocks of ice knocking. A longer slide
-   * lands heavier.
+   * A slide ending. At the edge of the ice: a round, soft "tok" that lands
+   * lower after a longer slide. Against another penguin: a springy "pon", a
+   * quick upward blip, like two soft toys bumping.
    */
   Audio.prototype.impact = function (distance, knock) {
     if (this.muted) return;
@@ -233,12 +202,11 @@
     if (!c) return;
     var d = Math.min(distance || 1, 5);
     if (knock) {
-      this.clink(0, 760 + Math.random() * 90, 0.09 + d * 0.012);
-      this.noise(0.03, 0.10 + d * 0.015, 3800);
+      this.tone({ type: 'sine', freq: 300, to: 460, dur: 0.07, vol: 0.16 });
+      this.pluck(440, 0.22, 0.12);
     } else {
-      this.noise(0.07, 0.06 + d * 0.012, 2600);
+      this.pluck(220 * Math.pow(2, -(d - 1) / 24), 0.16, 0.18 + d * 0.015);
     }
-    this.tone({ type: 'sine', freq: 150 - d * 8, to: 62, dur: 0.09, vol: 0.10 + d * 0.02, filter: 400 });
   };
 
   /** Rising through a chain: index 0 is the root, each further piece a step up. */

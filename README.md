@@ -14,7 +14,7 @@ The game is drawn in real 3D with three.js (WebGL): a thick, bevelled slab of ic
 
 **The ice is made to look like ice.** Looking into it you see fractures and trapped bubbles at several depths, each deeper layer shifted by parallax and bluer, because ice absorbs red first; frosted patches glitter; thin edges glow cyan; the joints between cells are chiselled grooves; the flanks run from pale at the lip to glacier blue and catch caustics under the water; the water has a shelf of turquoise, a broken line of foam and the floe's shadow. See [rendering](docs/RENDERING.md).
 
-**It sounds like ice too.** A slide is a glassy scrape that is bright and loud while the penguin is fast, and sinks in pitch and dulls as it slows. A penguin stopping against another knocks like two ice cubes. All of it is synthesised, with no audio files. See [sound](docs/SOUND.md).
+**It sounds good to play.** A slide is a soft, rounded "shhh" with a quiet gliding hum that settles as the penguin slows. Stopping at the edge is a round "tok", and bumping another penguin is a springy "pon", in tune with the goal chime. All of it is synthesised, with no audio files. See [sound](docs/SOUND.md).
 
 **Two graphics tiers.** *High* draws all of that. *Light* draws the same ice flat, with a smaller shadow map, a lower pixel ratio and fewer particles. Settings has an **Auto / High / Light** picker. *Auto* starts in the tier the device suggests, then watches real frames: if a device cannot keep up it drops to Light once, says so, and remembers for two weeks. It has not been measured on real phones yet.
 
