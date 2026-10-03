@@ -865,6 +865,42 @@ async function swipe(page, x, y, dx, dy) {
   ok('device-orientation handlers are absent', inputModes.noSensorHandler);
   ok('settings expose no tilt-control switch', inputModes.noTiltSetting);
 
+  // ── graphics setting ───────────────────────────────────────────────────────
+  console.log('\n\u001b[1mGRAPHICS SETTING\u001b[0m');
+  var gfx = await page.evaluate(async function () {
+    var g = window.game, out = {}, seg = function (m) { return document.querySelector('[data-quality="' + m + '"]'); };
+    g.renderSettings();
+    out.buttons = ['auto', 'high', 'lite'].every(function (m) { return !!seg(m); });
+    out.group = document.querySelector('.seg-row').getAttribute('role') === 'radiogroup' &&
+      seg('auto').getAttribute('role') === 'radio';
+    out.defaultAuto = g.save.data.quality === 'auto' && seg('auto').getAttribute('aria-checked') === 'true';
+    seg('high').click();
+    out.high = g.renderer.tier === 'high' && g.renderer.mode === 'high' && g.save.data.quality === 'high' &&
+      seg('high').getAttribute('aria-checked') === 'true' && seg('auto').getAttribute('aria-checked') === 'false';
+    seg('lite').click();
+    out.lite = g.renderer.tier === 'lite' && g.save.data.quality === 'lite' &&
+      document.querySelector('.seg-row .rs').textContent.length > 0;
+    // A learned downgrade is dropped as soon as the player chooses anything.
+    g.save.set('qualityLearned', { at: Date.now() });
+    seg('high').click();
+    out.forgets = g.save.data.qualityLearned === null;
+    // The renderer announces a drop to LITE once, and the game remembers it and says so.
+    g.renderer.setMode('high'); g.renderer.mode = 'auto'; g.renderer.armMonitor();
+    g.save.set('quality', 'auto'); g.save.set('qualityLearned', null);
+    g.renderer.downgrade('slow');
+    out.learned = g.renderer.tier === 'lite' && !!g.save.data.qualityLearned && typeof g.save.data.qualityLearned.at === 'number';
+    out.toast = /Light|軽量/.test(document.getElementById('toast').textContent);
+    seg('auto').click();
+    out.autoBack = g.save.data.quality === 'auto' && g.save.data.qualityLearned === null;
+    return out;
+  });
+  ok('Settings has an Auto / High / Light picker, as a radio group', gfx.buttons && gfx.group);
+  ok('it starts on Auto', gfx.defaultAuto);
+  ok('choosing High and Light changes the renderer and is saved', gfx.high && gfx.lite);
+  ok('any choice forgets what Auto had learned', gfx.forgets);
+  ok('an automatic drop to Light is remembered and announced', gfx.learned && gfx.toast, JSON.stringify(gfx));
+  ok('going back to Auto starts fresh', gfx.autoBack);
+
   console.log('\n\u001b[1mCONSOLE\u001b[0m');
   ok('no console errors across the whole run', consoleErrors.length === 0, consoleErrors.slice(0, 4).join(' | '));
 

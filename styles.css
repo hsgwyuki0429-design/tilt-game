@@ -832,6 +832,21 @@ body.carded #dock { opacity: 0.3; }
 .row[aria-disabled="true"] { opacity: 0.45; }
 .row.destructive .rt { color: var(--red); }
 
+/* A row whose control is a segmented picker rather than a switch: the label
+   and its note on top, the three choices full width underneath. */
+.row.seg-row { flex-direction: column; align-items: stretch; gap: var(--s2); padding-block: var(--s3); }
+.seg { display: flex; gap: 2px; padding: 2px; border-radius: var(--r-md); background: var(--fill-2); }
+.seg button {
+  flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 var(--s2);
+  border-radius: calc(var(--r-md) - 2px);
+  font-size: var(--t-subhead); font-weight: 500; color: var(--label-2);
+  background: none; transition: background var(--dur-press) linear, color var(--dur-press) linear;
+}
+.seg button[aria-checked="true"] {
+  background: var(--bg-raise); color: var(--label); font-weight: 600;
+  box-shadow: 0 1px 3px var(--shade-2), 0 0 0 0.5px var(--shade);
+}
+
 .group-note {
   margin: calc(var(--s3) * -1 + 2px) var(--s4) var(--s5);
   font-size: var(--t-caption);

@@ -109,6 +109,20 @@
     reduceMo:   { ja: 'アニメーションを減らす', en: 'Reduce motion' },
     reduceNote: { ja: '画面のゆれ、粒子、スライドの演出を止めます。',
                   en: 'Turns off shake, particles and sliding transitions.' },
+    quality:     { ja: '画質', en: 'Graphics' },
+    qualityAuto: { ja: '自動', en: 'Auto' },
+    qualityHigh: { ja: '高画質', en: 'High' },
+    qualityLite: { ja: '軽量', en: 'Light' },
+    qualityNoteAuto: { ja: '端末の性能に合わせて切り替えます。いまは%tです。',
+                       en: 'Follows your device. Showing %t now.' },
+    qualityNoteHigh: { ja: '氷の内部、波、きらめきまで描きます。重い端末ではカクつくことがあります。',
+                       en: 'Draws ice depth, water and glitter. May stutter on slower devices.' },
+    qualityNoteLite: { ja: '氷を簡易表示にして、動きを軽くします。',
+                       en: 'A simpler ice and fewer effects, for a smoother game.' },
+    qualityNowHigh:  { ja: '高画質', en: 'High' },
+    qualityNowLite:  { ja: '軽量', en: 'Light' },
+    qualityDropped: { ja: '動作が重いため、軽量表示に切り替えました。設定で変更できます。',
+                      en: 'Switched to Light graphics because this device is struggling. You can change it in Settings.' },
     resetTitle: { ja: '進行状況を消去しますか？', en: 'Erase all progress?' },
     resetBody:  { ja: 'クリア記録と自己ベストがすべて消え、元に戻せません。',
                   en: 'Every solved stage and best score will be lost. This cannot be undone.' },
@@ -190,7 +204,10 @@
     this.haptics.setEnabled(this.save.data.haptics !== false);
 
     this.canvas = document.getElementById('board');
-    this.renderer = new root.TiltRender.Renderer(this.canvas);
+    this.renderer = new root.TiltRender.Renderer(this.canvas, {
+      mode: this.save.data.quality, learned: this.save.data.qualityLearned
+    });
+    this.renderer.onQualityChange = this.onQualityChange.bind(this);
 
     /*
      * Faces. Built here rather than in loadStage so the images are decoded
@@ -284,6 +301,7 @@
     this.loadStage(this.firstUnsolved());
     this.initHomePreview();
     this.showHome();
+    this.renderer.precompile();
   }
 
   Game.prototype.firstUnsolved = function () {
@@ -309,7 +327,9 @@
   Game.prototype.initHomePreview = function () {
     var canvas=document.getElementById('home-preview');
     if(!canvas)return;
-    var r=this.homeRenderer=new root.TiltRender.Renderer(canvas);
+    // A still picture behind the title: always the light tier, so the second
+    // WebGL context costs a small shadow map and a flat ice.
+    var r=this.homeRenderer=new root.TiltRender.Renderer(canvas,{tier:'lite'});
     var stage=E.compile({id:0,name:'ICE',par:1,board:['.a..','A.#.','.#B.','..b.']});
     var state=E.initialState(stage);
     r.reduceMotion=true;
@@ -1364,6 +1384,18 @@
 
     var html = '<div class="list">' + rows.join('') + '</div>';
 
+    // Graphics: three buttons in one segmented control, under a note that
+    // says what the choice means and, for AUTO, what it has picked.
+    var mode = root.TiltQuality.validMode(this.save.data.quality), tier = this.renderer.tier;
+    var qnote = mode === 'auto' ? t('qualityNoteAuto').replace('%t', t(tier === 'high' ? 'qualityNowHigh' : 'qualityNowLite'))
+      : t(mode === 'high' ? 'qualityNoteHigh' : 'qualityNoteLite');
+    html += '<div class="list"><div class="row seg-row" role="radiogroup" aria-label="' + esc(t('quality')) + '">' +
+      '<span class="rl"><span class="rt">' + esc(t('quality')) + '</span><span class="rs">' + esc(qnote) + '</span></span>' +
+      '<span class="seg">' + ['auto', 'high', 'lite'].map(function (m) {
+        return '<button type="button" role="radio" data-quality="' + m + '" aria-checked="' + (m === mode ? 'true' : 'false') + '">' +
+          esc(t('quality' + m.charAt(0).toUpperCase() + m.slice(1))) + '</button>';
+      }).join('') + '</span></div></div>';
+
     html += '<div class="list">' +
       '<button class="row tap" type="button" data-act="howto">' +
         icon('help') +
@@ -1381,6 +1413,9 @@
     list.querySelectorAll('[data-set]').forEach(function (el) {
       el.addEventListener('click', function () { self.toggleSetting(el.getAttribute('data-set')); });
     });
+    list.querySelectorAll('[data-quality]').forEach(function (el) {
+      el.addEventListener('click', function () { self.setQualityMode(el.getAttribute('data-quality')); });
+    });
     list.querySelectorAll('[data-act]').forEach(function (el) {
       el.addEventListener('click', function () {
         var act = el.getAttribute('data-act');
@@ -1388,6 +1423,27 @@
         else if (act === 'reset') self.askReset();
       });
     });
+  };
+
+  /* The player's graphics choice. Any explicit choice forgets what AUTO had
+     learned, so going back to AUTO gives the device a fresh chance at HIGH. */
+  Game.prototype.setQualityMode = function (mode) {
+    mode = root.TiltQuality.validMode(mode);
+    this.save.set('quality', mode);
+    this.save.set('qualityLearned', null);
+    this.renderer.setMode(mode, null);
+    this.audio.ui(false);
+    this.wake();
+    this.renderSettings();
+  };
+
+  /* The renderer changed tier by itself. If the device was too slow for HIGH,
+     remember it and say so; a tier the player picked needs no announcement. */
+  Game.prototype.onQualityChange = function (e) {
+    if (e.reason !== 'slow') return;
+    this.save.set('qualityLearned', { at: Date.now() });
+    this.showToast(t('qualityDropped'));
+    if (this.sheets.length) this.renderSettings();
   };
 
   Game.prototype.toggleSetting = function (key) {
@@ -1437,6 +1493,7 @@
       el.remove();
       if (!yes) { self.audio.ui(false); return; }
       self.save.reset();
+      self.renderer.setMode('auto', null);
       self.applyMotion();
       self.haptics.setEnabled(true);
       self.audio.setMuted(false);

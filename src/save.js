@@ -30,7 +30,12 @@
       // between somebody who needs to be shown the gesture and somebody who has
       // been playing for a week, and it is the only thing the first-run cue asks.
       everMoved: false,
-      seenHowTo: false
+      seenHowTo: false,
+      // Graphics: 'auto' follows the device, 'high' and 'lite' are fixed.
+      quality: 'auto',
+      // When AUTO last had to drop this device to LITE ({ at: epoch ms }), so
+      // the next launch starts there instead of stuttering through it again.
+      qualityLearned: null
     };
   }
 
@@ -76,6 +81,10 @@
       if (typeof parsed.reduceMotion === 'boolean') d.reduceMotion = parsed.reduceMotion;
       if (typeof parsed.everMoved === 'boolean') d.everMoved = parsed.everMoved;
       if (typeof parsed.seenHowTo === 'boolean') d.seenHowTo = parsed.seenHowTo;
+      if (parsed.quality === 'auto' || parsed.quality === 'high' || parsed.quality === 'lite') d.quality = parsed.quality;
+      if (parsed.qualityLearned && typeof parsed.qualityLearned.at === 'number' && isFinite(parsed.qualityLearned.at)) {
+        d.qualityLearned = { at: parsed.qualityLearned.at };
+      }
       this.data = d;
     } catch (e) {
       // A save we cannot read is worse than no save: start clean rather than

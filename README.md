@@ -10,7 +10,11 @@ There are no walls. A cell with no ice is open water, and the edge of the ice st
 
 The order is set by how hard a board is to *find*, not by how long it is. A simulated explorer — it remembers where it has been, leans towards the auroras, grabs collections it is offered, recovers from dead ends and restarts when lost — plays every shortlisted board 600 times, and the campaign climbs its cost geometrically from 2 to 186 swipes while par wanders between 2 and 13. A long board of obvious moves comes early; a short board that needs a penguin parked as a floor for its partner comes late. See [the search report](docs/CAMPAIGN.md).
 
-The game is drawn in real 3D with three.js (WebGL): a thick, bevelled slab of ice floating in a pool of water, engraved cell seams, real lights, shadows and reflections, rounded cube penguins with faces, beaks, feet and flippers, and auroras that glow on the ice. The floe leans in 3D while a swipe is held. See [rendering](docs/RENDERING.md).
+The game is drawn in real 3D with three.js (WebGL): a thick, bevelled slab of ice floating in a pool of water, rounded cube penguins with faces, beaks, feet and flippers, auroras that glow on the ice, real lights, shadows and reflections. The floe leans in 3D while a swipe is held.
+
+**The ice is made to look like ice.** Looking into it you see fractures and trapped bubbles at several depths, each deeper layer shifted by parallax and bluer, because ice absorbs red first; frosted patches glitter; thin edges glow cyan; the joints between cells are chiselled grooves; the flanks run from pale at the lip to glacier blue and catch caustics under the water; the water has a shelf of turquoise, a broken line of foam and the floe's shadow. See [rendering](docs/RENDERING.md).
+
+**Two graphics tiers.** *High* draws all of that. *Light* draws the same ice flat, with a smaller shadow map, a lower pixel ratio and fewer particles. Settings has an **Auto / High / Light** picker. *Auto* starts in the tier the device suggests, then watches real frames: if a device cannot keep up it drops to Light once, says so, and remembers for two weeks. It has not been measured on real phones yet.
 
 New campaign scores are stored separately (`tilt.save.floe.v4`). Sound, haptics and reduced-motion preferences carry over; the old progress remains in storage.
 
@@ -112,7 +116,8 @@ npm test
 
 That runs the campaign/engine tests (every board re-proved by the engine,
 fairness over the full reachable graph, the mutual-interaction claims), the
-floe accelerator agreement check, analysis tests, rectangular accelerator
+floe accelerator agreement check, the graphics-quality decisions, the ice's cell
+map and distance field, analysis tests, rectangular accelerator
 agreement checks, and save migration tests. The analysis tests prove the
 analysis agrees with the solver on all hundred stages and a slice of the index,
 that it does not care which way up a board is drawn or which colour is called A,
