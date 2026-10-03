@@ -120,6 +120,7 @@ async function penguinBox(page) {
     var y0 = Math.max(0, Math.round((c.y - pad) * r.dpr));
     var w = Math.min(r.canvas.width - x0, Math.round(pad * 2 * r.dpr));
     var h = Math.min(r.canvas.height - y0, Math.round(pad * 2 * r.dpr));
+    r.frame(16, performance.now());
     var data = r.readPixels(x0, y0, w, h);
     // The plain ice this cell is drawn on, read from a corner of the sample.
     var bg = [data[0], data[1], data[2]];
@@ -362,7 +363,11 @@ async function penguinBox(page) {
 
   // ── every face renders at exactly the same size and place ──────────────────
   section('NO LAYOUT SHIFT ON A FACE SWAP');
-  await page.evaluate(function () { window.game.reactions.reduceMotion = true; });
+  // Hold everything else still: no swipe cue, no drifting aurora motes.
+  await page.evaluate(function () {
+    window.game.reactions.reduceMotion = true;
+    window.game.renderer.gesture = false; window.game.renderer.reduceMotion = true;
+  });
   var boxes = await page.evaluate(function () { return window.TiltExpression.EXPRESSIONS; })
     .then(async function (names) {
       var out = [];
@@ -394,7 +399,7 @@ async function penguinBox(page) {
       var v = g.reactions.visualFor(0);
       return v.scale === 1 && v.dx === 0 && v.dy === 0;
     });
-    g.reactions.reduceMotion = false;
+    g.reactions.reduceMotion = false; g.renderer.reduceMotion = false;
     // and with motion on, the pose always returns to rest by the end
     var settles = X.EXPRESSIONS.filter(function (n) { return X.ANIM[n]; }).every(function (n) {
       var end = X.pose(X.ANIM[n].kind, 1, 'L');

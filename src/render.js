@@ -434,14 +434,16 @@
     var orange = new T.MeshPhysicalMaterial({ color: '#f39a1f', roughness: .35, clearcoat: .6, clearcoatRoughness: .2 });
     var flipper = new T.MeshPhysicalMaterial({ color: new T.Color(pal.mid), roughness: .55, sheen: .4,
       sheenColor: new T.Color(pal.hi) });
-    KITS[colour] = {
+    var kit = KITS[colour] = {
       body: new T.RoundedBoxGeometry(PENGUIN, PENGUIN * 1.06, PENGUIN * .92, 5, .15),
       beak: new T.ConeGeometry(.075, .17, 16).rotateX(Math.PI / 2),
       foot: new T.SphereGeometry(.075, 16, 10).scale(1.25, .42, 1.55),
       wing: new T.RoundedBoxGeometry(.07, .36, .24, 3, .03),
+      shadow: new T.PlaneGeometry(1.15, 1.15).rotateX(-Math.PI / 2),
       side: side, back: back, top: top, bottom: bottom, orange: orange, flipper: flipper
     };
-    return KITS[colour];
+    Object.keys(kit).forEach(function (k) { kit[k].userData.shared = true; });
+    return kit;
   }
   function makePenguin(colour, contactTex) {
     var kit = penguinKit(colour), g = new T.Group();
@@ -467,7 +469,7 @@
     var lean = new T.Group();
     lean.add(body); lean.add(beak); wings.forEach(function (w) { lean.add(w); });
     g.add(lean); feet.forEach(function (f) { g.add(f); });
-    var shadow = new T.Mesh(new T.PlaneGeometry(1.15, 1.15).rotateX(-Math.PI / 2),
+    var shadow = new T.Mesh(kit.shadow,
       new T.MeshBasicMaterial({ map: contactTex, color: '#174a66', transparent: true, opacity: .42, depthWrite: false }));
     shadow.position.y = .006; shadow.renderOrder = 1;
     g.add(shadow);
@@ -723,9 +725,13 @@
     this.particles.length = 0; this.ripples.length = 0; this.vanishing.length = 0;
   };
 
+  /* Free what a stage built for itself. Penguin kits and shared textures are
+     marked `shared` and outlive every stage. */
   function disposeTree(o) {
     o.traverse(function (n) {
-      if (n.geometry && !n.userData.sharedGeometry) n.geometry.dispose();
+      if (n.geometry && !n.geometry.userData.shared) n.geometry.dispose();
+      var mats = n.material ? (Array.isArray(n.material) ? n.material : [n.material]) : [];
+      mats.forEach(function (m) { if (!m.userData.shared) m.dispose(); });
     });
   }
 
@@ -802,12 +808,12 @@
 
   Renderer.prototype.buildBlocks = function () {
     var st = this.stage, S = shared();
+    this.blockGroup.children.slice().forEach(function (o) { disposeTree(o); });
     this.blockGroup.clear();
     this.blocks = [];
     for (var i = 0; i < st.blocks.length; i++) {
       var colour = st.colour[i];
       var m = colour === E.GRAY ? makeDrifter() : makePenguin(colour, S.contact);
-      m.traverse(function (n) { n.userData.sharedGeometry = true; });
       this.blockGroup.add(m);
       this.blocks.push(m);
     }
