@@ -97,6 +97,9 @@
   function easeOut(p) { return 1-Math.pow(1-p,2.45); }
   function clamp01(v) { return v<0?0:v>1?1:v; }
   function lerp(a,b,t) { return a+(b-a)*t; }
+  /* Deterministic grain: the same board always has the same ice, frame after
+     frame, so texture never shimmers. */
+  function hash(n) { n=Math.sin(n*127.1+311.7)*43758.5453; return n-Math.floor(n); }
 
   /* The supplied images are standalone face assets, not contact sheets. They
      are only resized to a practical 512px decode size; the artwork itself is
@@ -192,7 +195,7 @@
     this.reactions=null;
     this.textureBank=new TextureBank(function(){
       self.textureVersion=(self.textureVersion||0)+1;
-      if(self.stage)self.buildStaticSprites();
+      if(self.stage)self.buildTerrain();
       if(self.onInvalidate)self.onInvalidate();
     });
   }
@@ -257,9 +260,16 @@
     var c=document.createElement('canvas'),dpr=this.dpr;
     c.width=Math.max(1,Math.round(this.cssW*dpr));
     c.height=Math.max(1,Math.round(this.cssH*dpr));
-    var g=c.getContext('2d'); g.scale(dpr,dpr); this.drawDioramaBase(g);
-    this.baseCache=c;
     this.buildStaticSprites();
+    var g=c.getContext('2d'); g.scale(dpr,dpr); this.drawDioramaBase(g);
+    /* Plain and cracked ice never move, so they are painted into the base
+       once, each cell with its own window into the ice texture. A single
+       cached tile repeated across the tray reads as wallpaper; real ice does
+       not repeat. */
+    for(var k=0;k<this.cells.length;k++)if(this.cells[k].material!=='goal')
+      this.drawFloorTile(g,this.cells[k],k+st.w*17+st.h*5);
+    this.floorBaked=true;
+    this.baseCache=c;
   };
 
   Renderer.prototype.drawDioramaBase=function(g){
@@ -278,9 +288,48 @@
     snow.addColorStop(0,'#ffffff');snow.addColorStop(.55,'#f4fbfc');snow.addColorStop(1,'#d6ebee');
     g.fillStyle=snow;g.beginPath();g.roundRect(x,y,w,h,r);g.fill();
     g.strokeStyle='rgba(255,255,255,.95)';g.lineWidth=1.5;g.stroke();
+    this.drawSnowGrain(g,x,y,w,h,r,depth);
     // The inset well ties the floor together instead of framing every texture.
     g.fillStyle='#b9dbe2';g.beginPath();g.roundRect(this.ox-c*.025,this.oy-c*.025,
       this.stage.w*this.stepX+c*.05,this.stage.h*this.stepY+c*.05,c*.08);g.fill();
+    g.restore();
+  };
+
+  /* Packed snow and glacier ice, on the tray's existing shapes and colours:
+     a soft bevel on the snow, sparkling grains, gentle unevenness, and faint
+     layering through the visible ice thickness. */
+  Renderer.prototype.drawSnowGrain=function(g,x,y,w,h,r,depth){
+    var c=this.cell,st=this.stage,fx=this.ox-c*.04,fy=this.oy-c*.04;
+    var fw=st.w*this.stepX+c*.08,fh=st.h*this.stepY+c*.08,k;
+    g.save();g.beginPath();g.roundRect(x,y+depth*.3,w,h+depth*.7,r);g.clip();
+    for(k=0;k<3;k++){var sy=y+h+depth*(.12+k*.25);
+      g.strokeStyle='rgba(255,255,255,'+(.22-k*.05)+')';g.lineWidth=Math.max(.8,c*.012);
+      g.beginPath();g.moveTo(x,sy);
+      for(var sx=x;sx<=x+w+c*.4;sx+=c*.4)g.lineTo(sx,sy+Math.sin(sx/c*2.1+k*1.7)*c*.012);
+      g.stroke();}
+    g.restore();
+    g.save();g.beginPath();g.roundRect(x,y,w,h,r);g.clip();
+    // Snow is never perfectly flat: broad soft drifts catching the light.
+    for(k=0;k<Math.round((w+h)/c*3);k++){
+      var px=x+hash(k*3.1+1)*w,py=y+hash(k*5.7+2)*h,pr=c*(.12+hash(k*1.3)*.22);
+      if(px>fx&&px<fx+fw&&py>fy&&py<fy+fh)continue;
+      var dip=g.createRadialGradient(px,py,0,px,py,pr);
+      dip.addColorStop(0,'rgba(255,255,255,.5)');dip.addColorStop(1,'rgba(255,255,255,0)');
+      g.fillStyle=dip;g.fillRect(px-pr,py-pr,pr*2,pr*2);
+    }
+    // Sparkle: crystals catching the light, with a faint cool shadow grain.
+    var n=Math.round((w+h)*.9),gs=Math.max(.6,c*.011);
+    for(k=0;k<n;k++){
+      var qx=x+hash(k*1.31+3)*w,qy=y+hash(k*2.17+9)*h;
+      if(qx>fx&&qx<fx+fw&&qy>fy&&qy<fy+fh)continue;
+      if(hash(k*4.3)>.55){g.fillStyle='rgba(120,165,185,'+(.12+hash(k)*.14)+')';g.fillRect(qx,qy,gs,gs);}
+      else{g.fillStyle='rgba(255,255,255,'+(.7+hash(k)*.3)+')';g.fillRect(qx,qy,gs,gs);}
+    }
+    // Soft bevel: light along the outer upper-left lip, shade at the inner lip.
+    g.lineWidth=c*.05;g.strokeStyle='rgba(255,255,255,.7)';
+    g.beginPath();g.roundRect(x+c*.015,y+c*.015,w,h,r);g.stroke();
+    g.strokeStyle='rgba(120,165,185,.16)';g.lineWidth=c*.035;
+    g.beginPath();g.roundRect(fx-c*.01,fy-c*.01,fw+c*.02,fh+c*.02,c*.1);g.stroke();
     g.restore();
   };
 
@@ -422,7 +471,7 @@
     var a=this.anim,previous=a.trailTime;a.trailTime=elapsed;
     if(this.reduceMotion||elapsed-previous>100||elapsed<=previous)return;
     for(var i=0;i<a.runs.length;i++){
-      var alive=a.frames[Math.min(a.frames.length-1,Math.floor(elapsed/TICK))].alive[i];
+      var alive=a.frames[Math.max(0,Math.min(a.frames.length-1,Math.floor(elapsed/TICK)))].alive[i];
       if(!alive)continue;
       var p=this.animPos(i,previous),q=this.animPos(i,elapsed);
       var dx=q[0]-p[0],dy=q[1]-p[1],distance=Math.sqrt(dx*dx+dy*dy);
@@ -705,7 +754,9 @@
   };
 
   Renderer.prototype.drawFloor=function(g,c){
+    if(c.material!=='goal'&&this.floorBaked&&!this._buildingSprites)return;
     if(this.blitStaticSprite(g,'floor:'+c.material,c.x,c.y))return;
+    if(c.material!=='goal')return this.drawFloorTile(g,c,0);
     var gap=.014,material=c.material;
     var f={top:this.topFace(c.x+gap,c.y+gap,c.x+1-gap,c.y+1-gap,0)};
     this.drawFace(g,f.top,this.textureBank.face(material,'top'),MATERIAL_STYLE[material].top,
@@ -717,6 +768,60 @@
     if(material==='cracked'&&!this.textureBank.face('cracked','top'))this.drawCracks(g,f.top);
   };
 
+  /**
+   * One ice tile, in the same shape and palette as before, given the depth of
+   * real ice: its own crop of the ice texture, light falling off into the
+   * thickness toward the lower right, a few frozen bubbles, a polished sheen,
+   * and a bevel that catches the light on the upper-left edges.
+   */
+  Renderer.prototype.drawFloorTile=function(g,c,seed){
+    var gap=.014,material=c.material,cell=this.cell,cracked=material==='cracked';
+    var top=this.topFace(c.x+gap,c.y+gap,c.x+1-gap,c.y+1-gap,0),rad=cell*.045;
+    this.drawFace(g,top,null,MATERIAL_STYLE[material].top,null,rad);
+    var tex=this.textureBank.face(material,'top');
+    g.save();roundedPoly(g,top,rad);g.clip();
+    if(tex){
+      var size=tex.naturalWidth||tex.width||FACE_SIZE;
+      var win=cracked?size*.86:size*(.5+hash(seed*3.3)*.18);
+      var sx=cracked?size*.07:size*(.12+hash(seed)*(.76-win/size));
+      var sy=cracked?size*.07:size*(.12+hash(seed*1.7)*(.76-win/size));
+      var cx=(top[0].x+top[2].x)/2,cy=(top[0].y+top[2].y)/2,tw=top[1].x-top[0].x,th=top[3].y-top[0].y;
+      g.save();g.translate(cx,cy);
+      if(!cracked){g.rotate(Math.floor(hash(seed*2.9)*4)*Math.PI/2);if(hash(seed*3.7)>.5)g.scale(-1,1);}
+      var side=Math.max(tw,th);
+      g.globalAlpha=cracked?.66:.42;
+      g.drawImage(tex,sx,sy,win,win,-side/2,-side/2,side,side);
+      g.globalAlpha=cracked?.18:.22;g.globalCompositeOperation='soft-light';
+      g.drawImage(tex,sx,sy,win,win,-side/2,-side/2,side,side);
+      g.restore();
+    }
+    var x0=top[0].x,y0=top[0].y,x1=top[2].x,y1=top[2].y,w=x1-x0,h=y1-y0;
+    // Thickness: clear ice darkens and blues as you look deeper into it.
+    var deep=g.createRadialGradient(x0+w*.78,y0+h*.82,0,x0+w*.7,y0+h*.75,w*.85);
+    deep.addColorStop(0,cracked?'rgba(30,90,130,.16)':'rgba(70,150,190,.17)');
+    deep.addColorStop(1,'rgba(70,150,190,0)');g.fillStyle=deep;g.fillRect(x0,y0,w,h);
+    // Frozen bubbles.
+    for(var b=0;b<(cracked?2:5);b++){
+      var bx=x0+w*(.12+hash(seed*7.1+b)*.76),by=y0+h*(.12+hash(seed*5.3+b*2)*.76);
+      var br=Math.max(.5,cell*(.006+hash(seed+b*3.1)*.012));
+      g.fillStyle='rgba(255,255,255,.55)';g.beginPath();g.arc(bx,by,br,0,Math.PI*2);g.fill();
+      g.fillStyle='rgba(60,130,170,.18)';g.beginPath();g.arc(bx+br*.5,by+br*.6,br*.7,0,Math.PI*2);g.fill();
+    }
+    // Polished surface: a soft diagonal reflection of the sky.
+    var sheen=g.createLinearGradient(x0,y0,x1,y1);
+    sheen.addColorStop(0,'rgba(255,255,255,.26)');sheen.addColorStop(.32,'rgba(255,255,255,.04)');
+    sheen.addColorStop(.42,'rgba(255,255,255,.16)');sheen.addColorStop(.5,'rgba(255,255,255,0)');
+    g.fillStyle=sheen;g.fillRect(x0,y0,w,h);
+    // Bevel: lit upper-left lip, shaded lower-right lip.
+    g.lineWidth=Math.max(1,cell*.022);g.lineCap='round';
+    g.strokeStyle='rgba(255,255,255,.75)';
+    g.beginPath();g.moveTo(x0+rad,y1-rad);g.lineTo(x0+cell*.012,y0+rad);g.moveTo(x0+rad,y0+cell*.012);g.lineTo(x1-rad,y0+cell*.012);g.stroke();
+    g.strokeStyle='rgba(40,110,150,.20)';
+    g.beginPath();g.moveTo(x1-cell*.012,y0+rad);g.lineTo(x1-cell*.012,y1-rad);g.moveTo(x0+rad,y1-cell*.012);g.lineTo(x1-rad,y1-cell*.012);g.stroke();
+    g.restore();
+    if(cracked&&!tex)this.drawCracks(g,top);
+  };
+
   Renderer.prototype.drawWall=function(g,c){
     var key=c.outer?'wall:outer':'wall:smooth';
     if(this.blitStaticSprite(g,key,c.x,c.y))return;
@@ -725,20 +830,57 @@
     var f=this.drawBox(g,{x0:c.x+gap,y0:c.y+gap,x1:c.x+1-gap,y1:c.y+1-gap,
       z0:.015,z1:WALL_HEIGHT,material:'wall-brick',radius:this.cell*.045,
       textures:{top:null,south:null,east:null}});
+    this.drawIceFront(g,f.south);
     this.drawIceBevel(g,f.top);
+  };
+  /* The low front face of the ice block: a bright refraction band under the
+     lip, the body going deeper blue, and light pooling at the foot. */
+  Renderer.prototype.drawIceFront=function(g,face){
+    if(face[3].y-face[0].y<1)return;
+    g.save();roundedPoly(g,face,this.cell*.045);g.clip();faceTransform(g,face,256);
+    var gr=g.createLinearGradient(0,0,0,256);
+    gr.addColorStop(0,'rgba(240,253,255,.75)');gr.addColorStop(.22,'rgba(200,240,250,.12)');
+    gr.addColorStop(.7,'rgba(30,90,125,.14)');gr.addColorStop(1,'rgba(210,245,255,.45)');
+    g.fillStyle=gr;g.fillRect(0,0,256,256);
+    for(var k=0;k<7;k++){var x=hash(k*4.7)*240;
+      var s=g.createLinearGradient(x,0,x+22,0);
+      s.addColorStop(0,'rgba(255,255,255,0)');s.addColorStop(.5,'rgba(255,255,255,'+(.06+hash(k)*.08)+')');
+      s.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=s;g.fillRect(x,0,22,256);}
+    g.restore();
   };
 
   Renderer.prototype.drawIceBevel=function(g,top){
     g.save();roundedPoly(g,top,this.cell*.045);g.clip();faceTransform(g,top,256);
+    // Inside the block: denser, bluer ice toward the lower right, a frosted
+    // cloud of trapped air, and a few bubbles — shapeless, so nothing in it
+    // ever reads as a mark.
+    var body=g.createRadialGradient(180,190,8,160,170,220);
+    body.addColorStop(0,'rgba(70,160,205,.38)');body.addColorStop(.6,'rgba(120,195,225,.14)');
+    body.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=body;g.fillRect(0,0,256,256);
+    [[78,150,52,.26],[170,92,38,.20],[140,196,30,.14]].forEach(function(c){
+      var cl=g.createRadialGradient(c[0],c[1],0,c[0],c[1],c[2]);
+      cl.addColorStop(0,'rgba(255,255,255,'+c[3]+')');cl.addColorStop(1,'rgba(255,255,255,0)');
+      g.fillStyle=cl;g.fillRect(c[0]-c[2],c[1]-c[2],c[2]*2,c[2]*2);});
+    [[60,70,5],[196,150,4],[110,206,3.5],[208,62,3],[150,120,2.5]].forEach(function(b){
+      g.fillStyle='rgba(255,255,255,.75)';g.beginPath();g.arc(b[0],b[1],b[2],0,Math.PI*2);g.fill();
+      g.fillStyle='rgba(50,120,160,.22)';g.beginPath();g.arc(b[0]+b[2]*.5,b[1]+b[2]*.6,b[2]*.7,0,Math.PI*2);g.fill();});
+    // Frost settled along the far edge.
+    var frost=g.createLinearGradient(0,0,0,64);
+    frost.addColorStop(0,'rgba(255,255,255,.6)');frost.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=frost;g.fillRect(0,0,256,64);
     // Thin inward bevel: the frosted cap never extends beyond the ice body.
-    g.strokeStyle='rgba(255,255,255,.80)';g.lineWidth=8;
+    g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=8;
     g.beginPath();g.moveTo(4,246);g.lineTo(4,4);g.lineTo(246,4);g.stroke();
-    g.strokeStyle='rgba(82,148,173,.23)';g.lineWidth=7;
+    g.strokeStyle='rgba(82,148,173,.26)';g.lineWidth=7;
     g.beginPath();g.moveTo(252,12);g.lineTo(252,252);g.lineTo(12,252);g.stroke();
     var gleam=g.createLinearGradient(0,0,256,210);
     gleam.addColorStop(0,'rgba(255,255,255,.30)');gleam.addColorStop(.45,'rgba(255,255,255,.06)');
-    gleam.addColorStop(.47,'rgba(255,255,255,.22)');gleam.addColorStop(1,'rgba(255,255,255,0)');
-    g.fillStyle=gleam;g.fillRect(8,8,240,240);g.restore();
+    gleam.addColorStop(.47,'rgba(255,255,255,.20)');gleam.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=gleam;g.fillRect(8,8,240,240);
+    var sp=g.createRadialGradient(64,48,2,64,48,52);
+    sp.addColorStop(0,'rgba(255,255,255,.8)');sp.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=sp;g.fillRect(0,0,140,120);
+    g.restore();
   };
 
   Renderer.prototype.drawCracks=function(g,top){
@@ -815,27 +957,58 @@
       textures:{top:null,south:null,east:null},
       southShade:d.inert?'rgba(185,213,220,.22)':'rgba(0,18,30,.025)',
       eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
+    this.drawPlumage(g,f.south,1);
     // The readable face is formed on the upward plane of the solid cube.
     this.drawCubePenguinFace(g,f.top,re?re.expression:'normal');
     var beakZ=.035+lift+h+.015,beakY=cy+.13;
     var nose=[this.project(cx-.065,beakY,beakZ),this.project(cx,beakY,beakZ+.08),
       this.project(cx+.065,beakY,beakZ),this.project(cx,beakY+.10,beakZ-.035)];
-    g.save();g.fillStyle='#ffd36b';drawPoly(g,[nose[0],nose[1],nose[3]]);g.fill();
-    g.fillStyle='#efa92e';drawPoly(g,[nose[1],nose[2],nose[3]]);g.fill();
-    g.fillStyle='#de9027';drawPoly(g,[nose[0],nose[2],nose[3]]);g.fill();g.restore();
+    // Same faceted beak, shaded as horn rather than flat plastic: each facet
+    // falls off toward its edge, with a glossy ridge and a soft cast shadow.
+    g.save();g.fillStyle='rgba(120,70,10,.22)';
+    drawPoly(g,[{x:nose[0].x+this.cell*.01,y:nose[0].y+this.cell*.03},{x:nose[2].x+this.cell*.01,y:nose[2].y+this.cell*.03},
+      {x:nose[3].x+this.cell*.012,y:nose[3].y+this.cell*.04}]);g.fill();
+    var fl=g.createLinearGradient(nose[0].x,nose[0].y,nose[3].x,nose[3].y);
+    fl.addColorStop(0,'#ffe08a');fl.addColorStop(1,'#f2b23c');
+    g.fillStyle=fl;drawPoly(g,[nose[0],nose[1],nose[3]]);g.fill();
+    var fr=g.createLinearGradient(nose[1].x,nose[1].y,nose[2].x,nose[3].y);
+    fr.addColorStop(0,'#f4b23a');fr.addColorStop(1,'#d88a1f');
+    g.fillStyle=fr;drawPoly(g,[nose[1],nose[2],nose[3]]);g.fill();
+    var fb=g.createLinearGradient(0,nose[0].y,0,nose[3].y);
+    fb.addColorStop(0,'#e59a2b');fb.addColorStop(1,'#c27717');
+    g.fillStyle=fb;drawPoly(g,[nose[0],nose[2],nose[3]]);g.fill();
+    g.strokeStyle='rgba(255,246,214,.75)';g.lineWidth=Math.max(.6,this.cell*.007);g.lineCap='round';
+    g.beginPath();g.moveTo(nose[1].x,nose[1].y);g.lineTo(nose[3].x,nose[3].y);g.stroke();
+    g.restore();
     var badge=this.project(cx,y1,.035+lift+h*.44);
     g.save();g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=Math.max(1,this.cell*.017);
     glyph(g,badge.x,badge.y,this.cell*.041,paletteOf(d.colour).shape);g.stroke();g.restore();
   };
 
   Renderer.prototype.drawCubePenguinFace=function(g,front,expression){
+    this.drawPlumage(g,front,0);
     g.save();roundedPoly(g,front,this.cell*.05);g.clip();faceTransform(g,front,256);
+    // The same white bib, but feathered: a soft edge where it meets the
+    // coloured plumage, gentle form shading, and fine down along its grain.
     var bib=g.createLinearGradient(40,30,160,252);bib.addColorStop(0,'#ffffff');bib.addColorStop(1,'#e4eff0');
-    g.fillStyle=bib;g.beginPath();g.moveTo(32,233);g.lineTo(32,108);
-    g.bezierCurveTo(32,23,88,21,128,69);g.bezierCurveTo(168,21,224,23,224,108);
-    g.lineTo(224,233);g.quadraticCurveTo(128,256,32,233);g.fill();
-    g.fillStyle='rgba(231,146,135,.35)';
-    g.beginPath();g.ellipse(54,164,17,12,0,0,Math.PI*2);g.ellipse(202,164,17,12,0,0,Math.PI*2);g.fill();
+    function bibPath(){g.beginPath();g.moveTo(32,233);g.lineTo(32,108);
+      g.bezierCurveTo(32,23,88,21,128,69);g.bezierCurveTo(168,21,224,23,224,108);
+      g.lineTo(224,233);g.quadraticCurveTo(128,256,32,233);}
+    g.save();g.shadowColor='rgba(255,255,255,.85)';g.shadowBlur=9;
+    g.fillStyle=bib;bibPath();g.fill();g.restore();
+    g.save();bibPath();g.clip();
+    var form=g.createRadialGradient(118,120,20,128,140,150);
+    form.addColorStop(0,'rgba(255,255,255,0)');form.addColorStop(1,'rgba(90,120,140,.20)');
+    g.fillStyle=form;g.fillRect(0,0,256,256);
+    g.lineCap='round';
+    for(var k=0;k<70;k++){var fx=36+hash(k*2.3)*184,fy=60+hash(k*3.9)*180,fl=6+hash(k*1.7)*9;
+      g.strokeStyle=hash(k*5.1)>.5?'rgba(255,255,255,.7)':'rgba(140,165,180,.16)';g.lineWidth=1.6;
+      g.beginPath();g.moveTo(fx,fy);g.quadraticCurveTo(fx+(fx<128?-2:2),fy+fl*.6,fx+(fx<128?-1:1),fy+fl);g.stroke();}
+    g.restore();
+    // Cheeks: warmth under the down rather than a painted disc.
+    [54,202].forEach(function(cx){var ck=g.createRadialGradient(cx,164,1,cx,164,22);
+      ck.addColorStop(0,'rgba(231,146,135,.42)');ck.addColorStop(1,'rgba(231,146,135,0)');
+      g.fillStyle=ck;g.fillRect(cx-24,140,48,48);});
     g.strokeStyle='#263d49';g.fillStyle='#263d49';g.lineWidth=9;g.lineCap='round';g.lineJoin='round';
     var happy=expression==='good'||expression==='perfect'||expression==='clear';
     var worried=expression==='danger'||expression==='bad';
@@ -848,11 +1021,46 @@
       else if(happy){g.moveTo(x-15,131);g.quadraticCurveTo(x,expression==='clear'?83:103,x+15,131);g.stroke();}
       else if(expression==='fail'){g.moveTo(x-12,104);g.lineTo(x+12,133);g.moveTo(x+12,104);g.lineTo(x-12,133);g.stroke();}
       else if(expression==='miss'){g.moveTo(x-13,124);g.lineTo(x+13,124);g.stroke();}
-      else {g.ellipse(x,expression==='surprise'?114:122,expression==='surprise'?17:13,expression==='surprise'?25:20,0,0,Math.PI*2);g.fill();
-        g.fillStyle='#fff';g.beginPath();g.ellipse(x-4,112,4,6,0,0,Math.PI*2);g.fill();g.fillStyle='#263d49';}
+      else {var ey=expression==='surprise'?114:122,erx=expression==='surprise'?17:13,ery=expression==='surprise'?25:20;
+        g.ellipse(x,ey,erx,ery,0,0,Math.PI*2);g.fill();
+        // A wet eye: warm iris depth, the key-light catchlight, and a faint
+        // second reflection from the ice below.
+        var iris=g.createRadialGradient(x+2,ey+7,1,x,ey+2,ery);
+        iris.addColorStop(0,'rgba(110,72,44,.7)');iris.addColorStop(1,'rgba(110,72,44,0)');
+        g.fillStyle=iris;g.beginPath();g.ellipse(x,ey,erx,ery,0,0,Math.PI*2);g.fill();
+        g.fillStyle='#fff';g.beginPath();g.ellipse(x-4,112,4,6,0,0,Math.PI*2);g.fill();
+        g.fillStyle='rgba(200,240,255,.55)';g.beginPath();g.arc(x+4,ey+ery*.55,2.2,0,Math.PI*2);g.fill();
+        g.fillStyle='#263d49';}
       if(worried){var slope=expression==='bad'?-1:1;
         g.beginPath();g.moveTo(x-15,87+slope*(x<128?10:0));g.lineTo(x+15,87+slope*(x<128?0:10));g.stroke();}
     });
+    g.restore();
+  };
+  /* Feathers, on the penguin's own coloured plumage: short overlapping
+     strokes in the colour's light and shade, a soft sheen where the key light
+     grazes the down, and darker roots toward the lower edge. `front` is 1 for
+     the low front face, 0 for the top. */
+  Renderer.prototype.drawPlumage=function(g,face,front){
+    if(Math.abs(face[3].y-face[0].y)<2)return;
+    g.save();roundedPoly(g,face,this.cell*.06);g.clip();faceTransform(g,face,256);
+    var sh=g.createRadialGradient(70,front?20:40,6,90,front?40:70,front?220:190);
+    sh.addColorStop(0,'rgba(255,255,255,.26)');sh.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=sh;g.fillRect(0,0,256,256);
+    // Overlapping contour feathers: rows of small offset scales, each lit on
+    // its upper rim and shadowed under its lower edge, smaller toward the top.
+    var rows=front?4:9,cols=front?9:9;
+    for(var r=0;r<rows;r++)for(var c=0;c<=cols;c++){
+      var k=r*31+c*7+front*500,fw=256/cols,fh=256/rows;
+      var fx=(c+(r%2)*.5)*fw+(hash(k)-.5)*fw*.2,fy=(r+.55)*fh+(hash(k*1.9)-.5)*fh*.15;
+      var rx=fw*.62,ry=fh*(front?.62:.7);
+      g.strokeStyle='rgba(255,255,255,'+(.06+hash(k*3.3)*.07)+')';g.lineWidth=front?6:3;
+      g.beginPath();g.ellipse(fx,fy,rx,ry,0,Math.PI*1.08,Math.PI*1.92);g.stroke();
+      g.strokeStyle='rgba(60,30,0,'+(.04+hash(k*4.1)*.05)+')';g.lineWidth=front?5:2.5;
+      g.beginPath();g.ellipse(fx,fy+ry*.25,rx*.95,ry,0,Math.PI*.12,Math.PI*.88);g.stroke();
+    }
+    var root=g.createLinearGradient(0,front?80:150,0,256);
+    root.addColorStop(0,'rgba(60,30,0,0)');root.addColorStop(1,'rgba(60,30,0,.16)');
+    g.fillStyle=root;g.fillRect(0,0,256,256);
     g.restore();
   };
   /**
@@ -879,8 +1087,34 @@
     var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+DRIFTER_HEIGHT,
       material:'drifter',radius:this.cell*.075,
       textures:{top:null,south:null,east:null}});
+    this.drawFloeGrain(g,f.top,f.south);
     g.save();roundedPoly(g,f.top,this.cell*.075);g.strokeStyle='rgba(240,252,255,.65)';
     g.lineWidth=1.2;g.stroke();g.restore();
+  };
+  /* Old sea ice, on the same grey slab: uneven density, grit frozen in, a thin
+     dusting of snow on the far half, and a weathered front edge. */
+  Renderer.prototype.drawFloeGrain=function(g,top,front){
+    var k;
+    g.save();roundedPoly(g,top,this.cell*.075);g.clip();faceTransform(g,top,256);
+    for(k=0;k<14;k++){var x=hash(k*2.3)*256,y=hash(k*3.7)*256,rr=22+hash(k*5.1)*38;
+      var m=g.createRadialGradient(x,y,0,x,y,rr);
+      m.addColorStop(0,hash(k)>.5?'rgba(255,255,255,.16)':'rgba(40,52,64,.13)');m.addColorStop(1,'rgba(0,0,0,0)');
+      g.fillStyle=m;g.fillRect(x-rr,y-rr,rr*2,rr*2);}
+    for(k=0;k<20;k++){g.fillStyle='rgba(45,52,60,'+(.18+hash(k*7.7)*.3)+')';
+      g.beginPath();g.arc(28+hash(k*1.9)*200,36+hash(k*8.3)*190,1.4+hash(k*3.3)*3,0,Math.PI*2);g.fill();}
+    var snow=g.createLinearGradient(0,0,0,120);
+    snow.addColorStop(0,'rgba(250,253,255,.62)');snow.addColorStop(1,'rgba(250,253,255,0)');
+    g.fillStyle=snow;g.beginPath();g.moveTo(0,0);g.lineTo(256,0);g.lineTo(256,62);
+    g.bezierCurveTo(200,84,160,56,110,80);g.bezierCurveTo(70,100,30,74,0,92);g.closePath();g.fill();
+    g.restore();
+    if(front[3].y-front[0].y<1)return;
+    g.save();roundedPoly(g,front,this.cell*.05);g.clip();faceTransform(g,front,256);
+    var lip=g.createLinearGradient(0,0,0,256);
+    lip.addColorStop(0,'rgba(255,255,255,.28)');lip.addColorStop(.3,'rgba(255,255,255,0)');
+    lip.addColorStop(1,'rgba(20,30,40,.18)');g.fillStyle=lip;g.fillRect(0,0,256,256);
+    for(k=0;k<8;k++){g.fillStyle='rgba(30,36,44,'+(.14+hash(k*9)*.18)+')';
+      g.fillRect(hash(k*4)*240,70+hash(k*6)*160,5+hash(k)*10,4+hash(k*2)*6);}
+    g.restore();
   };
   Renderer.prototype.drawFloeTop=function(g,face){
     var r=this.cell*.12;
