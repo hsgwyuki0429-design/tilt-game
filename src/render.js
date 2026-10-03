@@ -484,7 +484,9 @@
     this.time=now;var g=this.ctx,st=this.stage;if(!st)return false;
     var busy=false,elapsed=0,i;
     if(this.anim){
-      elapsed=now-this.anim.t0;
+      // RAF's timestamp can precede an input event in the same display frame.
+      // Never use a negative frame index for a newly committed swipe.
+      elapsed=Math.max(0,now-this.anim.t0);
       this.emitSlideIce(elapsed);
       for(i=0;i<this.anim.events.length;i++){
         var ev=this.anim.events[i];if(this.anim.fired[i])continue;

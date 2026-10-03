@@ -6,21 +6,16 @@ A swipe changes gravity to up, right, down, or left. Every live block moves at t
 
 ## Penguins and auroras
 
-A level contains one or two penguins, never two of a colour. Each penguin has one matching aurora, identified by its colour. A penguin is collected only when it stops on its own aurora; crossing an aurora or stopping on another colour does nothing.
+The first level contains one penguin; all other levels contain two, one of each colour. Boards are 4×4 or 5×4. Each penguin has one matching aurora, identified by its colour. A penguin is collected only when it stops on its own aurora; crossing an aurora or stopping on another colour does nothing.
 
-## Drifters
+## Shared brakes
 
-A drifter is the grey slab. It obeys gravity like everything else, but no aurora accepts it, so it is never collected and never has to be — a drifter left anywhere on the board does not stop a level clearing.
-
-It is on the board to be in the way. It can brake a penguin in the middle of the tray where nothing else would, and because an aurora only collects a block it accepts, a drifter that comes to rest on an aurora sits there and plugs it until a later swipe pushes it off.
-
-## Cracked ice
-
-A block may glide across cracked ice. If it comes to rest there — penguin or drifter — the tile breaks and the run ends. Recovery returns to the most recent position that can still be solved.
+The edge, an immovable ice wall, and the other penguin are the three brakes. Collecting a penguin removes it from the board, so collection order matters. Grey drifters and cracked ice are absent from the current campaign.
 
 ## Dead ends
 
-Most boards have positions from which the level can no longer be won. Reaching
+Ordinary moves that do not collect a penguin preserve solvability. Collecting
+a penguin too early can still leave its partner without a needed brake. Reaching
 one is not a loss and does not end the run: the position stands exactly where
 you put it, the game says so once, and recovery and restart are both available.
 The “手詰まりの前に戻す” button (also Z or Backspace) skips all moves made after
@@ -41,7 +36,7 @@ There are no SELECT, MATCH, or FORM objectives in the current campaign.
 |---|---|
 | `.` | plain ice |
 | `#` | ice wall — immovable, blocks movement |
-| `x` | cracked ice — safe to cross, fatal to stop on |
 | `A` `B` | penguins, one per colour |
 | `a` `b` | the matching aurora for `A` and `B` |
-| `G` | drifter — slides, never collected |
+
+The engine retains legacy `G` and `x` support for research fixtures and regression tests; neither appears in the 100-level campaign.

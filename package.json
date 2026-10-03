@@ -12,11 +12,11 @@
     "test:recovery": "node tools/recovery-test.js",
     "test:expression": "node tools/expression-test.js",
     "test:analysis": "node tools/analysis-test.js",
-    "test": "node tools/test.js && node tools/analysis-test.js",
+    "test": "node tools/test.js && node tools/analysis-test.js && node tools/duo-test.js && node tools/save-test.js",
     "serve": "node tools/serve.js",
     "campaign": "node tools/campaign.js",
-    "levels:search": "node tools/level-search.js",
-    "levels:build": "node tools/build-stages.js",
+    "levels:search": "node tools/refresh-search.js",
+    "levels:build": "node tools/refresh-campaign.js",
     "search:fun": "node tools/fun-search.js"
   },
   "devDependencies": {

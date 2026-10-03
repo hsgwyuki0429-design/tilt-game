@@ -169,6 +169,9 @@ function serve() {
         counts.push(r.particles.length);
       });
       result.refresh=counts.every(function(n){return n===counts[0];});
+      r.setStage(st,E.initialState(st));r.playMove(E.simulate(st,r.state,'R'),function(){});
+      var origin=r.anim.t0;r.frame(16,origin-2);r.frame(16,origin-1);
+      result.fresh=r.anim.trailTime===0&&r.particles.length===0;
       for(var k=0;k<100;k++)r.iceSpray(2.5,2.5,1,0,1,true);
       result.bounded=r.particles.length<=260;
       for(var tick=0;tick<80;tick++)r.updateEffects(16);
@@ -183,6 +186,7 @@ function serve() {
     check('all four directions throw shavings backward from moving contact edges',ice.directions);
     check('shards, frost and skate marks are distinct and depth-occluded',ice.types&&ice.occlusion);
     check('emission density matches at 30, 60 and 120 Hz',ice.refresh);
+    check('a fresh swipe tolerates RAF timestamps just before its input event',ice.fresh);
     check('effects have a fixed budget and expire completely',ice.bounded&&ice.expired);
     check('reduced motion, restoration and stationary blocks leave no shavings',ice.reduced&&ice.reset&&ice.idle);
 

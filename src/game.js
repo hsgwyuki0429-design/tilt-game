@@ -127,9 +127,9 @@
     r3h: { ja: 'くっついてもクリアではない', en: 'Touching is not a win' },
     r3p: { ja: 'ペンギン同士が触れても消えません。互いを止める、動かせる壁として使えます。',
           en: 'Penguins do not clear when they touch. They can stop each other like movable walls.' },
-    r4h: { ja: '灰色の流氷', en: 'The grey drifter' },
-    r4p: { ja: '灰色の流氷も同じ重力で滑りますが、どのオーロラも受け取りません。動かせる壁として使えますが、渦の上で止まるとその渦をふさぎます。',
-          en: 'A grey drifter slides with the same gravity, and no aurora will take it. Use it as a movable wall — but if it stops on a vortex, it plugs it.' },
+    r4h: { ja: 'ゴールの順番も大切', en: 'Choose the collection order' },
+    r4p: { ja: '先にゴールしたペンギンは、相手を止められなくなります。もう一羽の足場として必要か、ゴール前に考えてみましょう。',
+          en: 'A collected penguin can no longer stop its partner. Before collecting it, consider whether the other still needs its help.' },
     r5:  { ja: '手数に制限はありません。手詰まりになっても「手詰まりの前に戻す」で、最後にクリア可能だった盤面へ戻れます。安心して試してみてください。',
           en: 'There is no move limit. If you reach a dead end, return to your last solvable position and try another direction.' }
   };
@@ -1464,7 +1464,7 @@
       ['r1h', 'r1p', F.gravity],
       ['r2h', 'r2p', F.stop],
       ['r3h', 'r3p', F.brake],
-      ['r4h', 'r4p', F.drifter]
+      ['r4h', 'r4p', F.order]
     ];
     var html = rules.map(function (r) {
       return '<div class="rule">' +
@@ -1513,18 +1513,15 @@
         '<rect x="30" y="26" width="20" height="20" rx="5" fill="#7A4AE8"/>' +
         '<rect x="36" y="32" width="8" height="8" fill="rgba(255,255,255,0.92)"/>' +
         '<rect x="52" y="21" width="19" height="30" rx="2" fill="#78829F"/>'),
-      // The grey slab has come to rest ON the socket and the penguin is stacked
-      // up behind it. Drawn as the situation rather than as the piece, because
-      // the piece on its own looks like a wall and the whole point is that it
-      // is not one.
-      drifter: frame(
+      // The partner is both a goal-bound penguin and a temporary brake.
+      order: frame(
         '<path d="M6 36h9" stroke="#616986" stroke-width="2.4" stroke-linecap="round" ' +
         'stroke-dasharray="4 4"/>' +
         '<rect x="18" y="25" width="22" height="22" rx="6" fill="#0B8DAE"/>' +
         '<circle cx="29" cy="36" r="3.4" fill="rgba(255,255,255,0.92)"/>' +
         '<rect x="44" y="24" width="24" height="24" rx="6" fill="rgba(60,70,120,0.09)" ' +
         'stroke="#5C6484" stroke-width="2.4"/>' +
-        '<rect x="48" y="28" width="16" height="16" rx="4" fill="#8D9CAA"/>' +
+        '<rect x="48" y="28" width="16" height="16" rx="4" fill="#997acc"/>' +
         '<rect x="50.6" y="30.6" width="10.8" height="10.8" rx="2.4" ' +
         'fill="rgba(255,255,255,0.42)"/>'),
       hazard: frame(
