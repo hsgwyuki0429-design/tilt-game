@@ -636,12 +636,13 @@
     shard.setAttribute('position', new T.Float32BufferAttribute([0, .6, 0, -.5, -.4, .12, .55, -.35, -.1, 0, -.2, -.6], 3));
     shard.setIndex([0, 1, 2, 0, 2, 3, 0, 3, 1, 1, 3, 2]);
     shard.computeVertexNormals();
-    this.shards = new T.InstancedMesh(shard, new T.MeshPhysicalMaterial({ color: '#eefbff', roughness: .12,
-      clearcoat: 1, transparent: true, opacity: .94 }), MAX_PARTICLES);
-    this.puffs = new T.InstancedMesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: S.blob, color: '#ffffff',
-      transparent: true, opacity: .75, depthWrite: false }), MAX_PARTICLES);
+    this.shards = new T.InstancedMesh(shard, new T.MeshPhysicalMaterial({ color: '#cce9ef', roughness: .32,
+      clearcoat: .45, transparent: true, opacity: .48, depthWrite: false }), MAX_PARTICLES);
+    // Frost lies on the ice, using the same cool, soft tones as the floe.
+    this.puffs = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ map: S.blob, color: '#e0f1f4',
+      transparent: true, opacity: .18, depthWrite: false }), MAX_PARTICLES);
     this.marks = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({
-      map: S.blob, color: '#7fb4cc', transparent: true, opacity: .7, depthWrite: false }), MAX_PARTICLES);
+      map: S.blob, color: '#d8edf1', transparent: true, opacity: .22, depthWrite: false }), MAX_PARTICLES);
     this.sparks = new T.InstancedMesh(new T.OctahedronGeometry(.5), new T.MeshBasicMaterial({ color: '#ffffff' }), 128);
     [this.shards, this.puffs, this.marks, this.sparks].forEach(function (m) {
       m.count = 0; m.frustumCulled = false; this.fxGroup.add(m);
@@ -998,31 +999,29 @@
   Renderer.prototype.trimParticles = function () {
     if (this.particles.length > this.maxParticles) this.particles.splice(0, this.particles.length - this.maxParticles);
   };
-  /* A sliding block grinds the ice along its whole underside: shavings come
-     from the full footprint — front to back, side to side — and are thrown
-     backwards, sideways and up. Heavy, fast and many: chunks that tumble and
-     bounce, a haze of fine splinters, frost clouds, and scratches that stay
-     on the ice after the penguin has gone. */
+  /* A narrow wake of ice dust follows the contact patch. Keep the grains low
+     and short-lived so the floe's fractures and the penguins stay readable;
+     a stop gives a small extra scatter, with no airborne cloud. */
   Renderer.prototype.iceSpray = function (x, y, dx, dy, speed, impact) {
     if (this.reduceMotion) return;
-    var count = impact ? 100 : 32, LANES = [-.34, -.2, -.07, .07, .2, .34];
+    var count = impact ? 18 : 8;
     for (var j = 0; j < count; j++) {
       var m = j % 8, kind = m === 0 ? 'frost' : (m === 1 && !impact) ? 'skate' : (m === 2 ? 'chip' : 'shard');
       if (impact && m === 1) kind = 'frost';
-      var side = Math.random() < .5 ? -1 : 1, hard = impact ? 1.8 : 1;
-      var spread = side * (.0006 + Math.random() * .0026) * hard;
-      var back = (.0006 + Math.random() * .0016) * speed * (kind === 'chip' ? 1.5 : 1), along, across;
-      if (impact) { along = .05 + Math.random() * .42; across = (Math.random() - .5) * .9; }
-      else if (kind === 'skate') { along = -.42 + Math.random() * .3; across = LANES[j % LANES.length] + (Math.random() - .5) * .03; }
-      else { along = -.5 + Math.random() * .95; across = (Math.random() - .5) * .86; }
+      var side = Math.random() < .5 ? -1 : 1, hard = impact ? 1.25 : 1;
+      var spread = side * (.00012 + Math.random() * .00042) * hard;
+      var back = (.00012 + Math.random() * .00032) * speed, along, across;
+      if (impact) { along = .18 + Math.random() * .16; across = (Math.random() - .5) * .6; }
+      else { along = -.36 + Math.random() * .14; across = (Math.random() - .5) * .54; }
       var px = x + dx * along - dy * across, py = y + dy * along + dx * across;
-      if ((kind === 'skate') && this.groundAt(px, py) < 0) continue;
-      var up = kind === 'skate' ? 0 : (.0018 + Math.random() * .0042) * (impact ? 1.4 : 1) * (kind === 'chip' ? 1.3 : 1);
-      this.particles.push({ kind: kind, x: px, y: py, z: .03,
-        vx: -dx * back - dy * spread, vy: -dy * back + dx * spread, vz: up,
-        life: 0, max: kind === 'skate' ? 1000 : 600 + Math.random() * 500,
-        size: kind === 'frost' ? .09 + Math.random() * .1 : kind === 'chip' ? .04 + Math.random() * .045 : .016 + Math.random() * .03,
-        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .03,
+      if (this.groundAt(px, py) < 0) continue;
+      var surface = kind === 'skate' || kind === 'frost';
+      var up = surface ? 0 : (.00045 + Math.random() * .0009) * hard;
+      this.particles.push({ kind: kind, x: px, y: py, z: surface ? .008 : .022,
+        vx: surface ? 0 : -dx * back - dy * spread, vy: surface ? 0 : -dy * back + dx * spread, vz: up,
+        life: 0, max: kind === 'skate' ? 360 : 240 + Math.random() * 200,
+        size: kind === 'frost' ? .1 + Math.random() * .06 : kind === 'chip' ? .02 + Math.random() * .014 : .01 + Math.random() * .014,
+        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .008,
         dx: dx, dy: dy });
     }
     this.trimParticles();
@@ -1037,7 +1036,7 @@
       var dx = q[0] - p[0], dy = q[1] - p[1], distance = Math.sqrt(dx * dx + dy * dy);
       if (distance < .0001) continue;
       dx /= distance; dy /= distance;
-      var spacing = .032, remainder = a.trailDistance[i] || 0;
+      var spacing = this.tier === 'lite' ? .14 : .09, remainder = a.trailDistance[i] || 0;
       for (var d = spacing - remainder; d <= distance; d += spacing) {
         var f = d / distance;
         this.iceSpray(p[0] + (q[0] - p[0]) * f + .5, p[1] + (q[1] - p[1]) * f + .5,
@@ -1088,7 +1087,7 @@
       var step = Math.min(dt, 40);
       p.x += p.vx * step; p.y += p.vy * step;
       var floor = this.groundAt(p.x, p.y) + .02;
-      if (p.kind === 'skate') { p.z = .006; p.vx = 0; p.vy = 0; }
+      if (p.kind === 'skate' || p.kind === 'frost') { p.z = .008; p.vx = 0; p.vy = 0; }
       else { p.z += p.vz * step; p.vz -= .000012 * step; }
       if (p.angle != null) p.angle += p.spin * step;
       var drag = Math.exp(-step * (p.z <= floor + .01 ? .013 : .002)); p.vx *= drag; p.vy *= drag;
@@ -1310,22 +1309,22 @@
   var tmpM = null, tmpQ = null, tmpV = null, tmpS = null, tmpE = null, tmpC = null;
   Renderer.prototype.updateParticles = function () {
     if (!tmpM) { tmpM = new T.Matrix4(); tmpQ = new T.Quaternion(); tmpV = new T.Vector3(); tmpS = new T.Vector3(); tmpE = new T.Euler(); tmpC = new T.Color(); }
-    var ns = 0, np = 0, nm = 0, nk = 0, camQ = this.camera.quaternion;
-    var invWorld = new T.Quaternion().copy(this.world.quaternion).invert();
-    var faceCam = new T.Quaternion().copy(invWorld).multiply(camQ);
+    var ns = 0, np = 0, nm = 0, nk = 0;
     for (var i = 0; i < this.particles.length; i++) {
       var p = this.particles[i], f = 1 - p.life / p.max;
       tmpV.set(this.wx(p.x), p.z, this.wz(p.y));
       if (p.kind === 'shard' || p.kind === 'chip') {
         tmpE.set(p.angle, p.angle * .7, p.angle * 1.3); tmpQ.setFromEuler(tmpE);
-        var s = p.size * (.35 + .65 * f) * 1.6; tmpS.set(s, s, s);
+        var s = p.size * Math.sqrt(f); tmpS.set(s, s * .55, s);
         tmpM.compose(tmpV, tmpQ, tmpS); this.shards.setMatrixAt(ns++, tmpM);
       } else if (p.kind === 'frost') {
-        var fs = p.size * 1.0 * (1.2 - .5 * f) * Math.min(1, f * 2.2); tmpS.set(fs, fs, fs);
-        tmpM.compose(tmpV, faceCam, tmpS); this.puffs.setMatrixAt(np++, tmpM);
+        var fs = p.size * Math.sqrt(f);
+        tmpE.set(0, Math.atan2(p.dx, p.dy), 0); tmpQ.setFromEuler(tmpE);
+        tmpS.set(fs, 1, fs * 1.4);
+        tmpM.compose(tmpV, tmpQ, tmpS); this.puffs.setMatrixAt(np++, tmpM);
       } else if (p.kind === 'skate') {
         tmpQ.setFromAxisAngle(new T.Vector3(0, 1, 0), Math.atan2(p.dx, p.dy));
-        tmpS.set(.03 * (.4 + .6 * f), 1, .34 * (.5 + .5 * f)); tmpM.compose(tmpV, tmpQ, tmpS); this.marks.setMatrixAt(nm++, tmpM);
+        tmpS.set(.018 * f, 1, .18 * Math.sqrt(f)); tmpM.compose(tmpV, tmpQ, tmpS); this.marks.setMatrixAt(nm++, tmpM);
       } else if (p.kind === 'spark' && nk < 128) {
         tmpE.set(p.angle, p.angle, 0); tmpQ.setFromEuler(tmpE);
         var ks = p.size * Math.min(1, f * 1.6); tmpS.set(ks, ks, ks);

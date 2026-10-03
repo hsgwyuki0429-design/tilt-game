@@ -158,11 +158,15 @@ off it. Collection flashes it and sends a coloured ring across the ice.
 When a swipe is held, the floe — not the canvas — leans up to 5° in 3D towards
 the direction gravity is about to go, and the water stays level around it.
 
-A sliding penguin tears ice from its whole footprint, every 0.03 cell it
-travels: tumbling shards and larger chips thrown up, back and to the sides, fine
-frost clouds, and six lanes of scratches that stay on the ice for a second. A
-stop throws about a hundred more. Particles live 0.6–1.1 s (scratches 1 s) and
-are drawn as instanced meshes, within the tier's budget. A shaving that lands
+A sliding penguin leaves a narrow wake of translucent blue-white grains and
+soft frost along its trailing contact patch. Eight particles are emitted every
+0.09 cell on HIGH, or every 0.14 cell on LITE; a stop scatters eighteen. The
+small, flattened grains hop just above the surface, while pale frost and fine
+skate marks lie along the ice instead of forming an airborne cloud. They shrink
+away over 0.24–0.44 s (marks 0.36 s), leaving the floe's fractures, auroras and
+penguins visible. All are instanced meshes with normal transparency and no
+depth writes, within the tier's budget. Emission is distance-based at every
+refresh rate and starts only over ice. A shaving that lands
 on water sinks. A penguin stopped at the edge of the ice sends a ring across
 the water. A clear rings the whole pool. Reduced motion turns off tilt, shake,
 particles and idle motion; expressions stay.
