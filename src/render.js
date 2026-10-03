@@ -91,7 +91,7 @@
   var GRID_Y = .95;
   var Z_X = 0;
   var Z_Y = .30;
-  var WALL_HEIGHT = .21;
+  var WALL_HEIGHT = .30;
   var DRIFTER_HEIGHT = .19;
   var PENGUIN_HEIGHT = .76;
   var FACE_SIZE = 512;

@@ -25,8 +25,7 @@ Penguins have lighter upward planes, darker front planes, a crisp shared edge,
 and a square contact footprint with a soft cast shadow toward the lower right.
 The front-face shade is applied explicitly before the upward plane is painted.
 
-Ice obstacles are 0.21 cells high and grey drifters are 0.19 cells high: one
-quarter of their full-height versions. They use the same solid geometry and
+Ice obstacles rise to 0.30 cells and grey drifters are 0.19 cells high. They use the same solid geometry and
 lighting, with a small bevel and contact shadow. Lower obstacles keep adjacent
 goals readable and distinguish the penguins from the scenery.
 

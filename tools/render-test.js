@@ -138,7 +138,7 @@ function serve() {
       }finally{r._buildingSprites=false;r.drawBox=oldBox;r.drawCubePenguinFace=oldFace;}
       var p=boxes[0],w=boxes[1],d=boxes[2];
       return topFace&&Math.abs((p.x1-p.x0)-(p.z1-p.z0))<.001&&
-        Math.abs(w.z1-.21)<.001&&Math.abs((d.z1-d.z0)-.19)<.001;
+        Math.abs(w.z1-.30)<.001&&Math.abs((d.z1-d.z0)-.19)<.001;
     }));
     check('five used terrain variants are cached', architecture.staticSprites === 5,
       'sprites=' + architecture.staticSprites);
