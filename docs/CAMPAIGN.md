@@ -1,101 +1,137 @@
-# Two penguins · October 2026 campaign
+# One floe, two penguins · October 2026 campaign
 
-## Delivered lineup
+## What changed
 
-100 newly selected puzzles, 78 on 4×4 and 22 on 5×4. Level 1 is a
-three-move, single-penguin introduction. Levels 2–100 have exactly two
-penguins, one of each colour, and one matching aurora apiece. Only static ice
-walls are used. The shortest solutions rise monotonically from 3 to 31 moves;
-the largest adjacent increase is two moves. All wall plans are different under
-the board's legal symmetries, so one stage cannot be another's remaining route.
+Walls are gone. Where the old boards had an ice wall, the new ones have **open
+water**: the floe simply has no ice there. A penguin gliding towards a hole
+stops at the edge of the ice exactly as it always stopped at the rim of the
+board, so the engine and its rules are untouched — `#` still means "nothing to
+stand on". What changed is what the picture says, and which boards are worth
+playing on it.
 
-The movement rules are unchanged: glide to rest, collect matching penguins,
-then continue settling if collection freed space. All directions use the same
-rule. No special direction or hidden rule is introduced to make a puzzle work.
+Every board is 4×4. Levels 1–3 have one penguin; levels 4–100 have two, one of
+each colour, each with one matching aurora.
 
-## Ordinary movement must be safe to explore
+## One solid floe
 
-For every reachable state that is still solvable, every move that collects no
-penguin must lead to another solvable state. This is checked over the complete
-reachable graph, not just the intended solution. A premature collection may
-still strand the partner by removing a needed brake. That consequence is now
-explained in the rules and remains recoverable with the recovery button.
+The ice has to read as a single object you could pick up, so a board is only
+considered when:
 
-The shipping engine independently checked **5,180 reachable states and 9,917
-ordinary transitions**, with zero ordinary-move dead ends. It found 472
-transitions where premature collection loses the ability to finish. Already
-unsolvable positions are not counted as new traps.
+- its ice is **one edge-connected piece** — two cells touching only at a
+  corner do not hold each other up;
+- the ice **spans the full 4×4** — every row and column has some, otherwise it
+  is a smaller board in a bigger frame;
+- its **centre of mass is within half a cell of the board's centre**, so the
+  slab sits level instead of hanging off one side.
 
-## Choosing puzzles rather than corridors
+Up to rotation and reflection that leaves **1,051 floe shapes**.
 
-Candidate routes exclude the immediate undo when counting useful alternatives.
-The chosen shortest route must have:
+## Searched exhaustively, not sampled
 
-- at least two useful options at its opening;
-- choices on at least 48% of its moves (the delivered minimum is 65.5%);
-- at least 1.5 useful exits on average (delivered minimum: 1.72);
-- no more than three consecutive forced moves;
-- actual mutual braking, measured against the blocks' solo resting positions;
-- no more than four final moves with only one penguin remaining;
-- limited repeated four-direction patterns.
+`tools/floe-search.js` enumerates every one of those shapes, every placement
+of one or two auroras, and every start: **64,323 aurora layouts and 3,992,244
+starts**. For each layout it builds the complete position graph once — every
+legal placement of both penguins, including half-collected positions — and
+answers every start from it. The accelerator in `tools/lib/floe.js` is checked
+transition by transition against `src/engine.js` (`tools/floe-test.js`), and
+every shipped board is re-solved by the engine itself (`tools/campaign-test.js`).
 
-The ranking rewards branching, changes of role and moves away from a goal that
-prepare a later approach. These are design heuristics, not a claim that a
-numeric score proves enjoyment. They remove identifiable sources of tedium and
-leave a varied, playable lineup for further feedback.
+## What a board must have
 
-## Search scope and long puzzles
+| Rule | Why | Starts removed |
+|---|---|---:|
+| fair: no ordinary move — one that collects nobody — can make the board unsolvable | exploring must be safe; only collecting too early may strand a partner | 380,138 |
+| the penguins need each other: **no solution exists in which neither ever stops the other** | the point of two penguins is the interaction | 1,038,058 |
+| no corridor: at most two forced moves in a row on the shortest route | a long forced line is length, not thought | (in selection) |
+| at most two moves of lone clean-up after the first collection | the ending stays a duet | (in selection) |
+| at most three fatal "collect now" temptations on the shortest routes | a temptation is an idea; many are a trap | (in selection) |
+| the solution uses at least 60% of the ice | no decorative ice | (in selection) |
 
-Six retained runs evaluated **2,319,767 wall/goal graph instances** in total;
-different runs can overlap, so this is not a unique-layout count. Each graph
-contains every legal two-penguin position for that layout. The layouts were
-seeded samples, not an exhaustive search of every board. The final combined
-pool contained 6,494 distinct qualifying candidates before campaign selection.
+A **brake** is counted only when it decides where the braked penguin stays: a
+penguin that stops behind its partner and glides on when the partner is
+collected was not braked.
 
-| Retained run | Seed | Attempts | Dimensions | Walls |
-|---|---:|---:|---|---|
-| fair-pool-4 | 791333 | 50,000 | 4×4 | 2–5 |
-| pool-4-wide | 981724 | 400,000 | 4×4 | 2–5 |
-| fair-pool-5 | 317955 | 50,000 | 5×4 | 2–6 |
-| fair-pool-5-wide | 875390 | 800,000 | 5×4 | 2–6 |
-| pool-5-wide | 418792 | 1,500,000 | 5×4 | 2–6 |
-| fair-pool-5-dense | 235623 | 500,000 | 5×4 | 5–9 |
+Among the boards where interaction is necessary, **MUTUAL** boards are the
+ones where *each* penguin must stop the other at some point in every solution
+— neither can do its job alone. 83,676 starts are mutual. The campaign is
+built from them: 94 of the 97 pair boards are mutual; the three that are not
+(levels 4, 5 and 7) teach the brake with one helper first.
 
-The two `pool-*-wide` runs began before the ordinary-move filter was introduced;
-every imported candidate was re-evaluated with that filter and the final
-cooperation measurement. The current search applies both while generating.
+## Difficulty is not par
 
-A 37-move board was found and verified with the actual solver:
+A long board can be easy — one obvious move after another — and a five-move
+board can stop people for minutes. So the campaign is ordered by a simulated
+player, not by length.
 
-```text
-.B#A.
-.b.#a
-.#...
-###..
+The **explorer** sees only the board and the par the HUD shows. It:
+
+- plays a finish it can see two swipes away;
+- otherwise prefers positions it has not been in, leans towards moves that
+  bring penguins nearer their auroras, and usually grabs a collection when one
+  is offered (exactly the instinct a mutual board punishes);
+- pays for a dead end, remembers it, and uses the recovery button;
+- restarts after a few swipes more than par without finishing, keeping what it
+  learnt.
+
+Its cost — the geometric mean of swipes to solve over 600 seeded runs per
+board — is the difficulty. A twelve-move board where every move is natural
+(`B#../a.../...b/..#A`) costs it about 16 swipes; a six-move board that needs
+one penguin parked as a floor for the other (`aB../b#../A.../..#.`) costs it
+about 125. The campaign climbs that cost
+geometrically from 2 swipes to 186, with par anywhere from 2 to 13 along the
+way:
+
+| Chapter | Levels | Par | Explorer swipes | Mutual |
+|---|---|---|---|---:|
+| 1 FIRST LIGHT | 1–10 | 2–6 | 2–7 | 4 |
+| 2 PARTNERS | 11–20 | 5–7 | 7–11 | 10 |
+| 3 BRAKES | 21–30 | 4–8 | 11–15 | 10 |
+| 4 CROSSROADS | 31–40 | 6–10 | 16–20 | 10 |
+| 5 SETUP | 41–50 | 7–11 | 22–30 | 10 |
+| 6 EXCHANGE | 51–60 | 8–11 | 30–41 | 10 |
+| 7 BALANCE | 61–70 | 9–12 | 43–59 | 10 |
+| 8 PATIENCE | 71–80 | 8–12 | 61–88 | 10 |
+| 9 DISCOVERY | 81–90 | 8–13 | 89–118 | 10 |
+| 10 FINALE | 91–100 | 10–12 | 129–186 | 10 |
+
+The explorer is a model, not a person. It is a better ruler than par because
+it charges for what people find hard — moves that look wrong, collections that
+must wait, a partner parked as a floor — and not for length.
+
+## Choosing among the good ones
+
+Within each quarter-step of difficulty the builder ranks boards by:
+mutual over one-sided help; more brakes in the cheapest solution; a penguin
+that can only be collected by being braked onto its aurora; one or two fatal
+temptations; at least one move away from the auroras; a single shortest route;
+then fewer forced moves, a shorter lone ending, more of the ice used, and a
+better-balanced floe.
+
+Variety is enforced, not hoped for:
+
+- every level has a **different floe shape** and a **different placement of
+  pieces** (both under rotation, reflection and colour swap), so no board is
+  another with one hole moved;
+- boards whose two auroras touch are capped at about a third of the campaign
+  (36 of 100), because "stack them and drop them together" is one idea;
+- a shortest route already used costs a board its place to an equal one.
+
+The shipped hundred: 91 have a single shortest solution, 95 need a penguin to
+be braked onto its aurora, 68 need at least three brakes, and every mutual
+board has at least one tempting collection that strands the partner.
+
+## Reproduce
+
+```sh
+node tools/floe-search.js            # every 4×4 floe → tools/.floe-cache/pool-4x4.json (~2 min)
+node tools/floe-campaign.js --pool tools/.floe-cache/pool-4x4.json
+node tools/floe-campaign.js          # rebuild src/stages.js from tools/floe-selection.json
+npm test
 ```
 
-It has no ordinary-move trap but ends with nine moves by a lone penguin, so it
-was not selected. The final stage is a verified 31-move cooperative puzzle.
-No 40-move board was found in these samples; no global maximum is claimed.
+The search and the explorer are seeded; running the two commands above
+reproduces `tools/floe-selection.json` and `src/stages.js` byte for byte.
+`tools/floe-selection.json` keeps every measurement the choice was made on.
 
-## Reproduction and checks
-
-`tools/campaign-selection.json` contains the shipped selection, exact route and
-design measurements. `npm run levels:build` reconstructs `src/stages.js` from
-that file. A new set can be searched and curated using `refresh-search.js` and
-`refresh-campaign.js`; README contains invocation examples.
-
-`npm test` proves each par, roster, size, increasing curve, ordinary-move safety,
-actual cooperation, branch limits and symmetry using the shipping engine. It
-also compares 98,528 accelerator transitions against that engine and checks
-preference migration and save isolation. Browser QA plays all 100 solutions
-through real input and checks layouts, recovery, menus and persistence: all 171
-browser checks passed on the final campaign.
-The final 31-move level was also played at normal animation speed. Fresh-touch
-testing caught and fixed a renderer clock edge case: a RAF timestamp can precede
-the input event that started a slide. Elapsed animation time now clamps to zero,
-with a regression test to prevent negative particle-frame indices.
-
-Scores use `tilt.save.duo.v3`. The former `tilt.save.ice.v2` remains intact;
-only sound, haptics and reduced-motion preferences carry over. Old best scores
-and unlocked level numbers do not mark the replacement puzzles as completed.
+Scores use `tilt.save.floe.v4`. The previous `tilt.save.duo.v3` stays intact;
+sound, haptics and reduced-motion preferences carry over.

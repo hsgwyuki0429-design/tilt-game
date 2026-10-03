@@ -109,6 +109,20 @@
     reduceMo:   { ja: 'アニメーションを減らす', en: 'Reduce motion' },
     reduceNote: { ja: '画面のゆれ、粒子、スライドの演出を止めます。',
                   en: 'Turns off shake, particles and sliding transitions.' },
+    quality:     { ja: '画質', en: 'Graphics' },
+    qualityAuto: { ja: '自動', en: 'Auto' },
+    qualityHigh: { ja: '高画質', en: 'High' },
+    qualityLite: { ja: '軽量', en: 'Light' },
+    qualityNoteAuto: { ja: '端末の性能に合わせて切り替えます。いまは%tです。',
+                       en: 'Follows your device. Showing %t now.' },
+    qualityNoteHigh: { ja: '氷の内部、波、きらめきまで描きます。重い端末ではカクつくことがあります。',
+                       en: 'Draws ice depth, water and glitter. May stutter on slower devices.' },
+    qualityNoteLite: { ja: '氷を簡易表示にして、動きを軽くします。',
+                       en: 'A simpler ice and fewer effects, for a smoother game.' },
+    qualityNowHigh:  { ja: '高画質', en: 'High' },
+    qualityNowLite:  { ja: '軽量', en: 'Light' },
+    qualityDropped: { ja: '動作が重いため、軽量表示に切り替えました。設定で変更できます。',
+                      en: 'Switched to Light graphics because this device is struggling. You can change it in Settings.' },
     resetTitle: { ja: '進行状況を消去しますか？', en: 'Erase all progress?' },
     resetBody:  { ja: 'クリア記録と自己ベストがすべて消え、元に戻せません。',
                   en: 'Every solved stage and best score will be lost. This cannot be undone.' },
@@ -119,14 +133,14 @@
 
     // How to play — the complete rule set, one line at a time.
     r1h: { ja: '重力を向ける', en: 'You aim gravity' },
-    r1p: { ja: 'ペンギンは直接動かせません。指をはらった向きへ盤面ごと重力が向き、すべてのペンギンが同時に滑ります。',
-          en: 'You never move a penguin directly. Swipe, and the whole world falls that way — every penguin at once.' },
+    r1p: { ja: 'ペンギンは直接動かせません。指をはらった向きへ氷ごと重力が向き、すべてのペンギンが同時に滑ります。氷のふち（外側も、穴のまわりも）で止まり、水には落ちません。',
+          en: 'You never move a penguin directly. Swipe, and the whole floe tips that way — every penguin at once. They stop at the edge of the ice, the rim or a hole, and never fall in.' },
     r2h: { ja: '色を合わせる', en: 'Match each colour' },
     r2p: { ja: '各ペンギンには同じ色のオーロラが1つあります。その渦の上で止まると回収されます。',
           en: 'Every penguin has one matching aurora. It is collected when it stops on that vortex.' },
     r3h: { ja: 'くっついてもクリアではない', en: 'Touching is not a win' },
-    r3p: { ja: 'ペンギン同士が触れても消えません。互いを止める、動かせる壁として使えます。',
-          en: 'Penguins do not clear when they touch. They can stop each other like movable walls.' },
+    r3p: { ja: 'ペンギン同士が触れても消えません。互いを止める、動く氷のふちとして使えます。',
+          en: 'Penguins do not clear when they touch. Each can stop the other, like a moving edge of ice.' },
     r4h: { ja: 'ゴールの順番も大切', en: 'Choose the collection order' },
     r4p: { ja: '先にゴールしたペンギンは、相手を止められなくなります。もう一羽の足場として必要か、ゴール前に考えてみましょう。',
           en: 'A collected penguin can no longer stop its partner. Before collecting it, consider whether the other still needs its help.' },
@@ -190,7 +204,10 @@
     this.haptics.setEnabled(this.save.data.haptics !== false);
 
     this.canvas = document.getElementById('board');
-    this.renderer = new root.TiltRender.Renderer(this.canvas);
+    this.renderer = new root.TiltRender.Renderer(this.canvas, {
+      mode: this.save.data.quality, learned: this.save.data.qualityLearned
+    });
+    this.renderer.onQualityChange = this.onQualityChange.bind(this);
 
     /*
      * Faces. Built here rather than in loadStage so the images are decoded
@@ -284,6 +301,7 @@
     this.loadStage(this.firstUnsolved());
     this.initHomePreview();
     this.showHome();
+    this.renderer.precompile();
   }
 
   Game.prototype.firstUnsolved = function () {
@@ -309,7 +327,9 @@
   Game.prototype.initHomePreview = function () {
     var canvas=document.getElementById('home-preview');
     if(!canvas)return;
-    var r=this.homeRenderer=new root.TiltRender.Renderer(canvas);
+    // A still picture behind the title: always the light tier, so the second
+    // WebGL context costs a small shadow map and a flat ice.
+    var r=this.homeRenderer=new root.TiltRender.Renderer(canvas,{tier:'lite'});
     var stage=E.compile({id:0,name:'ICE',par:1,board:['.a..','A.#.','.#B.','..b.']});
     var state=E.initialState(stage);
     r.reduceMotion=true;
@@ -1364,6 +1384,18 @@
 
     var html = '<div class="list">' + rows.join('') + '</div>';
 
+    // Graphics: three buttons in one segmented control, under a note that
+    // says what the choice means and, for AUTO, what it has picked.
+    var mode = root.TiltQuality.validMode(this.save.data.quality), tier = this.renderer.tier;
+    var qnote = mode === 'auto' ? t('qualityNoteAuto').replace('%t', t(tier === 'high' ? 'qualityNowHigh' : 'qualityNowLite'))
+      : t(mode === 'high' ? 'qualityNoteHigh' : 'qualityNoteLite');
+    html += '<div class="list"><div class="row seg-row" role="radiogroup" aria-label="' + esc(t('quality')) + '">' +
+      '<span class="rl"><span class="rt">' + esc(t('quality')) + '</span><span class="rs">' + esc(qnote) + '</span></span>' +
+      '<span class="seg">' + ['auto', 'high', 'lite'].map(function (m) {
+        return '<button type="button" role="radio" data-quality="' + m + '" aria-checked="' + (m === mode ? 'true' : 'false') + '">' +
+          esc(t('quality' + m.charAt(0).toUpperCase() + m.slice(1))) + '</button>';
+      }).join('') + '</span></div></div>';
+
     html += '<div class="list">' +
       '<button class="row tap" type="button" data-act="howto">' +
         icon('help') +
@@ -1381,6 +1413,9 @@
     list.querySelectorAll('[data-set]').forEach(function (el) {
       el.addEventListener('click', function () { self.toggleSetting(el.getAttribute('data-set')); });
     });
+    list.querySelectorAll('[data-quality]').forEach(function (el) {
+      el.addEventListener('click', function () { self.setQualityMode(el.getAttribute('data-quality')); });
+    });
     list.querySelectorAll('[data-act]').forEach(function (el) {
       el.addEventListener('click', function () {
         var act = el.getAttribute('data-act');
@@ -1388,6 +1423,27 @@
         else if (act === 'reset') self.askReset();
       });
     });
+  };
+
+  /* The player's graphics choice. Any explicit choice forgets what AUTO had
+     learned, so going back to AUTO gives the device a fresh chance at HIGH. */
+  Game.prototype.setQualityMode = function (mode) {
+    mode = root.TiltQuality.validMode(mode);
+    this.save.set('quality', mode);
+    this.save.set('qualityLearned', null);
+    this.renderer.setMode(mode, null);
+    this.audio.ui(false);
+    this.wake();
+    this.renderSettings();
+  };
+
+  /* The renderer changed tier by itself. If the device was too slow for HIGH,
+     remember it and say so; a tier the player picked needs no announcement. */
+  Game.prototype.onQualityChange = function (e) {
+    if (e.reason !== 'slow') return;
+    this.save.set('qualityLearned', { at: Date.now() });
+    this.showToast(t('qualityDropped'));
+    if (this.sheets.length) this.renderSettings();
   };
 
   Game.prototype.toggleSetting = function (key) {
@@ -1437,6 +1493,7 @@
       el.remove();
       if (!yes) { self.audio.ui(false); return; }
       self.save.reset();
+      self.renderer.setMode('auto', null);
       self.applyMotion();
       self.haptics.setEnabled(true);
       self.audio.setMuted(false);
@@ -1505,14 +1562,16 @@
         '<rect x="50" y="25" width="22" height="22" rx="6" fill="#0B8DAE" transform="translate(-6,0)"/>' +
         '<circle cx="55" cy="36" r="3.4" fill="rgba(255,255,255,0.92)"/>'),
       // All three brakes at once, in the order the campaign teaches them: a block
-      // pressed flat against the tray EDGE on the left, a WALL slab merged into
-      // the right-hand edge, and a second BLOCK stopped against it.
+      // pressed flat against the rim of the floe on the left, open WATER where
+      // the ice ends on the right, and a second BLOCK stopped against it.
       brake: frame(
         '<rect x="1" y="24" width="22" height="24" rx="5" fill="#0B8DAE"/>' +
         '<circle cx="13" cy="36" r="3.4" fill="rgba(255,255,255,0.92)"/>' +
         '<rect x="30" y="26" width="20" height="20" rx="5" fill="#7A4AE8"/>' +
         '<rect x="36" y="32" width="8" height="8" fill="rgba(255,255,255,0.92)"/>' +
-        '<rect x="52" y="21" width="19" height="30" rx="2" fill="#78829F"/>'),
+        '<path d="M52 1.5h5a13.5 13.5 0 0 1 13.5 13.5v42a13.5 13.5 0 0 1-13.5 13.5h-5z" fill="#62C2DC"/>' +
+        '<path d="M55 29c2.5-2 5.5 2 8.5 0M55 39c2.5-2 5.5 2 8.5 0" stroke="#FFFFFF" stroke-width="1.6" ' +
+        'stroke-linecap="round" opacity=".85"/>'),
       // The partner is both a goal-bound penguin and a temporary brake.
       order: frame(
         '<path d="M6 36h9" stroke="#616986" stroke-width="2.4" stroke-linecap="round" ' +
@@ -1662,7 +1721,8 @@
     // A sheet covers the board completely; there is nothing to spend frames on.
     if (this.sheets.length) { this.running = false; return; }
 
-    var dt = Math.min(64, now - this.last);
+    var gap = now - this.last;
+    var dt = Math.min(64, gap);
 
     // While the board is at rest, drop to a low frame rate. Thinking time is the
     // longest part of this game and it should not cost the player battery.
@@ -1672,7 +1732,15 @@
     }
 
     this.last = now;
-    this.busyFrames = this.renderer.frame(dt, now);
+    // The monitor gets the real gap: dt is clamped for the animation, and a
+    // clamped 500 ms frame looks like a merely slow one.
+    try {
+      this.busyFrames = this.renderer.frame(dt, now, gap);
+    } catch (e) {
+      // A failed frame must never end the loop: the buttons live outside it.
+      this.busyFrames = true;
+      if (window.console) console.error(e);
+    }
     requestAnimationFrame(this.loop);
   };
 
