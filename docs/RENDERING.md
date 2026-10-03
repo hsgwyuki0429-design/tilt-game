@@ -25,9 +25,10 @@ Penguins have lighter upward planes, darker front planes, a crisp shared edge,
 and a square contact footprint with a soft cast shadow toward the lower right.
 The front-face shade is applied explicitly before the upward plane is painted.
 
-Ice obstacles rise to 0.30 cells and grey drifters are 0.19 cells high. They use the same solid geometry and
-lighting, with a small bevel and contact shadow. Lower obstacles keep adjacent
-goals readable and distinguish the penguins from the scenery.
+Ice walls have the same 0.76-cell height as penguins, with a full-cell footprint
+and a glass bevel, so they read as solid obstacles rather than floor tiles.
+Grey drifters retain their 0.19-cell height. The yellow aurora receives a warm
+screen blend to lift its dark areas while preserving the original spiral artwork.
 
 The tray has a continuous snowy rim, a translucent blue side, and a soft cast
 shadow. Floor texture is softly blended from the original ice artwork, sampling

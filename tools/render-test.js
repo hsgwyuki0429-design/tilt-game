@@ -128,7 +128,7 @@ function serve() {
         r.drawCubePenguinFace(g,[{x:0,y:0},{x:256,y:0},{x:256,y:256},{x:0,y:256}],e);
         faces.add(c.toDataURL());});return faces.size===9;
     }));
-    check('penguin is a cube with its face on top; both ice obstacles are low',await page.evaluate(function(){
+    check('penguin is a cube with its face on top; walls match its height and drifters stay low',await page.evaluate(function(){
       var r=game.renderer,oldBox=r.drawBox,oldFace=r.drawCubePenguinFace,boxes=[],topFace=false,last;
       r.drawBox=function(g,o){boxes.push(o);last=oldBox.apply(this,arguments);return last;};
       r.drawCubePenguinFace=function(g,face){topFace=face===last.top;return oldFace.apply(this,arguments);};
@@ -138,7 +138,7 @@ function serve() {
       }finally{r._buildingSprites=false;r.drawBox=oldBox;r.drawCubePenguinFace=oldFace;}
       var p=boxes[0],w=boxes[1],d=boxes[2];
       return topFace&&Math.abs((p.x1-p.x0)-(p.z1-p.z0))<.001&&
-        Math.abs(w.z1-.30)<.001&&Math.abs((d.z1-d.z0)-.19)<.001;
+        Math.abs((w.z1-w.z0)-(p.z1-p.z0))<.001&&Math.abs((d.z1-d.z0)-.19)<.001;
     }));
     check('five used terrain variants are cached', architecture.staticSprites === 5,
       'sprites=' + architecture.staticSprites);
