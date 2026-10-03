@@ -12,12 +12,12 @@
 
   // New boards have new scores. Preserve the old save and carry preferences
   // across without marking an unplayed replacement level as already cleared.
-  var KEY = 'tilt.save.duo.v3';
-  var PREVIOUS_KEY = 'tilt.save.ice.v2';
+  var KEY = 'tilt.save.floe.v4';
+  var PREVIOUS_KEY = 'tilt.save.duo.v3';
 
   function defaults() {
     return {
-      version: 3,
+      version: 4,
       cleared: {},        // stageId -> best move count
       unlocked: 1,        // highest stage the player may enter
       sound: true,

@@ -1,57 +1,87 @@
 'use strict';
-const assert=require('assert'),E=require('../src/engine'),S=require('./lib/duo-search');
-const A=require('./lib/level-analysis'),K=require('./lib/board-keys');
-const {STAGES,CHAPTERS}=require('../src/stages');
-const selection=require('./campaign-selection.json');
-assert.strictEqual(STAGES.length,100);
-assert.strictEqual(STAGES[0].par,3);
-assert(STAGES.filter(d=>d.board[0].length===4).length>=70,'4x4 must remain the main tray');
-const boards=new Set(),walls=new Set();let examined=0,ordinary=0,collectionTraps=0;
-STAGES.forEach((def,i)=>{
-  const st=E.compile(def),where='stage '+def.id;
-  assert.strictEqual(def.id,i+1);
-  assert(st.h===4&&(st.w===4||st.w===5),where+': 4x4 or 5x4');
-  assert.strictEqual(st.penguins,i?2:1,where+': fixed penguin count');
-  assert.strictEqual(st.drifters,0,where+': no moving grey blocks');
-  assert(!def.board.join('').match(/[^.#ABab]/),where+': only walls, penguins and goals');
-  assert.strictEqual(st.goalCells.length,st.penguins);
-  const key=S.canonical(def.board),wall=S.canonical(def.board,true);
-  assert(!boards.has(key)&&!walls.has(wall),where+': distinct board and wall plan');boards.add(key);walls.add(wall);
-  assert.strictEqual(E.solve(st).moves,def.par,where+': exact shortest path');
-  if(i){assert(def.par>=STAGES[i-1].par);assert(def.par-STAGES[i-1].par<=2,'no abrupt par jump');}
-  const g=E.graph(st),toWin=A.distanceToWin(g);examined+=g.n;
-  assert.strictEqual(toWin[0],def.par);
-  for(let at=0;at<g.n;at++)if(Number.isFinite(toWin[at]))for(const next of g.next[at]){
-    if(next===at)continue;
-    if(g.states[next].collected===g.states[at].collected){
-      ordinary++;assert(Number.isFinite(toWin[next]),where+': an ordinary move must not silently create a dead end');
-    }else if(!Number.isFinite(toWin[next]))collectionTraps++;
+/*
+ * The shipped floe campaign is what tools/floe-selection.json says it is, and
+ * what the README promises: every board re-proved by the engine itself.
+ */
+const assert = require('assert');
+const E = require('../src/engine');
+const F = require('./lib/floe');
+const { STAGES, CHAPTERS } = require('../src/stages');
+const selection = require('./floe-selection.json');
+
+assert.strictEqual(STAGES.length, 100);
+assert.strictEqual(CHAPTERS.length, 10);
+assert.strictEqual(selection.stages.length, 100);
+
+const boards = new Set(), shapes = new Set(), pieces = new Set();
+let examined = 0, ordinary = 0, collectionTraps = 0, mutual = 0, touching = 0;
+STAGES.forEach((def, i) => {
+  const st = E.compile(def), where = 'stage ' + def.id, pick = selection.stages[i];
+  assert.strictEqual(def.id, i + 1);
+  assert.deepStrictEqual(def.board, pick.board, where + ': stages.js matches the selection');
+  assert(st.w === 4 && st.h === 4, where + ': every board is 4×4');
+  assert.strictEqual(st.penguins, i < 3 ? 1 : 2, where + ': three solo boards, then pairs');
+  assert.strictEqual(st.drifters, 0, where + ': no drifters');
+  assert(!def.board.join('').match(/[^.#ABab]/), where + ': only ice, water, penguins and auroras');
+
+  // One floe: the ice is a single piece spanning the full 4×4, centred.
+  const floor = new Uint8Array(16);
+  def.board.join('').split('').forEach((ch, c) => { floor[c] = ch === '#' ? 0 : 1; });
+  assert(F.isWholeFloe(4, 4, floor), where + ': one connected floe spanning the board');
+  let sx = 0, sy = 0, n = 0;
+  floor.forEach((v, c) => { if (v) { sx += c % 4; sy += c >> 2; n++; } });
+  assert(Math.hypot(sx / n - 1.5, sy / n - 1.5) <= 0.5 + 1e-9, where + ': the floe is balanced');
+
+  // Distinct under the square's symmetries and the colour swap — the board,
+  // the shape of the ice, and the placement of the pieces.
+  const key = F.canonicalKey(def.board);
+  const shape = F.canonicalKey(def.board.map(r => r.replace(/[^#]/g, '.')));
+  const piece = F.canonicalKey(def.board.map(r => r.replace(/#/g, '.')));
+  assert(!boards.has(key) && !shapes.has(shape) && !pieces.has(piece), where + ': distinct board, floe and piece layout');
+  boards.add(key); shapes.add(shape); pieces.add(piece);
+
+  // The engine's own shortest solution.
+  assert.strictEqual(E.solve(st).moves, def.par, where + ': exact shortest path');
+
+  // Fairness over the complete reachable graph, in the engine.
+  const g = E.graph(st);
+  examined += g.n;
+  const toWin = new Array(g.n).fill(Infinity), rev = Array.from({ length: g.n }, () => []);
+  for (let at = 0; at < g.n; at++) for (const nx of g.next[at]) if (nx !== at) rev[nx].push(at);
+  const queue = [];
+  for (let at = 0; at < g.n; at++) if (g.clear[at]) { toWin[at] = 0; queue.push(at); }
+  for (let q = 0; q < queue.length; q++) for (const p of rev[queue[q]]) {
+    if (toWin[p] === Infinity) { toWin[p] = toWin[queue[q]] + 1; queue.push(p); }
   }
-  if(i){
-    const flat=def.board.join(''),ws=[];for(let c=0;c<flat.length;c++)if(flat[c]==='#')ws.push(c);
-    const accelerated=S.graph(st.w,st.h,ws,[flat.indexOf('a'),flat.indexOf('b')]);
-    const start=flat.indexOf('A')*accelerated.B+flat.indexOf('B'),m=S.assess(accelerated,start);
-    assert(!accelerated.unfair[start]);assert(m.brakes>=1&&m.interactions>=1,where+': real penguin cooperation');
-    assert(m.decisionRate>=.48&&m.branching>=1.5&&m.maxForced<=3&&m.solo<=4&&m.repeated<=.38,where+': choice and repetition limits');
-    assert.strictEqual(m.path,selection.stages[i].path);
-    // Independently measure useful decisions on the selected solution in the
-    // actual engine graph; taking back the preceding move is not a choice.
-    let at=0,prev=-1,run=0,max=0,decisions=0;
-    for(const d of m.path){
-      const options=new Set(g.next[at].filter(v=>v!==at&&v!==prev&&Number.isFinite(toWin[v])));
-      if(options.size>=2){decisions++;run=0;}else max=Math.max(max,++run);
-      const next=g.next[at][E.DIRS.indexOf(d)];assert.strictEqual(toWin[next],toWin[at]-1);
-      prev=at;at=next;
-    }
-    assert(max<=3&&decisions/m.par>=.48&&g.clear[at]);
+  assert.strictEqual(toWin[0], def.par, where + ': graph agrees with the solver');
+  for (let at = 0; at < g.n; at++) if (Number.isFinite(toWin[at])) for (const nx of g.next[at]) {
+    if (nx === at) continue;
+    if (g.states[nx].collected === g.states[at].collected) {
+      ordinary++;
+      assert(Number.isFinite(toWin[nx]), where + ': an ordinary move must never create a dead end');
+    } else if (!Number.isFinite(toWin[nx])) collectionTraps++;
   }
-  for(let v=0;v<(st.w===st.h?8:4);v++){
-    const transformed=K.present(def.board,v);
-    assert.strictEqual(E.solve(E.compile({board:transformed})).moves,def.par,where+': direction symmetry');
-    assert.strictEqual(K.canonBoard(transformed),K.canonBoard(def.board));
+
+  // The accelerator's interaction claims, re-derived and checked.
+  if (st.penguins === 2) {
+    const p = F.parseRows(def.board), fg = p.floe.graph(p.gA, p.gB), s = p.a * fg.B + p.b;
+    assert.strictEqual(fg.dist[s], def.par, where + ': accelerator par');
+    const noBrake = F.backward(fg, F.EV.BRAKE_A | F.EV.BRAKE_B);
+    assert(noBrake[s] < 0, where + ': no solution without one penguin stopping the other');
+    const noAB = F.backward(fg, F.EV.BRAKE_A), noBA = F.backward(fg, F.EV.BRAKE_B);
+    const isMutual = noAB[s] < 0 && noBA[s] < 0;
+    assert.strictEqual(isMutual, pick.kind === 'MUTUAL', where + ': mutual claim');
+    if (isMutual) mutual++;
+    const flat = def.board.join(''), a = flat.indexOf('a'), b = flat.indexOf('b');
+    if (Math.abs(a % 4 - b % 4) + Math.abs((a >> 2) - (b >> 2)) === 1) touching++;
   }
+  // Difficulty climbs with the explorer, not with par.
+  if (i) assert(pick.difficulty >= selection.stages[i - 1].difficulty || i === 3, where + ': difficulty never falls');
 });
-let covered=0;CHAPTERS.forEach((c,i)=>{assert.strictEqual(c.from,covered+1);assert.strictEqual(c.number,i+1);covered=c.to;});
-assert.strictEqual(covered,100);
-assert.strictEqual(STAGES[99].par,Math.max(...STAGES.map(d=>d.par)));
-console.log('PASS: 100 new stages, '+examined+' reachable states, '+ordinary+' ordinary transitions without surprise dead ends; '+collectionTraps+' premature-collection traps; symmetry, branching and exact pars verified');
+
+assert(mutual >= 80, 'most pairs must need each other (mutual: ' + mutual + ')');
+assert(touching <= 45, 'adjacent auroras must not dominate (' + touching + ')');
+CHAPTERS.forEach((ch, i) => { assert.strictEqual(ch.from, i * 10 + 1); assert.strictEqual(ch.to, i * 10 + 10); });
+
+console.log('PASS: 100 floe boards, ' + mutual + ' mutual; ' + examined + ' reachable positions, ' +
+  ordinary + ' ordinary moves with no dead end, ' + collectionTraps + ' premature-collection traps');
