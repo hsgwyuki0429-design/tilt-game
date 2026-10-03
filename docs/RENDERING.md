@@ -35,6 +35,26 @@ contrast. Goals retain the original `goal-top.png` aurora artwork, colour filter
 pulse, and collection flash. A rounded clip trims the asset's black corner
 padding without replacing the aurora design.
 
+## Material detail
+
+The design — shapes, palette, layout and proportions — is unchanged; only the
+surfaces carry more realistic detail, all procedural and deterministic:
+
+- **Floor ice** is baked into the base cache cell by cell. Each tile takes its
+  own rotated, mirrored window into `ice-top.png`, plus depth shading, frozen
+  bubbles, a polished sheen and a lit bevel, so the tray never repeats one tile.
+- **Snow rim** gains soft drifts, sparkling grains and a bevel; the slab side
+  shows faint glacier layering.
+- **Low ice walls** keep their colours, with internal frost clouds, bubbles, a
+  specular glint and a refraction band on the front face.
+- **Penguins** keep their amber/violet cubes, bib, eyes, cheeks and beak; the
+  plumage gets overlapping contour feathers, the bib a feathered edge and down,
+  the eyes iris depth and a second catchlight, the beak horn-like shading.
+- **The drifter** keeps its grey slab with mottled density, frozen grit and a
+  snow dusting.
+
+A `hash()` seed drives every scatter, so nothing shimmers between frames.
+
 ## Swipe response
 
 The whole canvas tilts by up to 4.5 degrees around X or Y in CSS perspective.
