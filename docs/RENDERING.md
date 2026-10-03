@@ -19,12 +19,13 @@ plane. No penguin image is pasted onto the geometry. Nine expression drawings
 follow the existing reaction controller and retain its movement poses.
 
 The elevated frontal camera shortens the visible side without flattening the
-cube geometry. Walls fit inside a 0.74-cell footprint, with an inward glass bevel
-instead of an oversized white cap. Soft contact shadows extend just past the
-footprint to anchor the blocks to the tray.
+cube geometry. Walls fill a complete 1-cell footprint, so adjacent obstacles
+meet edge to edge, with an inward glass bevel and small corner rounding.
+Penguins have lighter upward planes, darker front planes, a crisp shared edge,
+and a square contact footprint with a soft cast shadow toward the lower right.
+The front-face shade is applied explicitly before the upward plane is painted.
 
-Ice obstacles are 0.21 cells high and grey drifters are 0.19 cells high: one
-quarter of their full-height versions. They use the same solid geometry and
+Ice obstacles rise to 0.30 cells and grey drifters are 0.19 cells high. They use the same solid geometry and
 lighting, with a small bevel and contact shadow. Lower obstacles keep adjacent
 goals readable and distinguish the penguins from the scenery.
 
