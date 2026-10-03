@@ -7,3 +7,4 @@ tools/.campaign-cache/
 /rw-*.json
 /log-*.txt
 tools/.floe-cache/
+tools/hazard-pool/
