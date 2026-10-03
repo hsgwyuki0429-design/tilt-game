@@ -360,35 +360,6 @@
     return { map: colourTexture(col), normal: dataTexture(nm), rough: dataTexture(rm) };
   }
 
-  /* The flank of the slab: columns of clear ice, trapped bubbles and old
-     fractures, multiplied over the depth gradient in the vertex colours. The
-     sides are projected straight down, so the texture streaks vertically. */
-  function sideSurface() {
-    var N = 256, c = canvas(N, N), g = c.getContext('2d'), img = g.createImageData(N, N), d = img.data, x, y;
-    for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
-      var col = grainAt(x / N * 1.3, 0.5) * .6 + grainAt(x / N * 5.1 + 3, y / N * .35) * .4;
-      var v = 214 + col * 40 - (grainAt(x / N * 2.2 + 9, y / N * 1.1 + 4) > .7 ? 26 : 0);
-      var o = (y * N + x) * 4;
-      d[o] = v * .94; d[o + 1] = v * .985; d[o + 2] = Math.min(255, v + 6); d[o + 3] = 255;
-    }
-    g.putImageData(img, 0, 0);
-    g.lineCap = 'round';
-    for (var k = 0; k < 26; k++) {
-      var sx = hash(k * 3.7) * N, sy = hash(k * 5.3) * N, a = (hash(k * 1.3) - .5) * 1.6 + Math.PI / 2;
-      g.strokeStyle = 'rgba(255,255,255,' + (.25 + hash(k) * .3) + ')'; g.lineWidth = 1 + hash(k * 9) * 1.4;
-      g.beginPath(); g.moveTo(sx, sy);
-      for (var s2 = 0; s2 < 6; s2++) { a += (hash(k * 7 + s2) - .5) * .9; sx += Math.cos(a) * 12; sy += Math.sin(a) * 12; g.lineTo(sx, sy); }
-      g.stroke();
-    }
-    for (k = 0; k < 90; k++) {
-      var bx = hash(k * 2.9 + 1) * N, by = hash(k * 4.7 + 2) * N, r = .8 + hash(k * 8.1) * 2.4;
-      g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.arc(bx, by, r, 0, 6.283); g.fill();
-      g.strokeStyle = 'rgba(40,110,150,.4)'; g.lineWidth = .8; g.stroke();
-    }
-    var t = colourTexture(c, true);
-    return t;
-  }
-
   // ── penguins ────────────────────────────────────────────────────────────
   var FACE = 256;
   function bibPath(g) {
@@ -844,8 +815,7 @@
       roughnessMap: surface.rough, normalScale: new T.Vector2(1.1, 1.1), roughness: 1, clearcoat: .8, clearcoatRoughness: .12,
       ior: 1.31, specularIntensity: 1, sheen: .25, sheenColor: new T.Color('#dff4ff'),
       emissive: new T.Color('#9fe6ff'), emissiveIntensity: 0 });
-    if (!this.sideTex) this.sideTex = sideSurface();
-    this.sideMaterial = new T.MeshPhysicalMaterial({ vertexColors: true, map: this.sideTex, roughness: .08, clearcoat: 1,
+    this.sideMaterial = new T.MeshPhysicalMaterial({ vertexColors: true, roughness: .08, clearcoat: 1,
       clearcoatRoughness: .08, ior: 1.31, specularIntensity: 1, emissive: new T.Color('#2d8fb8'), emissiveIntensity: .12 });
     var floe = new T.Mesh(geo, [this.topMaterial, this.sideMaterial]);
     floe.receiveShadow = true;
@@ -1359,10 +1329,10 @@
       tmpV.set(this.wx(p.x), p.z, this.wz(p.y));
       if (p.kind === 'shard' || p.kind === 'chip') {
         tmpE.set(p.angle, p.angle * .7, p.angle * 1.3); tmpQ.setFromEuler(tmpE);
-        var s = p.size * (.35 + .65 * f) * 2.7; tmpS.set(s, s, s);
+        var s = p.size * (.35 + .65 * f) * 1.6; tmpS.set(s, s, s);
         tmpM.compose(tmpV, tmpQ, tmpS); this.shards.setMatrixAt(ns++, tmpM);
       } else if (p.kind === 'frost') {
-        var fs = p.size * 1.5 * (1.2 - .5 * f) * Math.min(1, f * 2.2); tmpS.set(fs, fs, fs);
+        var fs = p.size * 1.0 * (1.2 - .5 * f) * Math.min(1, f * 2.2); tmpS.set(fs, fs, fs);
         tmpM.compose(tmpV, faceCam, tmpS); this.puffs.setMatrixAt(np++, tmpM);
       } else if (p.kind === 'skate') {
         tmpQ.setFromAxisAngle(new T.Vector3(0, 1, 0), Math.atan2(p.dx, p.dy));

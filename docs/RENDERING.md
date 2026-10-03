@@ -41,8 +41,8 @@ water line.
   neighbouring cells engraved into a matching normal map, so the grid is
   something the light falls into rather than a line drawn on top.
 - **Sides:** vertex colours from white at the lip through clear blue at the
-  waterline to deep blue below, multiplied by a texture of vertical columns of
-  clear ice, bubbles and old fractures, with clearcoat, so the slab reads as ice.
+  waterline to deep blue below, with clearcoat, so the slab reads as ice. They
+  carry no texture: a top-down projection would only streak them vertically.
 - **Water:** a level pool that fades into the page at the edge of what the
   camera sees. The submerged part of the floe shows through it; a soft dark
   ring marks the waterline; slow ripples drift across it.
