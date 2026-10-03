@@ -1,10 +1,10 @@
 'use strict';
 /*
  * The ice sounds, rendered offline in Chromium (no speakers needed):
- *   - a slide is loud and bright while fast and fades and dulls as it slows,
- *   - its glassy ring is really there (narrow peaks above the hiss),
+ *   - a slide swells in, then fades and mellows as the penguin slows,
+ *   - it is soft: no harsh top end,
  *   - nothing clips, nothing is silent, nothing is NaN,
- *   - a knock against a penguin and a stop at the edge sound different,
+ *   - a bump into a penguin is pitched higher than a stop at the edge,
  *   - and in the game every penguin that moves gets its own slide.
  */
 const assert = require('assert');
@@ -65,40 +65,38 @@ const mime = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
     const q = Math.floor(SR * dur / 4);
     const first = stats(slide, 0, q), last = stats(slide, 3 * q, 4 * q), all = stats(slide, 0, slide.length);
     const after = stats(slide, Math.floor(SR * (dur + 0.12)), slide.length);
-    // Ring: the sheet's partials stand clear of the hiss around them. The
-    // fundamental is random in 2350–2650 Hz; scan it and take the best ratio.
-    let ring = 0;
-    for (let f = 2300; f <= 2700; f += 10) {
-      const on = mag(slide, 0, 4096, f), off = (mag(slide, 0, 4096, f * 1.3) + mag(slide, 0, 4096, f * 0.8)) / 2;
-      ring = Math.max(ring, on / off);
-    }
-    // Brightness: energy around 8 kHz against energy around 1.8 kHz.
+    // Softness: little energy above 6 kHz compared with the body of the sound.
+    let top = 0, body = 0;
+    for (let f = 6000; f <= 10000; f += 250) top += mag(slide, 0, 4096, f);
+    for (let f = 500; f <= 2500; f += 125) body += mag(slide, 0, 4096, f);
+    const harsh = top / body;
+    // Brightness: energy around 3 kHz against energy around 800 Hz.
     const tilt = (from) => {
       let hi = 0, mid = 0;
-      for (let f = 7000; f <= 9000; f += 250) hi += mag(slide, from, 2048, f);
-      for (let f = 1500; f <= 2100; f += 75) mid += mag(slide, from, 2048, f);
+      for (let f = 2500; f <= 3500; f += 100) hi += mag(slide, from, 2048, f);
+      for (let f = 600; f <= 1000; f += 40) mid += mag(slide, from, 2048, f);
       return hi / mid;
     };
     const brightFirst = tilt(0), brightLast = tilt(Math.max(0, 4 * q - 2048));
     const edge = await render(a => a.impact(4, false), 0.3), knock = await render(a => a.impact(4, true), 0.3);
-    // A knock rings on: compare 40–120 ms after it lands.
-    const ringOn = (x) => stats(x, Math.floor(SR * 0.04), Math.floor(SR * 0.12)).rms;
-    return { first, last, all, after, ring, brightFirst, brightLast, edge: stats(edge, 0, edge.length), knock: stats(knock, 0, knock.length),
-      edgeTail: ringOn(edge), knockTail: ringOn(knock) };
+    // Pitch: where the struck note sits.
+    const pitch = (x) => { let best = 0, at = 0; for (let f = 150; f <= 700; f += 5) { const m = mag(x, 0, 4096, f); if (m > best) { best = m; at = f; } } return at; };
+    return { first, last, all, after, harsh, brightFirst, brightLast, edge: stats(edge, 0, edge.length), knock: stats(knock, 0, knock.length),
+      edgePitch: pitch(edge), knockPitch: pitch(knock) };
   });
 
   assert.strictEqual(offline.all.bad, 0, 'no NaN samples');
   assert(offline.all.rms > 0.003, 'a slide is audible: ' + offline.all.rms);
   assert(offline.all.peak < 0.9, 'and does not clip: ' + offline.all.peak);
   assert(offline.first.rms > offline.last.rms * 2.5, 'it fades as the penguin slows: ' + offline.first.rms + ' vs ' + offline.last.rms);
-  assert(offline.brightFirst > offline.brightLast * 2, 'and dulls: ' + offline.brightFirst + ' vs ' + offline.brightLast);
+  assert(offline.brightFirst > offline.brightLast * 1.4, 'and mellows: ' + offline.brightFirst + ' vs ' + offline.brightLast);
   assert(offline.after.rms < 1e-4, 'and stops when the penguin does: ' + offline.after.rms);
-  assert(offline.ring > 2, 'the glassy ring stands above the hiss: ' + offline.ring);
+  assert(offline.harsh < 0.12, 'and soft, with no harsh top end: ' + offline.harsh);
   assert(offline.edge.rms > 0.002 && offline.knock.rms > 0.002, 'both stops are audible');
   assert(offline.edge.peak < 0.9 && offline.knock.peak < 0.9, 'neither stop clips');
-  assert(offline.knockTail > offline.edgeTail * 1.5, 'a knock on a penguin rings; a stop at the edge does not: ' +
-    offline.knockTail + ' vs ' + offline.edgeTail);
-  console.log('PASS: a slide fades and dulls with speed, rings like glass, stops cleanly; edge and knock differ');
+  assert(offline.knockPitch > offline.edgePitch * 1.5, 'a bump into a penguin is pitched above a stop at the edge: ' +
+    offline.knockPitch + ' vs ' + offline.edgePitch);
+  console.log('PASS: a slide is soft, fades and mellows with speed, stops cleanly; a bump and an edge stop differ');
 
   // ── in the game: one slide per moving penguin, on the renderer's clock ─────
   await page.goto('http://127.0.0.1:' + server.address().port + '/', { waitUntil: 'networkidle' });
