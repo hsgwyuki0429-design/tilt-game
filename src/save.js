@@ -10,13 +10,14 @@
  */
 (function (root) {
 
-  // The ice-world campaign replaces the original compact boards, so progress
-  // from that campaign must not be shown as a best score on these new stages.
-  var KEY = 'tilt.save.ice.v2';
+  // New boards have new scores. Preserve the old save and carry preferences
+  // across without marking an unplayed replacement level as already cleared.
+  var KEY = 'tilt.save.duo.v3';
+  var PREVIOUS_KEY = 'tilt.save.ice.v2';
 
   function defaults() {
     return {
-      version: 2,
+      version: 3,
       cleared: {},        // stageId -> best move count
       unlocked: 1,        // highest stage the player may enter
       sound: true,
@@ -47,7 +48,17 @@
       this.available = false;
       return;
     }
-    if (!raw) return;
+    if (!raw) {
+      try {
+        var old = JSON.parse(window.localStorage.getItem(PREVIOUS_KEY) || 'null');
+        if (old && typeof old === 'object') {
+          ['sound','haptics','reduceMotion'].forEach(function (key) {
+            if (typeof old[key] === 'boolean') this.data[key] = old[key];
+          }, this);
+        }
+      } catch (e) { /* Fresh progress is still valid if the old save is corrupt. */ }
+      return;
+    }
     try {
       var parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object') throw new Error('not an object');

@@ -30,18 +30,20 @@
 var permCache = Object.create(null);
 
 /** The eight symmetries of a square of side n, as cell permutations. */
-function permsFor(n) {
-  if (permCache[n]) return permCache[n];
+function permsFor(n, height) {
+  var h=height||n,cacheKey=n+'x'+h;
+  if (permCache[cacheKey]) return permCache[cacheKey];
   var e = n - 1;
   var fns = [
     function (x, y) { return [x, y]; }, function (x, y) { return [e - x, y]; },
-    function (x, y) { return [x, e - y]; }, function (x, y) { return [e - x, e - y]; },
+    function (x, y) { return [x, h - 1 - y]; }, function (x, y) { return [e - x, h - 1 - y]; },
     function (x, y) { return [y, x]; }, function (x, y) { return [e - y, x]; },
     function (x, y) { return [y, e - x]; }, function (x, y) { return [e - y, e - x]; }
   ];
-  return (permCache[n] = fns.map(function (f) {
-    var p = new Int8Array(n * n);
-    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+  if(n!==h)fns=fns.slice(0,4);
+  return (permCache[cacheKey] = fns.map(function (f) {
+    var p = new Int8Array(n * h);
+    for (var y = 0; y < h; y++) for (var x = 0; x < n; x++) {
       var r = f(x, y); p[y * n + x] = r[1] * n + r[0];
     }
     return p;
@@ -51,7 +53,7 @@ function permsFor(n) {
 /* The side comes from the string rather than from a constant: an index holds
    boards of more than one size, and a key that assumed 5×5 would read a 4×4 as
    a short one. */
-function sideOf(flat) { return Math.round(Math.sqrt(flat.length)); }
+function sideOf(flat) { return flat.length===20?5:Math.round(Math.sqrt(flat.length)); }
 
 var SWAP = { '.': '.', '#': '#', 'x': 'x', 'G': 'G', 'A': 'B', 'B': 'A', 'a': 'b', 'b': 'a' };
 
@@ -61,8 +63,8 @@ function swapColours(flat) {
 
 /** Smallest of the eight symmetry images. Colour plays no part. */
 function symmetryKey(flat) {
-  var perms = permsFor(sideOf(flat)), best = null;
-  for (var i = 0; i < 8; i++) {
+  var w=sideOf(flat),perms = permsFor(w,flat.length/w), best = null;
+  for (var i = 0; i < perms.length; i++) {
     var p = perms[i], out = new Array(flat.length);
     for (var c = 0; c < flat.length; c++) out[p[c]] = flat[c];
     var t = out.join('');
@@ -80,7 +82,7 @@ function canonFlat(flat) {
 function rowsToFlat(rows) { return rows.join(''); }
 function flatToRows(flat) {
   var n = sideOf(flat), rows = [];
-  for (var y = 0; y < n; y++) rows.push(flat.slice(y * n, y * n + n));
+  for (var y = 0; y < flat.length/n; y++) rows.push(flat.slice(y * n, y * n + n));
   return rows;
 }
 
@@ -108,7 +110,8 @@ function present(rows, variant) {
   var flat = rowsToFlat(rows);
   if (variant & 8) flat = swapColours(flat);
   var n = sideOf(flat);
-  var p = permsFor(n)[variant & 7], out = new Array(flat.length);
+  var perms=permsFor(n,rows.length);
+  var p = perms[(variant & 7)%perms.length], out = new Array(flat.length);
   for (var c = 0; c < flat.length; c++) out[p[c]] = flat[c];
   return flatToRows(out.join(''));
 }

@@ -782,7 +782,7 @@ async function swipe(page, x, y, dx, dy) {
   var afterReload = await page.evaluate(function () { return JSON.stringify(window.game.save.data.cleared); });
   ok('progress survives a reload', beforeReload === afterReload);
 
-  await page.evaluate(function () { window.localStorage.setItem('tilt.save.v1', '{{{not json'); });
+  await page.evaluate(function () { window.localStorage.setItem('tilt.save.duo.v3', '{{{not json'); });
   await page.reload({ waitUntil: 'load' });
   await page.waitForFunction(function () { return !!window.game; }, null, { timeout: 10000 });
   var recoveredSave = await page.evaluate(function () {
@@ -817,7 +817,15 @@ async function swipe(page, x, y, dx, dy) {
   });
 
   await swipe(page, cx, cy, SWIPE[plan1.path[0]][0], SWIPE[plan1.path[0]][1]);
-  await page.waitForFunction(function () { return window.game.phase !== 'busy'; }, null, { timeout: 6000 });
+  try {
+    await page.waitForFunction(function () { return window.game.phase !== 'busy'; }, null, { timeout: 6000 });
+  } catch (error) {
+    console.error('Touch timeout diagnostics', await page.evaluate(function(){
+      var g=window.game;return {phase:g.phase,home:g.homeOpen,running:g.running,sheets:g.sheets.length,
+        hidden:document.hidden,animation:!!g.renderer.anim};
+    }), consoleErrors);
+    throw error;
+  }
   var afterSwipe = await page.evaluate(function () {
     return { moves: window.game.state.moves, grav: window.game.renderer.gravity };
   });
