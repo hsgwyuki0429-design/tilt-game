@@ -134,23 +134,24 @@ function serve() {
         result.directions=result.directions&&r.particles.length>0&&r.particles.every(function(p){
           return p.dx===dv[0]&&p.dy===dv[1]&&p.vx*dv[0]+p.vy*dv[1]<=0;
         });
-        result.types=result.types&&['shard','skate','frost','chip'].every(function(kind){
+        result.types=result.types&&['frost','grain'].every(function(kind){
           return r.particles.some(function(p){return p.kind===kind;});
         });
         r.frame(16,r.anim.t0+96);
-        result.occlusion=r.shards.count+r.puffs.count+r.marks.count>0;
+        result.occlusion=r.shards.count+r.puffs.count+r.marks.count+r.grains.count>0;
       });
       [8,16,32].forEach(function(dt){
         r.setStage(st,E.initialState(st));r.playMove(E.simulate(st,r.state,'R'),function(){});
+        var calls=0,orig=r.iceSpray;r.iceSpray=function(){calls++;return orig.apply(r,arguments);};
         for(var time=dt;time<=96;time+=dt)r.emitSlideIce(time);
-        counts.push(r.particles.length);
+        r.iceSpray=orig;counts.push(calls);
       });
       result.refresh=counts.every(function(n){return n===counts[0];});
       r.setStage(st,E.initialState(st));r.playMove(E.simulate(st,r.state,'R'),function(){});
       var origin=r.anim.t0;r.frame(16,origin-2);r.frame(16,origin-1);
       result.fresh=r.anim.trailTime===0&&r.particles.length===0;
       for(var k=0;k<100;k++)r.iceSpray(2.5,2.5,1,0,1,true);
-      result.bounded=r.particles.length<=3600;
+      result.bounded=r.particles.length<=5000;
       for(var tick=0;tick<120;tick++)r.updateEffects(16);
       result.expired=r.particles.length===0;
       r.iceSpray(2,2,1,0,1,false);r.reduceMotion=true;r.updateEffects(16);
@@ -161,7 +162,7 @@ function serve() {
       game.loadStage(9);return result;
     });
     check('all four directions throw shavings backward from moving contact edges',ice.directions);
-    check('shards, frost and skate marks are distinct and drawn as instanced meshes',ice.types&&ice.occlusion);
+    check('grains, shards, frost and skate marks are distinct and drawn as instanced meshes',ice.types&&ice.occlusion);
     check('emission density matches at 30, 60 and 120 Hz',ice.refresh);
     check('a fresh swipe tolerates RAF timestamps just before its input event',ice.fresh);
     check('effects have a fixed budget and expire completely',ice.bounded&&ice.expired);

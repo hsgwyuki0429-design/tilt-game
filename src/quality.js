@@ -31,9 +31,9 @@
   /* What each tier costs and buys. The renderer reads this table and nothing
      else, so adding a knob means adding a column here. */
   var TIER = {
-    high: { dpr: 2,   shadow: 2048, particles: 3600, interior: 5, detail: 512, anisotropy: 8,
+    high: { dpr: 2,   shadow: 2048, particles: 5000, interior: 5, detail: 512, anisotropy: 8,
             caustics: true, glitter: true, foam: true },
-    lite: { dpr: 1.5, shadow: 1024, particles: 1400, interior: 0, detail: 256, anisotropy: 2,
+    lite: { dpr: 1.5, shadow: 1024, particles: 2600, interior: 0, detail: 256, anisotropy: 2,
             caustics: false, glitter: false, foam: false }
   };
 
