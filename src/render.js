@@ -33,7 +33,7 @@
   var SQUASH = 150;
   var AIM_SLIDE = .3;
   var MAX_CELL = 112;
-  var MAX_PARTICLES = 3600;
+  var MAX_PARTICLES = 5000;
   var VANISH = 420;
   var TILT_DEG = 5;
 
@@ -653,18 +653,34 @@
     shard.computeVertexNormals();
     this.shards = new T.InstancedMesh(shard, new T.MeshPhysicalMaterial({ color: '#8dd9eb', roughness: .32,
       clearcoat: .45, transparent: true, opacity: .72, depthWrite: false }), MAX_PARTICLES);
-    // Frost lies on the ice, using the same cool, soft tones as the floe.
-    this.puffs = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ map: S.wake, color: '#f3fdff',
-      transparent: true, opacity: .88, depthWrite: false }), MAX_PARTICLES);
+    // The streak right behind a slider: flat, solid white, like the flakes.
+    this.puffs = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: '#ffffff',
+      toneMapped: false, transparent: true, opacity: 1, depthWrite: false }), MAX_PARTICLES);
     this.marks = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({
       map: S.blob, color: '#d8edf1', transparent: true, opacity: .22, depthWrite: false }), MAX_PARTICLES);
+    // Grains: thousands of tiny ragged flakes lying on the ice behind a slider,
+    // a spray that thins out and fades rather than a painted stroke.
+    var flake = new T.BufferGeometry(), fv = [0, 0, 0], fi, FN = 11;
+    for (fi = 0; fi < FN; fi++) {
+      var fa = fi / FN * Math.PI * 2, fr = .5 * (.8 + .2 * Math.sin(fi * 2.7 + 1.3) * Math.cos(fi * 1.1));
+      fv.push(Math.cos(fa) * fr, 0, Math.sin(fa) * fr);
+    }
+    flake.setAttribute('position', new T.Float32BufferAttribute(fv, 3));
+    var fx = []; for (fi = 1; fi <= FN; fi++) fx.push(0, fi, fi % FN + 1);
+    flake.setIndex(fx);
+    // Opaque, unlit and outside tone mapping: the brightest white the screen
+    // has, so the band stands out from pale ice and overlaps never show.
+    this.grains = new T.InstancedMesh(flake, new T.MeshBasicMaterial({ color: '#ffffff', toneMapped: false,
+      depthWrite: false, side: T.DoubleSide }), MAX_PARTICLES);
+    this.grains.setColorAt(0, new T.Color('#fff'));
+    this.grains.renderOrder = 6;
     this.sparks = new T.InstancedMesh(new T.OctahedronGeometry(.5), new T.MeshBasicMaterial({ color: '#ffffff' }), 128);
-    [this.shards, this.puffs, this.marks, this.sparks].forEach(function (m) {
+    [this.shards, this.puffs, this.marks, this.grains, this.sparks].forEach(function (m) {
       m.count = 0; m.frustumCulled = false; this.fxGroup.add(m);
     }, this);
     this.puffs.renderOrder = 6; this.marks.renderOrder = 1;
     // Fade each segment independently so a white ribbon dissolves into grains.
-    [this.shards, this.puffs, this.marks].forEach(function (mesh) {
+    [this.shards, this.puffs, this.marks, this.grains].forEach(function (mesh) {
       mesh.geometry.setAttribute('wakeAlpha', new T.InstancedBufferAttribute(new Float32Array(MAX_PARTICLES), 1));
       mesh.material.onBeforeCompile = function (shader) {
         shader.vertexShader = shader.vertexShader
@@ -1030,27 +1046,32 @@
   };
   /* A white ribbon follows the contact patch, then dissolves into blue ice
      grains. Distance-based segments join at every refresh rate. */
+  var GRAIN_COLORS = ['#f2fbff'];
   Renderer.prototype.iceSpray = function (x, y, dx, dy, speed, impact) {
     if (this.reduceMotion) return;
-    var count = impact ? 24 : 10;
+    // One solid white streak right behind the slider, and a band of blue
+    // blobs the width of the slider that thins out and fades behind it.
+    var count = impact ? 30 : (this.tier === 'lite' ? 44 : 46);
     for (var j = 0; j < count; j++) {
-      var kind = !impact && j === 0 ? 'frost' : !impact && j === 1 ? 'skate' : j % 4 === 2 ? 'chip' : 'shard';
-      var side = Math.random() < .5 ? -1 : 1, hard = impact ? 1.25 : 1;
-      var spread = side * (.00012 + Math.random() * .00042) * hard;
-      var back = (.00012 + Math.random() * .00032) * speed, along, across;
-      if (impact) { along = .18 + Math.random() * .16; across = (Math.random() - .5) * .6; }
-      else { along = -.36 + Math.random() * .14; across = (Math.random() - .5) * .54; }
-      if (kind === 'frost') { along = -.28; across = 0; }
+      var kind = !impact && j === 0 ? 'frost' : 'grain';
+      var along, across;
+      if (impact) { along = .1 + Math.random() * .25; across = (Math.random() * 2 - 1) * .5; }
+      // Denser in the middle with ragged edges, never a hard-edged rectangle.
+      else { along = -.1 - Math.random() * .75; across = (Math.random() + Math.random() + Math.random() - 1.5) * .4; }
+      if (kind === 'frost') { along = -.3; across = 0; }
       var px = x + dx * along - dy * across, py = y + dy * along + dx * across;
       if (this.groundAt(px, py) < 0) continue;
-      var surface = kind === 'skate' || kind === 'frost';
-      var up = surface ? 0 : (.00045 + Math.random() * .0009) * hard;
-      this.particles.push({ kind: kind, x: px, y: py, z: surface ? .008 : .022,
-        vx: surface ? 0 : -dx * back - dy * spread, vy: surface ? 0 : -dy * back + dx * spread, vz: up,
-        life: 0, max: kind === 'frost' ? 300 : kind === 'skate' ? 420 : 420 + Math.random() * 220,
-        size: kind === 'frost' ? .5 : kind === 'chip' ? .035 + Math.random() * .018 : .018 + Math.random() * .018,
-        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .008,
-        dx: dx, dy: dy });
+      var grain = kind === 'grain', back = Math.random() * .00006 * speed;
+      // Flakes creep outward from the path as they fade, as in the reference.
+      var drift = (across < 0 ? -1 : 1) * (.00003 + Math.random() * .00017);
+      var p = { kind: kind, x: px, y: py, z: grain ? .016 + Math.random() * .03 : .012,
+        vx: grain ? -dx * back - dy * drift : 0, vy: grain ? -dy * back + dx * drift : 0, vz: 0,
+        life: 0, max: grain ? 480 + Math.random() * 640 : 130,
+        size: grain ? .06 + Math.random() * .06 : .86,
+        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .002,
+        aspect: .6 + Math.random() * .8, dx: dx, dy: dy };
+      if (grain) p.col = GRAIN_COLORS[(Math.random() * GRAIN_COLORS.length) | 0];
+      this.particles.push(p);
     }
     this.trimParticles();
   };
@@ -1119,7 +1140,7 @@
       if (surface) { p.z = .008; p.vx = 0; p.vy = 0; }
       else { p.z += p.vz * step; p.vz -= .000012 * step; }
       if (p.angle != null) p.angle += p.spin * step;
-      var drag = Math.exp(-step * (p.z <= floor + .01 ? .013 : .002)); p.vx *= drag; p.vy *= drag;
+      var drag = Math.exp(-step * (p.kind === 'grain' ? .002 : p.z <= floor + .01 ? .013 : .002)); p.vx *= drag; p.vy *= drag;
       if (p.z < floor) {
         if (floor < 0) { p.life = Math.max(p.life, p.max - 60); }   // into the water
         p.z = floor; p.vz *= -.22; p.spin *= .55;
@@ -1338,7 +1359,7 @@
   var tmpM = null, tmpQ = null, tmpV = null, tmpS = null, tmpE = null, tmpC = null;
   Renderer.prototype.updateParticles = function () {
     if (!tmpM) { tmpM = new T.Matrix4(); tmpQ = new T.Quaternion(); tmpV = new T.Vector3(); tmpS = new T.Vector3(); tmpE = new T.Euler(); tmpC = new T.Color(); }
-    var ns = 0, np = 0, nm = 0, nk = 0;
+    var ns = 0, np = 0, nm = 0, nk = 0, ng = 0;
     for (var i = 0; i < this.particles.length; i++) {
       var p = this.particles[i], f = 1 - p.life / p.max;
       tmpV.set(this.wx(p.x), p.z, this.wz(p.y));
@@ -1347,11 +1368,17 @@
         var s = p.size * Math.sqrt(f); tmpS.set(s, s * .55, s);
         tmpM.compose(tmpV, tmpQ, tmpS); this.shards.geometry.attributes.wakeAlpha.setX(ns, Math.min(1, f * 2));
         this.shards.setMatrixAt(ns++, tmpM);
+      } else if (p.kind === 'grain') {
+        var gs = p.size * (.3 + .7 * Math.sqrt(f));
+        tmpE.set(0, p.angle, 0); tmpQ.setFromEuler(tmpE); tmpS.set(gs * p.aspect, 1, gs / p.aspect);
+        tmpM.compose(tmpV, tmpQ, tmpS); tmpC.set(p.col);
+        this.grains.geometry.attributes.wakeAlpha.setX(ng, 1);
+        this.grains.setColorAt(ng, tmpC); this.grains.setMatrixAt(ng++, tmpM);
       } else if (p.kind === 'frost') {
         var fs = p.size * (.6 + .4 * f);
         tmpE.set(0, Math.atan2(p.dx, p.dy), 0); tmpQ.setFromEuler(tmpE);
-        tmpS.set(fs, 1, .23);
-        tmpM.compose(tmpV, tmpQ, tmpS); this.puffs.geometry.attributes.wakeAlpha.setX(np, f * f);
+        tmpS.set(fs, 1, .34);
+        tmpM.compose(tmpV, tmpQ, tmpS); this.puffs.geometry.attributes.wakeAlpha.setX(np, Math.min(1, f * 1.6));
         this.puffs.setMatrixAt(np++, tmpM);
       } else if (p.kind === 'skate') {
         tmpQ.setFromAxisAngle(new T.Vector3(0, 1, 0), Math.atan2(p.dx, p.dy));
@@ -1364,13 +1391,15 @@
         tmpC.set(p.col); this.sparks.setColorAt(nk, tmpC); nk++;
       }
     }
-    this.shards.count = ns; this.puffs.count = np; this.marks.count = nm; this.sparks.count = nk;
+    this.shards.count = ns; this.puffs.count = np; this.marks.count = nm; this.sparks.count = nk; this.grains.count = ng;
     this.shards.instanceMatrix.needsUpdate = true; this.puffs.instanceMatrix.needsUpdate = true;
-    this.marks.instanceMatrix.needsUpdate = true; this.sparks.instanceMatrix.needsUpdate = true;
+    this.marks.instanceMatrix.needsUpdate = true; this.grains.instanceMatrix.needsUpdate = true; this.sparks.instanceMatrix.needsUpdate = true;
     if (this.sparks.instanceColor) this.sparks.instanceColor.needsUpdate = true;
     this.shards.geometry.attributes.wakeAlpha.needsUpdate = true;
     this.puffs.geometry.attributes.wakeAlpha.needsUpdate = true;
     this.marks.geometry.attributes.wakeAlpha.needsUpdate = true;
+    this.grains.geometry.attributes.wakeAlpha.needsUpdate = true;
+    if (this.grains.instanceColor) this.grains.instanceColor.needsUpdate = true;
   };
 
   Renderer.prototype.updateRipples = function () {
