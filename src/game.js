@@ -119,14 +119,14 @@
 
     // How to play — the complete rule set, one line at a time.
     r1h: { ja: '重力を向ける', en: 'You aim gravity' },
-    r1p: { ja: 'ペンギンは直接動かせません。指をはらった向きへ盤面ごと重力が向き、すべてのペンギンが同時に滑ります。',
-          en: 'You never move a penguin directly. Swipe, and the whole world falls that way — every penguin at once.' },
+    r1p: { ja: 'ペンギンは直接動かせません。指をはらった向きへ氷ごと重力が向き、すべてのペンギンが同時に滑ります。氷のふち（外側も、穴のまわりも）で止まり、水には落ちません。',
+          en: 'You never move a penguin directly. Swipe, and the whole floe tips that way — every penguin at once. They stop at the edge of the ice, the rim or a hole, and never fall in.' },
     r2h: { ja: '色を合わせる', en: 'Match each colour' },
     r2p: { ja: '各ペンギンには同じ色のオーロラが1つあります。その渦の上で止まると回収されます。',
           en: 'Every penguin has one matching aurora. It is collected when it stops on that vortex.' },
     r3h: { ja: 'くっついてもクリアではない', en: 'Touching is not a win' },
-    r3p: { ja: 'ペンギン同士が触れても消えません。互いを止める、動かせる壁として使えます。',
-          en: 'Penguins do not clear when they touch. They can stop each other like movable walls.' },
+    r3p: { ja: 'ペンギン同士が触れても消えません。互いを止める、動く氷のふちとして使えます。',
+          en: 'Penguins do not clear when they touch. Each can stop the other, like a moving edge of ice.' },
     r4h: { ja: 'ゴールの順番も大切', en: 'Choose the collection order' },
     r4p: { ja: '先にゴールしたペンギンは、相手を止められなくなります。もう一羽の足場として必要か、ゴール前に考えてみましょう。',
           en: 'A collected penguin can no longer stop its partner. Before collecting it, consider whether the other still needs its help.' },
@@ -1505,14 +1505,16 @@
         '<rect x="50" y="25" width="22" height="22" rx="6" fill="#0B8DAE" transform="translate(-6,0)"/>' +
         '<circle cx="55" cy="36" r="3.4" fill="rgba(255,255,255,0.92)"/>'),
       // All three brakes at once, in the order the campaign teaches them: a block
-      // pressed flat against the tray EDGE on the left, a WALL slab merged into
-      // the right-hand edge, and a second BLOCK stopped against it.
+      // pressed flat against the rim of the floe on the left, open WATER where
+      // the ice ends on the right, and a second BLOCK stopped against it.
       brake: frame(
         '<rect x="1" y="24" width="22" height="24" rx="5" fill="#0B8DAE"/>' +
         '<circle cx="13" cy="36" r="3.4" fill="rgba(255,255,255,0.92)"/>' +
         '<rect x="30" y="26" width="20" height="20" rx="5" fill="#7A4AE8"/>' +
         '<rect x="36" y="32" width="8" height="8" fill="rgba(255,255,255,0.92)"/>' +
-        '<rect x="52" y="21" width="19" height="30" rx="2" fill="#78829F"/>'),
+        '<path d="M52 1.5h5a13.5 13.5 0 0 1 13.5 13.5v42a13.5 13.5 0 0 1-13.5 13.5h-5z" fill="#62C2DC"/>' +
+        '<path d="M55 29c2.5-2 5.5 2 8.5 0M55 39c2.5-2 5.5 2 8.5 0" stroke="#FFFFFF" stroke-width="1.6" ' +
+        'stroke-linecap="round" opacity=".85"/>'),
       // The partner is both a goal-bound penguin and a temporary brake.
       order: frame(
         '<path d="M6 36h9" stroke="#616986" stroke-width="2.4" stroke-linecap="round" ' +

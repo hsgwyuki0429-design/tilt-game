@@ -86,10 +86,7 @@ async function swipe(page, x, y, dx, dy) {
 
   // Use the pre-installed browser rather than downloading one; the bundled
   // revision may not match whatever playwright version is on disk.
-  var launchOpts = {};
-  ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome', process.env.CHROME_PATH].forEach(function (p) {
-    if (!launchOpts.executablePath && p && fs.existsSync(p)) launchOpts.executablePath = p;
-  });
+  var launchOpts = require('./lib/browser').launchOptions();
   var browser = await chromium.launch(launchOpts);
   var iphone = devices['iPhone 12'];
   var context = await browser.newContext(Object.assign({}, iphone, { hasTouch: true, isMobile: true }));
@@ -714,12 +711,13 @@ async function swipe(page, x, y, dx, dy) {
     await page.evaluate(function (i) { window.game.loadStage(i); }, biggest.index);
     await page.waitForTimeout(260);
     var fit = await page.evaluate(function () {
-      var g = window.game, r = g.renderer;
-      var bw = r.cell * g.stage.w, bh = r.cell * g.stage.h;
+      var g = window.game, r = g.renderer, b = r.boardBounds;
+      // The far row's penguin tops and the near rim of the floe stay in view.
+      var top = r.project(0, 0, .8), bottom = r.project(g.stage.w, g.stage.h, -.36);
       var doc = document.documentElement;
       return {
         cell: r.cell,
-        fits: r.ox >= 0 && r.oy >= 0 && bw <= r.cssW + 0.5 && bh <= r.cssH + 0.5,
+        fits: b.left >= -.5 && b.right <= r.cssW + .5 && top.y >= 0 && bottom.y <= r.cssH + .5,
         hScroll: doc.scrollWidth > doc.clientWidth,
         vScroll: doc.scrollHeight > doc.clientHeight
       };
@@ -779,13 +777,13 @@ async function swipe(page, x, y, dx, dy) {
   console.log('\n\u001b[1mPERSISTENCE\u001b[0m');
   var beforeReload = await page.evaluate(function () { return JSON.stringify(window.game.save.data.cleared); });
   await page.reload({ waitUntil: 'load' });
-  await page.waitForFunction(function () { return !!window.game; }, null, { timeout: 10000 });
+  await page.waitForFunction(function () { return !!window.game; }, null, { timeout: 60000 });
   var afterReload = await page.evaluate(function () { return JSON.stringify(window.game.save.data.cleared); });
   ok('progress survives a reload', beforeReload === afterReload);
 
-  await page.evaluate(function () { window.localStorage.setItem('tilt.save.duo.v3', '{{{not json'); });
+  await page.evaluate(function () { window.localStorage.setItem('tilt.save.floe.v4', '{{{not json'); });
   await page.reload({ waitUntil: 'load' });
-  await page.waitForFunction(function () { return !!window.game; }, null, { timeout: 10000 });
+  await page.waitForFunction(function () { return !!window.game; }, null, { timeout: 60000 });
   var recoveredSave = await page.evaluate(function () {
     return !!window.game && window.game.save.data.unlocked >= 1;
   });

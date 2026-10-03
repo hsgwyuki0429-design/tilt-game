@@ -1,3 +1,7 @@
+> **Historical.** This document describes the wall-based campaigns that came
+> before the floe. The current campaign and its search are in
+> [CAMPAIGN.md](CAMPAIGN.md); the current rules are in [RULES.md](RULES.md).
+
 # Campaign design
 
 The campaign is a hundred boards on two square trays — 4×4 for the short

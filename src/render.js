@@ -1,1348 +1,1379 @@
 'use strict';
 /*
- * TILT — sculpted, screen-aligned ice diorama.
+ * TILT — a floating ice floe, drawn in real 3D.
  *
- * The engine remains the single source of truth in grid coordinates. Rendering
- * interpolates those coordinates and only then calls project(x, y, z).
+ * The engine remains a deterministic 2D grid and the single source of truth.
+ * This file turns it into a WebGL scene (three.js, vendored as a plain script
+ * in src/vendor/three.js): one thick slab of ice in the shape of the board's
+ * floor, floating in a pool of water, lit by a sky, a sun and the auroras.
+ *
+ * There are no walls any more. A cell the engine calls a wall is open water:
+ * the floe simply has no ice there. A penguin gliding towards it stops at the
+ * edge of the ice exactly as it stops at the outer rim, so the rules are the
+ * engine's, unchanged, and the picture finally says what they mean.
+ *
+ * World units are cells. Board x runs along world +X, board y along world +Z
+ * (towards the camera), and height is world +Y with the ice surface at 0.
+ * Swipes still map straight to the screen: the camera looks down the board
+ * from the front, so rows stay level and columns stay upright.
  */
 (function (root) {
   var E = root.TiltEngine;
+  var T = root.THREE;
 
-  var THEME = {
-    trayFill: '#B9DDEA',
-    trayEdge: 'rgba(36,105,145,.30)',
-    floor: '#DCECF3',
-    floorEdge: 'rgba(45,126,164,.34)',
-    wallHi: '#F9FDFF',
-    wallLo: '#4B9FCB',
-    wallEdge: 'rgba(255,255,255,.64)',
-    wallSeam: 'rgba(31,103,146,.30)',
-    hazFill: '#83BDD5',
-    hazFillLo: '#4A98C0',
-    hazStripe: 'rgba(32,93,137,.75)',
-    hazShade: 'rgba(20,74,116,.16)',
-    hazEdge: 'rgba(30,101,146,.54)',
-    socketWell: 'rgba(65,190,212,.18)',
-    socketShade: 'rgba(31,100,144,.22)',
-    blockShade: 'rgba(25,55,102,.22)',
-    glyphInk: 'rgba(255,255,255,.94)',
-    inertEdge: '#5A7080',
-    grazeRing: 'rgba(55,88,128,.92)',
-    cueInk: 'rgba(29,58,94,.78)',
-    cueTrail: 'rgba(29,58,94,',
-    cueGlow: 'rgba(74,184,220,.30)',
-    clearRing: 'rgba(74,218,231,.72)',
-    rebuffRing: 'rgba(55,88,128,.30)',
-    lost: '#4DBAD8',
-    lostRing: 'rgba(25,102,146,.86)',
-    inertDrain: '#D9E8EC',
-    inertDrainK: .5,
-    inertEdgeK: .3,
-    aim: 'rgba(7,122,156,',
-    grav: 'rgba(55,88,112,',
-    contact: 'rgba(27,58,108,.18)',
-    contactDeep: 'rgba(22,48,94,.24)',
-    ao: 'rgba(25,66,112,.16)'
-  };
-
-  var PALETTE = [
-    { hi:'#84E4F0', mid:'#0B8DAE', lo:'#05637C', rim:'rgba(5,99,124,.62)',
-      socket:'#087B9C', socketGlow:'rgba(34,198,218,.34)', shape:'circle' },
-    { hi:'#FFD57A', mid:'#C87C08', lo:'#8A5300', rim:'rgba(138,83,0,.62)',
-      socket:'#AF6E08', socketGlow:'rgba(240,174,71,.34)', shape:'triangle' },
-    { hi:'#CAB8FF', mid:'#7A4AE8', lo:'#4A249B', rim:'rgba(74,36,155,.62)',
-      socket:'#6D3FD4', socketGlow:'rgba(158,126,246,.34)', shape:'square' },
-    { hi:'#8EE7CA', mid:'#0D9469', lo:'#06674A', rim:'rgba(6,103,74,.62)',
-      socket:'#0A7D59', socketGlow:'rgba(71,211,169,.34)', shape:'diamond' }
-  ];
-  var BLOCK = PALETTE[0];
-  var SOCKET = { mid:PALETTE[0].socket, glow:PALETTE[0].socketGlow };
-  function paletteOf(c) { return PALETTE[c] || PALETTE[0]; }
-
-  function glyph(g, cx, cy, r, shape) {
-    g.beginPath();
-    if (shape === 'square') {
-      var s = r * .84; g.rect(cx-s, cy-s, s*2, s*2);
-    } else if (shape === 'triangle') {
-      var h = r * 1.12;
-      g.moveTo(cx,cy-h); g.lineTo(cx+h*.93,cy+h*.62);
-      g.lineTo(cx-h*.93,cy+h*.62); g.closePath();
-    } else if (shape === 'diamond') {
-      var d = r * 1.18;
-      g.moveTo(cx,cy-d); g.lineTo(cx+d,cy); g.lineTo(cx,cy+d);
-      g.lineTo(cx-d,cy); g.closePath();
-    } else g.arc(cx,cy,r,0,Math.PI*2);
-  }
-
+  // ── timing and motion (shared with the game clock) ──────────────────────
   var TICK = 54;
   var TAIL = 48;
   var SQUASH = 150;
-  /* How far, in cells, a block creeps while a swipe is still being made. Far
-     enough to read as movement, short enough that it cannot be mistaken for
-     the move itself having happened. */
   var AIM_SLIDE = .3;
   var MAX_CELL = 112;
-  /* Ceiling on live particles. Slides spray from the whole block, so a long
-     two-penguin move needs more headroom than the old edge-only trail. */
   var MAX_PARTICLES = 420;
-  /* Frontal elevation: grid X and Y remain perpendicular on screen.
-     Height reveals only the front face, with no sideways camera angle. */
-  var GRID_X = 1;
-  var GRID_Y = .95;
-  var Z_X = 0;
-  var Z_Y = .30;
-  var WALL_HEIGHT = .775;
-  var DRIFTER_HEIGHT = .19;
-  var PENGUIN_HEIGHT = .76;
-  var FACE_SIZE = 512;
-  var FACE_NAMES = ['top','bottom','north','south','east','west'];
+  var VANISH = 420;
+  var TILT_DEG = 5;
 
-  function easeOut(p) { return 1-Math.pow(1-p,2.45); }
-  function clamp01(v) { return v<0?0:v>1?1:v; }
-  function lerp(a,b,t) { return a+(b-a)*t; }
-  /* Deterministic grain: the same board always has the same ice, frame after
-     frame, so texture never shimmers. */
-  function hash(n) { n=Math.sin(n*127.1+311.7)*43758.5453; return n-Math.floor(n); }
+  // ── the floe ────────────────────────────────────────────────────────────
+  var FREEBOARD = .36;        // ice above the water line
+  var DRAFT = 1.5;            // total slab thickness; the rest is under water
+  var BEVEL = .075;
+  var INSET = .018;
+  var CORNER = .2;            // rounding on the outside of a corner
+  var NOTCH = .07;            // rounding inside a corner
+  var PENGUIN = .74;
 
-  /* The supplied images are standalone face assets, not contact sheets. They
-     are only resized to a practical 512px decode size; the artwork itself is
-     mapped directly to the matching cube face. */
+  var PALETTE = [
+    { hi:'#84E4F0', mid:'#0B8DAE', lo:'#05637C', body:'#2fb0cf', shape:'circle' },
+    { hi:'#FFD57A', mid:'#E39A1C', lo:'#8A5300', body:'#f2ae3c', shape:'triangle' },
+    { hi:'#CAB8FF', mid:'#7A4AE8', lo:'#4A249B', body:'#9573e2', shape:'square' },
+    { hi:'#8EE7CA', mid:'#0D9469', lo:'#06674A', body:'#2fbf8f', shape:'diamond' }
+  ];
+  function paletteOf(c) { return PALETTE[c] || PALETTE[0]; }
+
   var TEXTURE_FILES = {
-    iceTop:'assets/textures/faces/ice-top.png',
-    wallSouthA:'assets/textures/faces/wall-south-a.png',
-    wallSouthB:'assets/textures/faces/wall-south-b.png',
-    wallEastA:'assets/textures/faces/wall-east-a.png',
-    wallEastB:'assets/textures/faces/wall-east-b.png',
-    wallTopIce:'assets/textures/faces/wall-top-ice.png',
-    wallTopSnow:'assets/textures/faces/wall-top-snow.png',
-    crackedTop:'assets/textures/faces/cracked-top.png',
-    goalTop:'assets/textures/faces/goal-top.png',
-    penguinFront:'assets/textures/faces/penguin-front.png',
-    penguinBack:'assets/textures/faces/penguin-back.png',
-    penguinWest:'assets/textures/faces/penguin-west.png',
-    penguinEast:'assets/textures/faces/penguin-east.png',
-    penguinBottom:'assets/textures/faces/penguin-bottom.png',
-    penguinTopOrange:'assets/textures/faces/penguin-top-orange.png',
-    penguinTopPurple:'assets/textures/faces/penguin-top-purple.png'
-  };
-  var MATERIAL_FACES = {
-    ice:{top:'iceTop',bottom:'iceTop',north:'iceTop',south:'iceTop',east:'iceTop',west:'iceTop'},
-    cracked:{top:'crackedTop',bottom:'iceTop',north:'iceTop',south:'iceTop',east:'iceTop',west:'iceTop'},
-    goal:{top:'goalTop',bottom:'iceTop',north:'iceTop',south:'iceTop',east:'iceTop',west:'iceTop'},
-    'wall-smooth':{top:'wallTopIce',bottom:'wallTopIce',north:'wallSouthA',south:'wallSouthA',
-      east:'wallEastA',west:'wallEastA'},
-    'wall-brick':{top:'wallTopSnow',bottom:'wallTopIce',north:'wallSouthB',south:'wallSouthB',
-      east:'wallEastB',west:'wallEastB'},
-    /* The face belongs on the upward plane. Colour identity is painted onto the
-       beak at runtime, so every goal colour uses the same readable penguin. */
-    'penguin-orange':{top:'penguinFront',bottom:'penguinBottom',north:'penguinBack',
-      south:'penguinBack',east:'penguinEast',west:'penguinWest'},
-    'penguin-purple':{top:'penguinFront',bottom:'penguinBottom',north:'penguinBack',
-      south:'penguinBack',east:'penguinEast',west:'penguinWest'}
+    goalTop: 'assets/textures/faces/goal-top.png'
   };
 
+  function easeOut(p) { return 1 - Math.pow(1 - p, 2.45); }
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  /* Deterministic grain: the same board always has the same ice. */
+  function hash(n) { n = Math.sin(n * 127.1 + 311.7) * 43758.5453; return n - Math.floor(n); }
+  function canvas(w, h) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h; return c;
+  }
+  function colourTexture(c, repeat) {
+    var t = new T.CanvasTexture(c);
+    t.colorSpace = T.SRGBColorSpace;
+    t.anisotropy = 4;
+    if (repeat) { t.wrapS = t.wrapT = T.RepeatWrapping; }
+    return t;
+  }
+  function dataTexture(c, repeat) {
+    var t = new T.CanvasTexture(c);
+    t.colorSpace = T.NoColorSpace || '';
+    if (repeat) { t.wrapS = t.wrapT = T.RepeatWrapping; }
+    return t;
+  }
+
+  // ── shared procedural textures ──────────────────────────────────────────
+  var SHARED = null;
+  function shared() {
+    if (SHARED) return SHARED;
+    SHARED = {};
+    // A soft round blob: contact shadows, frost puffs, glows.
+    var c = canvas(128, 128), g = c.getContext('2d');
+    var r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.45, 'rgba(255,255,255,.55)');
+    r.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = r; g.fillRect(0, 0, 128, 128);
+    SHARED.blob = colourTexture(c);
+
+    // Contact shadow: dense in the middle of a square footprint.
+    c = canvas(128, 128); g = c.getContext('2d');
+    g.filter = 'blur(10px)'; g.fillStyle = 'rgba(255,255,255,1)';
+    g.beginPath(); g.roundRect(30, 30, 68, 68, 18); g.fill();
+    SHARED.contact = colourTexture(c);
+
+    // Water ripples: a tileable height field of crossing swells, as normals.
+    var N = 256, hgt = new Float32Array(N * N), x, y, k;
+    for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
+      var v = 0;
+      for (k = 0; k < 6; k++) {
+        var fx = 1 + Math.floor(hash(k * 3.1) * 4), fy = 1 + Math.floor(hash(k * 7.7) * 4);
+        if (k % 2) fx = -fx;
+        v += Math.sin((x * fx + y * fy) / N * Math.PI * 2 + hash(k) * 6.3) / (1 + k * .5);
+      }
+      hgt[y * N + x] = v;
+    }
+    c = canvas(N, N); g = c.getContext('2d');
+    var img = g.createImageData(N, N);
+    for (y = 0; y < N; y++) for (x = 0; x < N; x++) {
+      var dx = hgt[y * N + (x + 1) % N] - hgt[y * N + (x + N - 1) % N];
+      var dy = hgt[((y + 1) % N) * N + x] - hgt[((y + N - 1) % N) * N + x];
+      var nx = -dx * 2.2, ny = -dy * 2.2, nz = 1, len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      var o = (y * N + x) * 4;
+      img.data[o] = (nx / len * .5 + .5) * 255; img.data[o + 1] = (ny / len * .5 + .5) * 255;
+      img.data[o + 2] = (nz / len * .5 + .5) * 255; img.data[o + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    SHARED.waterNormal = dataTexture(c, true);
+
+    // The pool fades into the page: opaque in the middle, gone at the rim.
+    c = canvas(256, 256); g = c.getContext('2d');
+    r = g.createRadialGradient(128, 128, 40, 128, 128, 128);
+    r.addColorStop(0, '#fff'); r.addColorStop(.62, '#fff'); r.addColorStop(1, '#000');
+    g.fillStyle = r; g.fillRect(0, 0, 256, 256);
+    SHARED.poolAlpha = dataTexture(c);
+
+
+    // A ring for ripples.
+    c = canvas(256, 256); g = c.getContext('2d');
+    g.strokeStyle = 'rgba(255,255,255,1)'; g.lineWidth = 10; g.filter = 'blur(3px)';
+    g.beginPath(); g.arc(128, 128, 112, 0, Math.PI * 2); g.stroke();
+    SHARED.ring = colourTexture(c);
+    return SHARED;
+  }
+
+  // ── the floe's outline ──────────────────────────────────────────────────
+  /*
+   * The boundary of the floor cells as closed loops of grid corners. Every
+   * cell contributes its edges clockwise (in board coordinates, y down) where
+   * the neighbour is not ice; chaining them gives outer rims and holes with
+   * opposite windings. Where two cells touch only at a corner the chain turns
+   * back around its own cell, so the ice does not join through a point.
+   */
+  function floorLoops(stage) {
+    var w = stage.w, h = stage.h;
+    function ice(x, y) { return x >= 0 && y >= 0 && x < w && y < h && stage.terrain[y * w + x] !== E.WALL; }
+    var out = {}, edges = [], x, y;
+    function add(ax, ay, bx, by) {
+      var e = { a: [ax, ay], b: [bx, by], used: false };
+      edges.push(e);
+      var k = ax + ',' + ay;
+      (out[k] = out[k] || []).push(e);
+    }
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      if (!ice(x, y)) continue;
+      if (!ice(x, y - 1)) add(x, y, x + 1, y);
+      if (!ice(x + 1, y)) add(x + 1, y, x + 1, y + 1);
+      if (!ice(x, y + 1)) add(x + 1, y + 1, x, y + 1);
+      if (!ice(x - 1, y)) add(x, y + 1, x, y);
+    }
+    var loops = [];
+    edges.forEach(function (first) {
+      if (first.used) return;
+      var loop = [], e = first;
+      while (e && !e.used) {
+        e.used = true; loop.push(e.a);
+        var dIn = [e.b[0] - e.a[0], e.b[1] - e.a[1]], best = null, bestTurn = -2;
+        (out[e.b[0] + ',' + e.b[1]] || []).forEach(function (n) {
+          if (n.used && n !== first) return;
+          var dOut = [n.b[0] - n.a[0], n.b[1] - n.a[1]];
+          var turn = dIn[0] * dOut[1] - dIn[1] * dOut[0];
+          if (turn > bestTurn) { bestTurn = turn; best = n; }
+        });
+        e = best === first ? null : best;
+      }
+      // Drop collinear corners: only real turns remain.
+      var pts = [];
+      for (var i = 0; i < loop.length; i++) {
+        var p = loop[(i + loop.length - 1) % loop.length], q = loop[i], r = loop[(i + 1) % loop.length];
+        var cross = (q[0] - p[0]) * (r[1] - q[1]) - (q[1] - p[1]) * (r[0] - q[0]);
+        if (cross !== 0) pts.push(q);
+      }
+      if (pts.length >= 4) loops.push(pts);
+    });
+    return loops;
+  }
+  function signedArea(pts) {
+    var a = 0;
+    for (var i = 0; i < pts.length; i++) {
+      var p = pts[i], q = pts[(i + 1) % pts.length];
+      a += p[0] * q[1] - q[0] * p[1];
+    }
+    return a / 2;
+  }
+  function inside(pt, poly) {
+    var c = false;
+    for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      var a = poly[i], b = poly[j];
+      if ((a[1] > pt[1]) !== (b[1] > pt[1]) && pt[0] < (b[0] - a[0]) * (pt[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+    }
+    return c;
+  }
+  /* A loop as a smooth path, pulled in by `inset`, corners rounded. Board
+     coordinates are shifted so the floe is centred on the origin. */
+  function tracePath(path, pts, inset, ox, oy) {
+    var n = pts.length, k;
+    var info = [];
+    for (k = 0; k < n; k++) {
+      var p = pts[(k + n - 1) % n], q = pts[k], r = pts[(k + 1) % n];
+      var din = [Math.sign(q[0] - p[0]), Math.sign(q[1] - p[1])];
+      var dout = [Math.sign(r[0] - q[0]), Math.sign(r[1] - q[1])];
+      var turn = din[0] * dout[1] - din[1] * dout[0];
+      // Inward normal of an edge walked with the ice on its right: (-dy, dx).
+      var nx = -din[1] - dout[1], ny = din[0] + dout[0];
+      var cx = q[0] + nx * inset + ox, cy = q[1] + ny * inset + oy;
+      var rad = turn > 0 ? CORNER : NOTCH;
+      info.push({ c: [cx, cy], din: din, dout: dout, rad: rad });
+    }
+    for (k = 0; k < n; k++) {
+      var it = info[k];
+      var a = [it.c[0] - it.din[0] * it.rad, it.c[1] - it.din[1] * it.rad];
+      var b = [it.c[0] + it.dout[0] * it.rad, it.c[1] + it.dout[1] * it.rad];
+      if (k === 0) path.moveTo(a[0], a[1]); else path.lineTo(a[0], a[1]);
+      path.quadraticCurveTo(it.c[0], it.c[1], b[0], b[1]);
+    }
+    path.closePath();
+    return path;
+  }
+  function floeShapes(stage, inset) {
+    var loops = floorLoops(stage), ox = -stage.w / 2, oy = -stage.h / 2;
+    var outer = [], holes = [];
+    loops.forEach(function (l) { (signedArea(l) > 0 ? outer : holes).push(l); });
+    return outer.map(function (o) {
+      var s = tracePath(new T.Shape(), o, inset, ox, oy);
+      holes.forEach(function (hl) {
+        // Half a cell to the water side of the hole's first edge.
+        var a = hl[0], b = hl[1], dx = Math.sign(b[0] - a[0]), dy = Math.sign(b[1] - a[1]);
+        var probe = [a[0] + dx * .5 + dy * .5, a[1] + dy * .5 - dx * .5];
+        if (inside(probe, o)) s.holes.push(tracePath(new T.Path(), hl, inset, ox, oy));
+      });
+      return s;
+    });
+  }
+
+  // ── the top of the ice ──────────────────────────────────────────────────
+  /* Snow-packed ice with the cell seams engraved into it: the colour and a
+     matching normal map, so the grid is something the light falls into, not
+     a line painted on top. Computed pixel by pixel into typed arrays — one
+     putImageData each — because hundreds of small canvas draws are slow on a
+     phone and slower still in a software renderer. */
+  var GRAIN = null;
+  function grainAt(u, v) {
+    if (!GRAIN) {
+      GRAIN = new Float32Array(64 * 64);
+      for (var k = 0; k < GRAIN.length; k++) GRAIN[k] = hash(k * 1.731 + 11);
+    }
+    var x = u * 64, y = v * 64, x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+    var a = GRAIN[(y0 & 63) * 64 + (x0 & 63)], b = GRAIN[(y0 & 63) * 64 + ((x0 + 1) & 63)];
+    var c = GRAIN[((y0 + 1) & 63) * 64 + (x0 & 63)], d = GRAIN[((y0 + 1) & 63) * 64 + ((x0 + 1) & 63)];
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+    return lerp(lerp(a, b, fx), lerp(c, d, fx), fy);
+  }
+  function iceSurface(stage) {
+    var P = 128, w = stage.w, h = stage.h, W = w * P, H = h * P, x, y;
+    function ice(cx, cy) { return cx >= 0 && cy >= 0 && cx < w && cy < h && stage.terrain[cy * w + cx] !== E.WALL; }
+    var height = new Float32Array(W * H);
+    var col = canvas(W, H), g = col.getContext('2d'), img = g.createImageData(W, H), px = img.data;
+    var tint = [];
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      var sd = w * 31 + h * 7 + y * 13 + x * 5;
+      tint.push([hash(sd) - .5, hash(sd + 1) - .5, hash(sd + 3), hash(sd + 4)]);
+    }
+    for (y = 0; y < H; y++) {
+      var cy = (y / P) | 0, fy = y / P - cy;
+      for (x = 0; x < W; x++) {
+        var cx = (x / P) | 0, fx = x / P - cx, i = y * W + x, t = tint[cy * w + cx];
+        // Distance to an engraved seam: only where the neighbour is ice too.
+        var seam = 1;
+        if (fx > .5 ? ice(cx + 1, cy) : ice(cx - 1, cy)) seam = Math.min(seam, (fx > .5 ? 1 - fx : fx) * P / 3.2);
+        if (fy > .5 ? ice(cx, cy + 1) : ice(cx, cy - 1)) seam = Math.min(seam, (fy > .5 ? 1 - fy : fy) * P / 3.2);
+        seam = Math.min(1, seam);
+        var n1 = grainAt(x / W * w * .9, y / H * h * .9), n2 = grainAt(x / W * w * 3.1 + 7, y / H * h * 3.1 + 3);
+        height[i] = n1 * .5 + n2 * .25 + (seam - 1) * 1.6;
+        // Colour: packed snow, a soft drift per tile, cool in the seams.
+        var drift = Math.max(0, 1 - Math.hypot(fx - t[2], fy - t[3]) * 1.4);
+        var lr = 238 + t[0] * 10 + n1 * 12 + drift * 8 - (x / W + y / H) * 9;
+        var lg = 247 + n1 * 7 + drift * 6 - (x / W + y / H) * 6;
+        var lb = 252 + t[1] * 4;
+        var sparkle = hash(i * .37 + 1);
+        if (sparkle > .996) { lr = lg = lb = 255; }
+        else if (sparkle < .004) { lr -= 30; lg -= 18; lb -= 8; }
+        var k = 1 - seam;
+        lr = lr * (1 - k * .32); lg = lg * (1 - k * .2); lb = lb * (1 - k * .08);
+        if (stage.terrain[cy * w + cx] === E.HAZARD) {
+          var crack = Math.abs(Math.sin((fx * 7 + fy * 3) * 3.1 + t[0] * 9) * Math.cos((fy * 6 - fx * 2) * 2.7));
+          if (crack < .06) { lr *= .55; lg *= .7; lb *= .82; height[i] -= .8; }
+        }
+        var o = i * 4;
+        px[o] = Math.min(255, lr); px[o + 1] = Math.min(255, lg); px[o + 2] = Math.min(255, lb); px[o + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    var nm = canvas(W, H), ng = nm.getContext('2d'), nimg = ng.createImageData(W, H), nd = nimg.data;
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      var dx = height[y * W + Math.min(W - 1, x + 1)] - height[y * W + Math.max(0, x - 1)];
+      var dy = height[Math.min(H - 1, y + 1) * W + x] - height[Math.max(0, y - 1) * W + x];
+      var nx = -dx * 1.4, ny = dy * 1.4, len = Math.sqrt(nx * nx + ny * ny + 1), q = (y * W + x) * 4;
+      nd[q] = (nx / len * .5 + .5) * 255; nd[q + 1] = (ny / len * .5 + .5) * 255;
+      nd[q + 2] = (1 / len * .5 + .5) * 255; nd[q + 3] = 255;
+    }
+    ng.putImageData(nimg, 0, 0);
+    return { map: colourTexture(col), normal: dataTexture(nm) };
+  }
+
+  // ── penguins ────────────────────────────────────────────────────────────
+  var FACE = 256;
+  function bibPath(g) {
+    g.beginPath(); g.moveTo(34, 256); g.lineTo(34, 112);
+    g.bezierCurveTo(34, 30, 90, 26, 128, 70); g.bezierCurveTo(166, 26, 222, 30, 222, 112);
+    g.lineTo(222, 256); g.closePath();
+  }
+  function plumage(g, colour, seed) {
+    var pal = paletteOf(colour), gr = g.createLinearGradient(0, 0, 0, FACE);
+    gr.addColorStop(0, pal.hi); gr.addColorStop(.55, pal.body); gr.addColorStop(1, pal.mid);
+    g.fillStyle = gr; g.fillRect(0, 0, FACE, FACE);
+    for (var r = 0; r < 7; r++) for (var c = 0; c <= 8; c++) {
+      var k = r * 31 + c * 7 + seed, fw = FACE / 8, fh = FACE / 7;
+      var fx = (c + (r % 2) * .5) * fw + (hash(k) - .5) * fw * .2, fy = (r + .55) * fh;
+      g.strokeStyle = 'rgba(255,255,255,' + (.05 + hash(k * 3.3) * .07) + ')'; g.lineWidth = 3;
+      g.beginPath(); g.ellipse(fx, fy, fw * .62, fh * .7, 0, Math.PI * 1.08, Math.PI * 1.92); g.stroke();
+      g.strokeStyle = 'rgba(70,30,0,' + (.04 + hash(k * 4.1) * .05) + ')'; g.lineWidth = 2.5;
+      g.beginPath(); g.ellipse(fx, fy + fh * .18, fw * .58, fh * .7, 0, Math.PI * .12, Math.PI * .88); g.stroke();
+    }
+  }
+  function glyph(g, cx, cy, r, shape) {
+    g.beginPath();
+    if (shape === 'square') { var s = r * .84; g.rect(cx - s, cy - s, s * 2, s * 2); }
+    else if (shape === 'triangle') {
+      var hh = r * 1.12; g.moveTo(cx, cy - hh); g.lineTo(cx + hh * .93, cy + hh * .62);
+      g.lineTo(cx - hh * .93, cy + hh * .62); g.closePath();
+    } else if (shape === 'diamond') {
+      var d = r * 1.18; g.moveTo(cx, cy - d); g.lineTo(cx + d, cy); g.lineTo(cx, cy + d); g.lineTo(cx - d, cy); g.closePath();
+    } else g.arc(cx, cy, r, 0, Math.PI * 2);
+  }
+  /* The front of the cube: plumage, the white bib, cheeks and eyes. The beak
+     is real geometry, so the face is drawn around where it will sit. */
+  function drawFace(colour, expression) {
+    var c = canvas(FACE, FACE), g = c.getContext('2d');
+    plumage(g, colour, 500);
+    var bib = g.createLinearGradient(40, 30, 160, 256);
+    bib.addColorStop(0, '#ffffff'); bib.addColorStop(1, '#e2eef1');
+    g.save(); g.shadowColor = 'rgba(255,255,255,.9)'; g.shadowBlur = 8;
+    g.fillStyle = bib; bibPath(g); g.fill(); g.restore();
+    g.save(); bibPath(g); g.clip();
+    var form = g.createRadialGradient(118, 130, 20, 128, 150, 160);
+    form.addColorStop(0, 'rgba(255,255,255,0)'); form.addColorStop(1, 'rgba(90,120,140,.22)');
+    g.fillStyle = form; g.fillRect(0, 0, FACE, FACE);
+    g.lineCap = 'round';
+    for (var k = 0; k < 60; k++) {
+      var fx = 40 + hash(k * 2.3) * 176, fy = 70 + hash(k * 3.9) * 180, fl = 6 + hash(k * 1.7) * 9;
+      g.strokeStyle = hash(k * 5.1) > .5 ? 'rgba(255,255,255,.7)' : 'rgba(140,165,180,.16)'; g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(fx, fy); g.quadraticCurveTo(fx + (fx < 128 ? -2 : 2), fy + fl * .6, fx + (fx < 128 ? -1 : 1), fy + fl); g.stroke();
+    }
+    g.restore();
+    [58, 198].forEach(function (cx) {
+      var ck = g.createRadialGradient(cx, 150, 1, cx, 150, 24);
+      ck.addColorStop(0, 'rgba(236,140,128,.5)'); ck.addColorStop(1, 'rgba(236,140,128,0)');
+      g.fillStyle = ck; g.fillRect(cx - 26, 124, 52, 52);
+    });
+    g.strokeStyle = '#263d49'; g.fillStyle = '#263d49'; g.lineWidth = 9; g.lineCap = 'round'; g.lineJoin = 'round';
+    var happy = expression === 'good' || expression === 'perfect' || expression === 'clear';
+    var worried = expression === 'danger' || expression === 'bad';
+    var EY = 104;
+    [86, 170].forEach(function (x) {
+      g.beginPath();
+      if (expression === 'perfect') {
+        g.moveTo(x, EY - 26); g.lineTo(x + 7, EY - 9); g.lineTo(x + 20, EY - 1); g.lineTo(x + 7, EY + 7);
+        g.lineTo(x, EY + 24); g.lineTo(x - 7, EY + 7); g.lineTo(x - 20, EY - 1); g.lineTo(x - 7, EY - 9); g.closePath(); g.fill();
+      } else if (happy) {
+        g.moveTo(x - 15, EY + 10); g.quadraticCurveTo(x, expression === 'clear' ? EY - 38 : EY - 18, x + 15, EY + 10); g.stroke();
+      } else if (expression === 'fail') {
+        g.moveTo(x - 12, EY - 15); g.lineTo(x + 12, EY + 14); g.moveTo(x + 12, EY - 15); g.lineTo(x - 12, EY + 14); g.stroke();
+      } else if (expression === 'miss') {
+        g.moveTo(x - 13, EY + 4); g.lineTo(x + 13, EY + 4); g.stroke();
+      } else {
+        var ey = expression === 'surprise' ? EY - 6 : EY, erx = expression === 'surprise' ? 17 : 13, ery = expression === 'surprise' ? 24 : 19;
+        g.ellipse(x, ey, erx, ery, 0, 0, Math.PI * 2); g.fill();
+        var iris = g.createRadialGradient(x + 2, ey + 7, 1, x, ey + 2, ery);
+        iris.addColorStop(0, 'rgba(110,72,44,.7)'); iris.addColorStop(1, 'rgba(110,72,44,0)');
+        g.fillStyle = iris; g.beginPath(); g.ellipse(x, ey, erx, ery, 0, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.ellipse(x - 4, ey - 8, 4.5, 6.5, 0, 0, Math.PI * 2); g.fill();
+        g.fillStyle = 'rgba(200,240,255,.6)'; g.beginPath(); g.arc(x + 4, ey + ery * .55, 2.4, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#263d49';
+      }
+      if (worried) {
+        var slope = expression === 'bad' ? -1 : 1;
+        g.beginPath(); g.moveTo(x - 15, EY - 34 + slope * (x < 128 ? 10 : 0)); g.lineTo(x + 15, EY - 34 + slope * (x < 128 ? 0 : 10)); g.stroke();
+      }
+    });
+    return c;
+  }
+  function drawCrown(colour) {
+    var c = canvas(FACE, FACE), g = c.getContext('2d');
+    plumage(g, colour, 900);
+    var sh = g.createRadialGradient(90, 80, 10, 128, 128, 190);
+    sh.addColorStop(0, 'rgba(255,255,255,.28)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = sh; g.fillRect(0, 0, FACE, FACE);
+    g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 7; g.lineJoin = 'round';
+    glyph(g, 128, 118, 22, paletteOf(colour).shape); g.stroke();
+    return c;
+  }
+  function drawSide(colour, seed) {
+    var c = canvas(FACE, FACE), g = c.getContext('2d');
+    plumage(g, colour, seed);
+    return c;
+  }
+  var FACES = {};
+  function faceTexture(colour, expression) {
+    var key = colour + ':' + expression;
+    if (!FACES[key]) FACES[key] = colourTexture(drawFace(colour, expression));
+    return FACES[key];
+  }
+  var KITS = {};
+  function penguinKit(colour) {
+    if (KITS[colour]) return KITS[colour];
+    var pal = paletteOf(colour);
+    function mat(map) {
+      return new T.MeshPhysicalMaterial({ map: map, roughness: .58, sheen: .6, sheenRoughness: .45,
+        sheenColor: new T.Color(pal.hi), clearcoat: .15, clearcoatRoughness: .5 });
+    }
+    var side = mat(colourTexture(drawSide(colour, 200))), back = mat(colourTexture(drawSide(colour, 300)));
+    var top = mat(colourTexture(drawCrown(colour)));
+    var bottom = new T.MeshStandardMaterial({ color: pal.mid, roughness: .7 });
+    var orange = new T.MeshPhysicalMaterial({ color: '#f39a1f', roughness: .35, clearcoat: .6, clearcoatRoughness: .2 });
+    var flipper = new T.MeshPhysicalMaterial({ color: new T.Color(pal.mid), roughness: .55, sheen: .4,
+      sheenColor: new T.Color(pal.hi) });
+    var kit = KITS[colour] = {
+      body: new T.RoundedBoxGeometry(PENGUIN, PENGUIN * 1.06, PENGUIN * .92, 5, .15),
+      beak: new T.ConeGeometry(.075, .17, 16).rotateX(Math.PI / 2),
+      foot: new T.SphereGeometry(.075, 16, 10).scale(1.25, .42, 1.55),
+      wing: new T.RoundedBoxGeometry(.07, .36, .24, 3, .03),
+      shadow: new T.PlaneGeometry(1.15, 1.15).rotateX(-Math.PI / 2),
+      side: side, back: back, top: top, bottom: bottom, orange: orange, flipper: flipper
+    };
+    Object.keys(kit).forEach(function (k) { kit[k].userData.shared = true; });
+    return kit;
+  }
+  function makePenguin(colour, contactTex) {
+    var kit = penguinKit(colour), g = new T.Group();
+    var front = kit.side.clone();
+    front.map = faceTexture(colour, 'normal');
+    // BoxGeometry groups: +x, -x, +y, -y, +z (front), -z.
+    var body = new T.Mesh(kit.body, [kit.side, kit.side, kit.top, kit.bottom, front, kit.back]);
+    body.position.y = PENGUIN * .53 + .01;
+    body.castShadow = true; body.receiveShadow = true;
+    var beak = new T.Mesh(kit.beak, kit.orange);
+    beak.position.set(0, PENGUIN * .6, PENGUIN * .46 + .07);
+    var feet = [-1, 1].map(function (s) {
+      var f = new T.Mesh(kit.foot, kit.orange); f.position.set(s * .15, .03, PENGUIN * .46 - .03); return f;
+    });
+    var wings = [-1, 1].map(function (s) {
+      var pivot = new T.Group();
+      pivot.position.set(s * (PENGUIN / 2 + .015), PENGUIN * .7, .02);
+      var wmesh = new T.Mesh(kit.wing, kit.flipper);
+      wmesh.position.y = -.17; wmesh.castShadow = true;
+      pivot.add(wmesh); pivot.userData.side = s;
+      return pivot;
+    });
+    var lean = new T.Group();
+    lean.add(body); lean.add(beak); wings.forEach(function (w) { lean.add(w); });
+    g.add(lean); feet.forEach(function (f) { g.add(f); });
+    var shadow = new T.Mesh(kit.shadow,
+      new T.MeshBasicMaterial({ map: contactTex, color: '#174a66', transparent: true, opacity: .42, depthWrite: false }));
+    shadow.position.y = .006; shadow.renderOrder = 1;
+    g.add(shadow);
+    g.userData = { colour: colour, front: front, lean: lean, wings: wings, shadow: shadow, expression: 'normal' };
+    return g;
+  }
+  function makeDrifter() {
+    var g = new T.Group();
+    var m = new T.Mesh(new T.RoundedBoxGeometry(.8, .3, .8, 4, .08),
+      new T.MeshPhysicalMaterial({ color: '#9fb1c0', roughness: .5, clearcoat: .4 }));
+    m.position.y = .16; m.castShadow = true; m.receiveShadow = true;
+    g.add(m); g.userData = { drifter: true, lean: m, wings: [] };
+    return g;
+  }
+
+  // ── auroras ─────────────────────────────────────────────────────────────
+  var AURORA = {};
+  function auroraTexture(colour, img) {
+    var key = colour + (img ? ':img' : ':plain');
+    if (AURORA[key]) return AURORA[key];
+    var S = 256, c = canvas(S, S), g = c.getContext('2d'), pal = paletteOf(colour);
+    g.save(); g.beginPath(); g.roundRect(8, 8, S - 16, S - 16, 58); g.clip();
+    if (img) g.drawImage(img, 0, 0, S, S);
+    else {
+      var r = g.createRadialGradient(S / 2, S / 2, 4, S / 2, S / 2, S * .55);
+      r.addColorStop(0, '#fff'); r.addColorStop(.4, '#9ef'); r.addColorStop(1, '#58a');
+      g.fillStyle = r; g.fillRect(0, 0, S, S);
+    }
+    g.globalCompositeOperation = 'color'; g.globalAlpha = .85; g.fillStyle = pal.mid; g.fillRect(0, 0, S, S);
+    g.globalCompositeOperation = 'multiply'; g.globalAlpha = .25; g.fillStyle = pal.mid; g.fillRect(0, 0, S, S);
+    g.globalCompositeOperation = 'screen'; g.globalAlpha = 1;
+    var glow = g.createRadialGradient(S / 2, S / 2, 6, S / 2, S / 2, S * .4);
+    glow.addColorStop(0, 'rgba(255,255,255,.4)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, S, S);
+    g.restore();
+    AURORA[key] = colourTexture(c);
+    return AURORA[key];
+  }
+
+  // ── texture bank (decoded images) ───────────────────────────────────────
   function TextureBank(onReady) {
-    this.faces = {};
-    this.images = {};
-    this.loaded = 0;
+    this.images = {}; this.loaded = 0;
     this.expected = Object.keys(TEXTURE_FILES).length;
     this.onReady = onReady || function () {};
-    this.load();
-  }
-  TextureBank.prototype.load = function () {
-    if (typeof Image === 'undefined' || typeof document === 'undefined') return;
-    var self=this;
+    if (typeof Image === 'undefined') return;
+    var self = this;
     Object.keys(TEXTURE_FILES).forEach(function (name) {
-      var img=new Image();
-      img.decoding='async';
-      img.onload=function () {
-        self.images[name]=img;self.loaded++;self.syncFaces();
-        if(self.loaded===self.expected)self.onReady(name);
-      };
-      img.onerror=function(){self.loaded++;self.syncFaces();
-        if(self.loaded===self.expected)self.onReady(name);};
-      img.src=TEXTURE_FILES[name];
-    });
-  };
-  TextureBank.prototype.syncFaces = function () {
-    var bank=this;
-    Object.keys(MATERIAL_FACES).forEach(function (material) {
-      var set={},map=MATERIAL_FACES[material];
-      for(var i=0;i<FACE_NAMES.length;i++)set[FACE_NAMES[i]]=bank.images[map[FACE_NAMES[i]]]||null;
-      bank.faces[material]=set;
-    });
-  };
-  TextureBank.prototype.face = function (material, face) {
-    var set=this.faces[material];
-    return set&&set[face]?set[face]:null;
-  };
-
-  function Renderer(canvas) {
-    var self=this;
-    this.canvas=canvas;
-    this.ctx=canvas.getContext('2d',{alpha:true});
-    this.stage=null; this.state=null; this.anim=null;
-    this.particles=[]; this.ripples=[]; this.flashes=[]; this.grazes=[];
-    this.commands=[]; this.cells=[]; this.baseCache=null; this.staticSprites={};
-    this.gravity=null; this.aimDir=null; this.aimAmount=0; this.aimSlide=0; this.clearGlow=0; this.time=0;
-    this.reduceMotion=false; this.gesture=false; this.gestureDir='L'; this.gestureT=0;
-    this.shift={x:0,y:0}; this.tilt={x:0,y:0}; this.nudge=null; this.shake=0;
-    this.dpr=1; this.cell=40; this.ox=0; this.oy=0;
-    this.stepX=40; this.stepY=40; this.zShiftX=4; this.zScale=11;
-    this.cssW=1; this.cssH=1;
-    this.boardBounds={left:0,right:0,top:0,bottom:0};
-    this.onEvent=null;
-    /* Set by the game to a TiltExpression.PenguinReactions. The renderer asks
-       it what face and what pose each penguin wants and draws that; it knows
-       nothing about which expressions exist or what causes them. */
-    this.reactions=null;
-    this.textureBank=new TextureBank(function(){
-      self.textureVersion=(self.textureVersion||0)+1;
-      if(self.stage)self.buildTerrain();
-      if(self.onInvalidate)self.onInvalidate();
+      var img = new Image();
+      img.decoding = 'async';
+      img.onload = function () { self.images[name] = img; self.loaded++; if (self.loaded === self.expected) self.onReady(name); };
+      img.onerror = function () { self.loaded++; if (self.loaded === self.expected) self.onReady(name); };
+      img.src = TEXTURE_FILES[name];
     });
   }
 
-  /* Canonical logical-world projection used by every drawable. */
-  Renderer.prototype.project=function(x,y,z){
-    z=z||0;
-    return {
-      x:this.ox+x*this.stepX-z*this.zShiftX,
-      y:this.oy+y*this.stepY-z*this.zScale
+  // ── the renderer ────────────────────────────────────────────────────────
+  function Renderer(canvasEl) {
+    var self = this;
+    if (!T) throw new Error('three.js is missing (src/vendor/three.js)');
+    this.canvas = canvasEl;
+    this.gl = new T.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    this.gl.setClearColor(0x000000, 0);
+    this.gl.toneMapping = T.NeutralToneMapping;
+    this.gl.toneMappingExposure = 1.04;
+    this.gl.shadowMap.enabled = true;
+    this.gl.shadowMap.type = T.PCFShadowMap;
+    this.ctx = null;
+
+    this.stage = null; this.state = null; this.anim = null;
+    this.particles = []; this.ripples = []; this.flashes = []; this.grazes = []; this.vanishing = [];
+    this.gravity = null; this.aimDir = null; this.aimAmount = 0; this.aimSlide = 0; this.clearGlow = 0; this.time = 0;
+    this.reduceMotion = false; this.gesture = false; this.gestureDir = 'L'; this.gestureT = 0;
+    this.shift = { x: 0, y: 0 }; this.tilt = { x: 0, y: 0 }; this.nudge = null; this.shake = 0;
+    this.dpr = 1; this.cell = 40; this.cssW = 1; this.cssH = 1;
+    this.boardBounds = { left: 0, right: 0, top: 0, bottom: 0 };
+    this.onEvent = null; this.onInvalidate = null; this.reactions = null;
+
+    this.buildScene();
+    this.textureBank = new TextureBank(function () {
+      self.textureVersion = (self.textureVersion || 0) + 1;
+      if (self.stage) self.buildGoals();
+      if (self.onInvalidate) self.onInvalidate();
+    });
+    canvasEl.addEventListener('webglcontextlost', function (e) { e.preventDefault(); self.lost = true; }, false);
+    canvasEl.addEventListener('webglcontextrestored', function () {
+      self.lost = false;
+      self.buildEnvironment();
+      if (self.stage) self.setStage(self.stage, self.state);
+      if (self.onInvalidate) self.onInvalidate();
+    }, false);
+  }
+
+  Renderer.prototype.buildScene = function () {
+    var S = shared();
+    var scene = this.scene = new T.Scene();
+    this.camera = new T.PerspectiveCamera(30, 1, .1, 100);
+    this.buildEnvironment();
+    scene.environmentIntensity = .55;
+
+    scene.add(new T.HemisphereLight('#f4fbff', '#4f9fbd', .95));
+    var key = this.keyLight = new T.DirectionalLight('#fff4e4', 2.8);
+    key.position.set(-4.2, 7, 2.6);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 3;
+    key.shadow.camera.left = -4; key.shadow.camera.right = 4;
+    key.shadow.camera.top = 4; key.shadow.camera.bottom = -4;
+    key.shadow.camera.near = 1; key.shadow.camera.far = 20;
+    key.shadow.bias = -.0006; key.shadow.normalBias = .02;
+    scene.add(key); scene.add(key.target);
+    var rim = new T.DirectionalLight('#bfe6ff', .9);
+    rim.position.set(3, 3.5, -6); scene.add(rim);
+
+    // The pool. The floe tilts in it; the water stays level.
+    var water = this.water = new T.Mesh(new T.CircleGeometry(1, 96).rotateX(-Math.PI / 2),
+      new T.MeshStandardMaterial({ color: '#3f9fbe', roughness: .06, metalness: 0, transparent: true, opacity: .86,
+        normalMap: S.waterNormal, normalScale: new T.Vector2(.12, .12), alphaMap: S.poolAlpha,
+        depthWrite: false }));
+    water.material.normalMap.repeat.set(3, 3);
+    water.position.y = -FREEBOARD; water.renderOrder = 2;
+    scene.add(water);
+    // A soft dark ring where the floe meets the water.
+    this.waterline = new T.Mesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+      new T.MeshBasicMaterial({ map: S.contact, color: '#0d4b66', transparent: true, opacity: .28, depthWrite: false }));
+    this.waterline.position.y = -FREEBOARD + .004; this.waterline.renderOrder = 3;
+    scene.add(this.waterline);
+
+    this.world = new T.Group(); scene.add(this.world);
+    this.floeGroup = new T.Group(); this.world.add(this.floeGroup);
+    this.goalGroup = new T.Group(); this.world.add(this.goalGroup);
+    this.blockGroup = new T.Group(); this.world.add(this.blockGroup);
+    this.fxGroup = new T.Group(); this.world.add(this.fxGroup);
+
+    // Particles: shards of shaved ice, frost puffs, skate marks, coloured sparks.
+    var shard = new T.BufferGeometry();
+    shard.setAttribute('position', new T.Float32BufferAttribute([0, .6, 0, -.5, -.4, .12, .55, -.35, -.1, 0, -.2, -.6], 3));
+    shard.setIndex([0, 1, 2, 0, 2, 3, 0, 3, 1, 1, 3, 2]);
+    shard.computeVertexNormals();
+    this.shards = new T.InstancedMesh(shard, new T.MeshPhysicalMaterial({ color: '#eefbff', roughness: .12,
+      clearcoat: 1, transparent: true, opacity: .92 }), MAX_PARTICLES);
+    this.puffs = new T.InstancedMesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: S.blob, color: '#ffffff',
+      transparent: true, opacity: .75, depthWrite: false }), MAX_PARTICLES);
+    this.marks = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({
+      map: S.blob, color: '#9cc9dc', transparent: true, opacity: .55, depthWrite: false }), MAX_PARTICLES);
+    this.sparks = new T.InstancedMesh(new T.OctahedronGeometry(.5), new T.MeshBasicMaterial({ color: '#ffffff' }), 128);
+    [this.shards, this.puffs, this.marks, this.sparks].forEach(function (m) {
+      m.count = 0; m.frustumCulled = false; this.fxGroup.add(m);
+    }, this);
+    this.puffs.renderOrder = 6; this.marks.renderOrder = 1;
+    this.sparks.setColorAt(0, new T.Color('#fff'));
+
+    // Ripple rings (pooled).
+    this.ringPool = [];
+    for (var i = 0; i < 10; i++) {
+      var ring = new T.Mesh(new T.PlaneGeometry(2, 2).rotateX(-Math.PI / 2),
+        new T.MeshBasicMaterial({ map: S.ring, transparent: true, depthWrite: false, opacity: 0 }));
+      ring.visible = false; ring.renderOrder = 5; this.scene.add(ring); this.ringPool.push(ring);
+    }
+
+    // Aim and gravity markers, and the first-run swipe cue.
+    this.markers = {};
+    ['U', 'R', 'D', 'L'].forEach(function (d) {
+      var sp = new T.Sprite(new T.SpriteMaterial({ map: arrowTexture(d), transparent: true, depthTest: false, opacity: 0 }));
+      sp.renderOrder = 20; sp.visible = false; this.scene.add(sp); this.markers[d] = sp;
+    }, this);
+    this.cue = new T.Sprite(new T.SpriteMaterial({ map: S.blob, color: '#1d3a5e', transparent: true, depthTest: false, opacity: 0 }));
+    this.cue.renderOrder = 21; this.cue.visible = false; this.scene.add(this.cue);
+    this.cueTrail = [];
+    for (i = 0; i < 6; i++) {
+      var tr = new T.Sprite(new T.SpriteMaterial({ map: S.blob, color: '#1d3a5e', transparent: true, depthTest: false, opacity: 0 }));
+      tr.renderOrder = 20; tr.visible = false; this.scene.add(tr); this.cueTrail.push(tr);
+    }
+  };
+
+  Renderer.prototype.buildEnvironment = function () {
+    var pmrem = new T.PMREMGenerator(this.gl);
+    var sky = colourTexture(skyCanvas());
+    sky.mapping = T.EquirectangularReflectionMapping;
+    if (this.scene.environment) this.scene.environment.dispose();
+    this.scene.environment = pmrem.fromEquirectangular(sky).texture;
+    sky.dispose(); pmrem.dispose();
+  };
+
+  /* A small studio sky for reflections: pale overhead, a bright horizon,
+     a cool sea below, and two soft windows that put a glint on the ice and
+     the penguins. Painted once, at 256×128. */
+  function skyCanvas() {
+    var c = canvas(256, 128), g = c.getContext('2d');
+    var sky = g.createLinearGradient(0, 0, 0, 128);
+    sky.addColorStop(0, '#f6fbff'); sky.addColorStop(.42, '#d8eef7'); sky.addColorStop(.5, '#ffffff');
+    sky.addColorStop(.56, '#9fd2e3'); sky.addColorStop(1, '#2f7f9f');
+    g.fillStyle = sky; g.fillRect(0, 0, 256, 128);
+    g.filter = 'blur(4px)'; g.fillStyle = '#ffffff';
+    g.fillRect(52, 20, 44, 26); g.fillRect(170, 28, 30, 18);
+    g.fillStyle = 'rgba(255,240,220,.9)'; g.fillRect(110, 8, 36, 14);
+    return c;
+  }
+
+  var ARROWS = {};
+  function arrowTexture(d) {
+    if (ARROWS[d]) return ARROWS[d];
+    var c = canvas(128, 128), g = c.getContext('2d');
+    g.fillStyle = 'rgba(240,251,255,.94)'; g.strokeStyle = 'rgba(7,112,148,.75)'; g.lineWidth = 5;
+    g.beginPath(); g.arc(64, 64, 52, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.strokeStyle = '#087A9C'; g.lineWidth = 13; g.lineCap = 'round'; g.lineJoin = 'round';
+    var s = 22; g.beginPath();
+    if (d === 'U') { g.moveTo(64 - s, 64 + s * .4); g.lineTo(64, 64 - s * .7); g.lineTo(64 + s, 64 + s * .4); }
+    else if (d === 'D') { g.moveTo(64 - s, 64 - s * .4); g.lineTo(64, 64 + s * .7); g.lineTo(64 + s, 64 - s * .4); }
+    else if (d === 'L') { g.moveTo(64 + s * .4, 64 - s); g.lineTo(64 - s * .7, 64); g.lineTo(64 + s * .4, 64 + s); }
+    else { g.moveTo(64 - s * .4, 64 - s); g.lineTo(64 + s * .7, 64); g.lineTo(64 - s * .4, 64 + s); }
+    g.stroke();
+    ARROWS[d] = colourTexture(c);
+    return ARROWS[d];
+  }
+
+  /* Board coordinates (cell corners at integers, height in cells) to world. */
+  Renderer.prototype.wx = function (x) { return x - this.stage.w / 2; };
+  Renderer.prototype.wz = function (y) { return y - this.stage.h / 2; };
+  Renderer.prototype.isIce = function (x, y) {
+    var st = this.stage;
+    return x >= 0 && y >= 0 && x < st.w && y < st.h && st.terrain[y * st.w + x] !== E.WALL;
+  };
+  /* Height of whatever is under a point: the ice, or the water. */
+  Renderer.prototype.groundAt = function (x, y) {
+    return this.isIce(Math.floor(x), Math.floor(y)) ? 0 : -FREEBOARD;
+  };
+
+  /* The point (x, y, z) of the board — z up, in cells — in CSS pixels. */
+  Renderer.prototype.project = function (x, y, z) {
+    if (!this.stage) return { x: 0, y: 0 };
+    var v = new T.Vector3(this.wx(x), z || 0, this.wz(y));
+    this.world.updateMatrixWorld();
+    v.applyMatrix4(this.world.matrixWorld).project(this.camera);
+    return { x: (v.x * .5 + .5) * this.cssW, y: (-v.y * .5 + .5) * this.cssH };
+  };
+  Renderer.prototype.cellRect = function (x, y) {
+    var c = this.project(x + .5, y + .5, 0);
+    return { x: c.x - this.cell / 2, y: c.y - this.cell / 2, s: this.cell };
+  };
+
+  Renderer.prototype.setStage = function (stage, state) {
+    this.stage = stage; this.state = state; this.anim = null;
+    this.particles.length = 0; this.ripples.length = 0; this.flashes.length = 0;
+    this.grazes.length = 0; this.vanishing.length = 0;
+    this.gravity = null; this.aimDir = null; this.aimAmount = 0; this.aimSlide = 0;
+    this.clearGlow = 0; this.shake = 0; this.nudge = null;
+    this.shift.x = this.shift.y = 0; this.tilt.x = this.tilt.y = 0;
+    this.onEvent = null;
+    this.buildFloe(); this.buildGoals(); this.buildBlocks();
+    this.layout();
+  };
+  Renderer.prototype.showState = function (state) {
+    this.state = state; this.anim = null; this.grazes.length = 0;
+    this.particles.length = 0; this.ripples.length = 0; this.vanishing.length = 0;
+  };
+
+  /* Free what a stage built for itself. Penguin kits and shared textures are
+     marked `shared` and outlive every stage. */
+  function disposeTree(o) {
+    o.traverse(function (n) {
+      if (n.geometry && !n.geometry.userData.shared) n.geometry.dispose();
+      var mats = n.material ? (Array.isArray(n.material) ? n.material : [n.material]) : [];
+      mats.forEach(function (m) { if (!m.userData.shared) m.dispose(); });
+    });
+  }
+
+  Renderer.prototype.buildFloe = function () {
+    var st = this.stage;
+    this.floeGroup.children.slice().forEach(function (o) { disposeTree(o); });
+    this.floeGroup.clear();
+    if (this.surface) { this.surface.map.dispose(); this.surface.normal.dispose(); }
+    var shapes = floeShapes(st, INSET + BEVEL);
+    var geo = new T.ExtrudeGeometry(shapes, {
+      depth: DRAFT, steps: 10, bevelEnabled: true, bevelThickness: BEVEL, bevelSize: BEVEL,
+      bevelSegments: 5, curveSegments: 6
+    });
+    // Lay it down: shape x → world x, shape y → world z, extrusion → down.
+    geo.rotateX(Math.PI / 2);
+    geo.translate(0, -BEVEL, 0);
+    var pos = geo.attributes.position, uv = geo.attributes.uv, n = pos.count, colours = new Float32Array(n * 3);
+    var top = new T.Color('#f2fbfe'), lip = new T.Color('#bfe7f3'), line = new T.Color('#6cc4de'),
+      deep = new T.Color('#2a7fa6'), abyss = new T.Color('#195f86'), c = new T.Color();
+    for (var i = 0; i < n; i++) {
+      var x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      uv.setXY(i, (x + st.w / 2) / st.w, 1 - (z + st.h / 2) / st.h);
+      if (y > -.03) c.copy(top);
+      else if (y > -.16) c.copy(top).lerp(lip, (-.03 - y) / .13);
+      else if (y > -FREEBOARD) c.copy(lip).lerp(line, (-.16 - y) / (FREEBOARD - .16));
+      else if (y > -.9) c.copy(line).lerp(deep, (-FREEBOARD - y) / (.9 - FREEBOARD));
+      else c.copy(deep).lerp(abyss, Math.min(1, (-.9 - y) / .7));
+      colours[i * 3] = c.r; colours[i * 3 + 1] = c.g; colours[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute('color', new T.BufferAttribute(colours, 3));
+    var surface = this.surface = iceSurface(st);
+    this.topMaterial = new T.MeshPhysicalMaterial({ map: surface.map, normalMap: surface.normal,
+      normalScale: new T.Vector2(.9, .9), roughness: .38, clearcoat: .55, clearcoatRoughness: .22,
+      emissive: new T.Color('#9fe6ff'), emissiveIntensity: 0 });
+    this.sideMaterial = new T.MeshPhysicalMaterial({ vertexColors: true, roughness: .1, clearcoat: 1,
+      clearcoatRoughness: .08, ior: 1.31, specularIntensity: 1, emissive: new T.Color('#2d8fb8'), emissiveIntensity: .12 });
+    var floe = new T.Mesh(geo, [this.topMaterial, this.sideMaterial]);
+    floe.receiveShadow = true;
+    this.floeGroup.add(floe);
+    this.floe = floe;
+  };
+
+  Renderer.prototype.buildGoals = function () {
+    var st = this.stage, S = shared(), img = this.textureBank && this.textureBank.images.goalTop;
+    if (!st) return;
+    this.goalGroup.children.slice().forEach(function (o) { disposeTree(o); });
+    this.goalGroup.clear();
+    this.goals = [];
+    for (var i = 0; i < st.goalCells.length; i++) {
+      var cell = st.goalCells[i], gx = cell % st.w, gy = (cell / st.w) | 0, col = st.goalColour[cell];
+      var pal = paletteOf(col), grp = new T.Group();
+      grp.position.set(this.wx(gx + .5), 0, this.wz(gy + .5));
+      var tex = auroraTexture(col, img);
+      var decal = new T.Mesh(new T.PlaneGeometry(.8, .8).rotateX(-Math.PI / 2),
+        new T.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: new T.Color('#ffffff'),
+          emissiveIntensity: .55, roughness: .3, transparent: true, polygonOffset: true, polygonOffsetFactor: -2 }));
+      decal.position.y = .004; decal.receiveShadow = true; decal.renderOrder = 1;
+      var glow = new T.Mesh(new T.PlaneGeometry(.95, .95).rotateX(-Math.PI / 2),
+        new T.MeshBasicMaterial({ map: S.blob, color: new T.Color(pal.hi), transparent: true, opacity: .32,
+          blending: T.AdditiveBlending, depthWrite: false }));
+      glow.position.y = .012; glow.renderOrder = 2;
+      var motes = [];
+      for (var m = 0; m < 7; m++) {
+        var mote = new T.Sprite(new T.SpriteMaterial({ map: S.blob, color: new T.Color(pal.hi), transparent: true,
+          opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
+        mote.renderOrder = 7; mote.userData = { seed: hash(cell * 7 + m), a: m / 7 * Math.PI * 2 };
+        grp.add(mote); motes.push(mote);
+      }
+      grp.add(decal); grp.add(glow);
+      this.goalGroup.add(grp);
+      this.goals.push({ cell: [gx, gy], group: grp, decal: decal, glow: glow, motes: motes, colour: col, phase: hash(cell + 3) * 6 });
+    }
+  };
+
+  Renderer.prototype.buildBlocks = function () {
+    var st = this.stage, S = shared();
+    this.blockGroup.children.slice().forEach(function (o) { disposeTree(o); });
+    this.blockGroup.clear();
+    this.blocks = [];
+    for (var i = 0; i < st.blocks.length; i++) {
+      var colour = st.colour[i];
+      var m = colour === E.GRAY ? makeDrifter() : makePenguin(colour, S.contact);
+      this.blockGroup.add(m);
+      this.blocks.push(m);
+    }
+  };
+
+  Renderer.prototype.layout = function () {
+    var w = Math.max(1, this.canvas.clientWidth), h = Math.max(1, this.canvas.clientHeight);
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.dpr = dpr; this.cssW = w; this.cssH = h;
+    this.gl.setPixelRatio(dpr);
+    this.gl.setSize(w, h, false);
+    if (!this.stage) return;
+    this.frameCamera();
+  };
+
+  /* Fit the floe, its penguins and the aim markers into the canvas from a
+     fixed, front-on elevation. */
+  Renderer.prototype.frameCamera = function () {
+    var st = this.stage, cam = this.camera, w = this.cssW, h = this.cssH;
+    cam.aspect = w / h;
+    var narrow = w / h < .8;
+    cam.fov = narrow ? 34 : 30;
+    var elev = 52 * Math.PI / 180;
+    var target = new T.Vector3(0, .1, .12);
+    var hx = st.w / 2 + .5, hz = st.h / 2 + .5, pts = [];
+    [-1, 1].forEach(function (sx) { [-1, 1].forEach(function (sz) {
+      pts.push(new T.Vector3(sx * hx, -FREEBOARD, sz * hz));
+      pts.push(new T.Vector3(sx * (st.w / 2), PENGUIN + .1, sz * (st.h / 2)));
+    }); });
+    var margin = Math.max(.86, 1 - 24 / Math.min(w, h));
+    var dist = 12;
+    for (var it = 0; it < 6; it++) {
+      cam.position.set(target.x, target.y + Math.sin(elev) * dist, target.z + Math.cos(elev) * dist);
+      cam.lookAt(target); cam.updateMatrixWorld(); cam.updateProjectionMatrix();
+      var mx = 0, my = 0;
+      pts.forEach(function (p) {
+        var v = p.clone().project(cam);
+        mx = Math.max(mx, Math.abs(v.x)); my = Math.max(my, Math.abs(v.y));
+      });
+      dist *= Math.max(mx / margin, my / margin);
+    }
+    cam.position.set(target.x, target.y + Math.sin(elev) * dist, target.z + Math.cos(elev) * dist);
+    cam.lookAt(target); cam.updateMatrixWorld(); cam.updateProjectionMatrix();
+    this.camBase = cam.position.clone();
+    this.camTarget = target;
+    var a = this.project(0, 0, 0), b = this.project(st.w, 0, 0), c = this.project(0, st.h, 0), d = this.project(st.w, st.h, 0);
+    this.cell = Math.min(MAX_CELL, Math.max(8, ((b.x - a.x) + (d.x - c.x)) / 2 / st.w));
+    this.boardBounds = { left: Math.min(a.x, c.x), right: Math.max(b.x, d.x), top: Math.min(a.y, b.y), bottom: Math.max(c.y, d.y) };
+    // The pool fills what the camera sees of the water, then fades out
+    // before the canvas edge, so it melts into the page.
+    var reach = function (nx, ny) {
+      var o = new T.Vector3(nx, ny, -1).unproject(cam), d = new T.Vector3(nx, ny, 1).unproject(cam).sub(o).normalize();
+      var t = (-FREEBOARD - o.y) / d.y;
+      return o.add(d.multiplyScalar(t));
     };
-  };
-  Renderer.prototype.cellRect=function(x,y){
-    var c=this.project(x+.5,y+.5,.02);
-    return {x:c.x-this.cell/2,y:c.y-this.cell/2,s:this.cell};
+    var cy = new T.Vector3(0, -FREEBOARD, 0).project(cam).y;
+    var side = Math.abs(reach(1, cy).x), far = Math.abs(reach(0, 1).z), near = Math.abs(reach(0, -1).z);
+    var Rx = Math.min(side * .98, st.w / 2 + 3.2), Rz = Math.min(far, near) * .98;
+    Rz = Math.min(Rz, st.h / 2 + 3.2);
+    this.water.scale.set(Math.max(Rx, st.w / 2 + .8), 1, Math.max(Rz, st.h / 2 + .8));
+    this.waterline.scale.set(st.w + 1.1, 1, st.h + 1.1);
+    var off = .7;
+    this.markers.U.position.set(0, -.05, -st.h / 2 - off);
+    this.markers.D.position.set(0, -.05, st.h / 2 + off);
+    this.markers.L.position.set(-st.w / 2 - off, -.05, 0);
+    this.markers.R.position.set(st.w / 2 + off, -.05, 0);
+
   };
 
-  Renderer.prototype.setStage=function(stage,state){
-    this.stage=stage; this.state=state; this.anim=null;
-    this.particles.length=0; this.ripples.length=0; this.flashes.length=0; this.grazes.length=0;
-    this.gravity=null; this.aimDir=null; this.aimAmount=0; this.aimSlide=0;
-    this.clearGlow=0; this.shake=0; this.nudge=null;
-    this.shift.x=this.shift.y=0; this.tilt.x=this.tilt.y=0;
-    this.canvas.style.transform='none'; this.onEvent=null; this.layout();
-  };
-  Renderer.prototype.showState=function(state){
-    this.state=state; this.anim=null; this.grazes.length=0;
-    this.particles.length=0; this.ripples.length=0;
-  };
-
-  Renderer.prototype.layout=function(){
-    // offset sizes do not change when the canvas tilts in CSS perspective.
-    var w=Math.max(1,this.canvas.clientWidth),h=Math.max(1,this.canvas.clientHeight);
-    var dpr=Math.min(window.devicePixelRatio||1,2);
-    this.dpr=dpr; this.cssW=w; this.cssH=h;
-    if(this.canvas.width!==Math.round(w*dpr)||this.canvas.height!==Math.round(h*dpr)){
-      this.canvas.width=Math.round(w*dpr); this.canvas.height=Math.round(h*dpr);
-    }
-    if(!this.stage)return;
-    var st=this.stage,margin=Math.max(15,Math.min(w,h)*.048);
-    var widthUnits=st.w+.94,heightUnits=st.h*GRID_Y+1.35;
-    this.cell=Math.max(8,Math.min((w-margin*2)/widthUnits,(h-margin*2)/heightUnits,MAX_CELL));
-    this.stepX=this.cell*GRID_X; this.stepY=this.cell*GRID_Y;
-    this.zShiftX=this.cell*Z_X; this.zScale=this.cell*Z_Y;
-    this.ox=(w-st.w*this.stepX)/2;
-    this.oy=(h-st.h*this.stepY)/2-this.cell*.13;
-    this.boardBounds={left:this.ox-this.cell*.37,right:this.ox+st.w*this.stepX+this.cell*.37,
-      top:this.oy-this.cell*.42,bottom:this.oy+st.h*this.stepY+this.cell*.68};
-    this.canvas.style.transformOrigin=(w/2)+'px '+(h/2)+'px';
-    this.buildTerrain();
-  };
-
-  Renderer.prototype.buildTerrain=function(){
-    var st=this.stage;
-    this.cells.length=0;
-    for(var y=0;y<st.h;y++)for(var x=0;x<st.w;x++){
-      var i=y*st.w+x,t=st.terrain[i];
-      this.cells.push({x:x,y:y,i:i,terrain:t,
-        material:t===E.HAZARD?'cracked':(st.goal[i]?'goal':'ice'),
-        outer:t===E.WALL&&(x===0||y===0||x===st.w-1||y===st.h-1)});
-    }
-    var c=document.createElement('canvas'),dpr=this.dpr;
-    c.width=Math.max(1,Math.round(this.cssW*dpr));
-    c.height=Math.max(1,Math.round(this.cssH*dpr));
-    this.buildStaticSprites();
-    var g=c.getContext('2d'); g.scale(dpr,dpr); this.drawDioramaBase(g);
-    /* Plain and cracked ice never move, so they are painted into the base
-       once, each cell with its own window into the ice texture. A single
-       cached tile repeated across the tray reads as wallpaper; real ice does
-       not repeat. */
-    for(var k=0;k<this.cells.length;k++)if(this.cells[k].material!=='goal')
-      this.drawFloorTile(g,this.cells[k],k+st.w*17+st.h*5);
-    this.floorBaked=true;
-    this.baseCache=c;
-  };
-
-  Renderer.prototype.drawDioramaBase=function(g){
-    var c=this.cell,x=this.ox-c*.30,y=this.oy-c*.30;
-    var w=this.stage.w*this.stepX+c*.60,h=this.stage.h*this.stepY+c*.60;
-    var r=c*.26,depth=c*.28;
-    g.save();
-    // One continuous cast shadow grounds the complete tray.
-    g.shadowColor='rgba(38,93,109,.23)';g.shadowBlur=c*.40;g.shadowOffsetY=c*.30;
-    g.fillStyle='#90beca';g.beginPath();g.roundRect(x,y+depth,w,h,r);g.fill();
-    g.shadowColor='transparent';
-    var side=g.createLinearGradient(0,y+h,0,y+h+depth);
-    side.addColorStop(0,'#c4e4e9');side.addColorStop(.35,'#8dc1d0');side.addColorStop(1,'#5c9fb6');
-    g.fillStyle=side;g.beginPath();g.roundRect(x,y+depth*.3,w,h+depth*.7,r);g.fill();
-    var snow=g.createLinearGradient(x,y,x+w,y+h);
-    snow.addColorStop(0,'#ffffff');snow.addColorStop(.55,'#f4fbfc');snow.addColorStop(1,'#d6ebee');
-    g.fillStyle=snow;g.beginPath();g.roundRect(x,y,w,h,r);g.fill();
-    g.strokeStyle='rgba(255,255,255,.95)';g.lineWidth=1.5;g.stroke();
-    this.drawSnowGrain(g,x,y,w,h,r,depth);
-    // The inset well ties the floor together instead of framing every texture.
-    g.fillStyle='#b9dbe2';g.beginPath();g.roundRect(this.ox-c*.025,this.oy-c*.025,
-      this.stage.w*this.stepX+c*.05,this.stage.h*this.stepY+c*.05,c*.08);g.fill();
-    g.restore();
-  };
-
-  /* Packed snow and glacier ice, on the tray's existing shapes and colours:
-     a soft bevel on the snow, sparkling grains, gentle unevenness, and faint
-     layering through the visible ice thickness. */
-  Renderer.prototype.drawSnowGrain=function(g,x,y,w,h,r,depth){
-    var c=this.cell,st=this.stage,fx=this.ox-c*.04,fy=this.oy-c*.04;
-    var fw=st.w*this.stepX+c*.08,fh=st.h*this.stepY+c*.08,k;
-    g.save();g.beginPath();g.roundRect(x,y+depth*.3,w,h+depth*.7,r);g.clip();
-    for(k=0;k<3;k++){var sy=y+h+depth*(.12+k*.25);
-      g.strokeStyle='rgba(255,255,255,'+(.22-k*.05)+')';g.lineWidth=Math.max(.8,c*.012);
-      g.beginPath();g.moveTo(x,sy);
-      for(var sx=x;sx<=x+w+c*.4;sx+=c*.4)g.lineTo(sx,sy+Math.sin(sx/c*2.1+k*1.7)*c*.012);
-      g.stroke();}
-    g.restore();
-    g.save();g.beginPath();g.roundRect(x,y,w,h,r);g.clip();
-    // Snow is never perfectly flat: broad soft drifts catching the light.
-    for(k=0;k<Math.round((w+h)/c*3);k++){
-      var px=x+hash(k*3.1+1)*w,py=y+hash(k*5.7+2)*h,pr=c*(.12+hash(k*1.3)*.22);
-      if(px>fx&&px<fx+fw&&py>fy&&py<fy+fh)continue;
-      var dip=g.createRadialGradient(px,py,0,px,py,pr);
-      dip.addColorStop(0,'rgba(255,255,255,.5)');dip.addColorStop(1,'rgba(255,255,255,0)');
-      g.fillStyle=dip;g.fillRect(px-pr,py-pr,pr*2,pr*2);
-    }
-    // Sparkle: crystals catching the light, with a faint cool shadow grain.
-    var n=Math.round((w+h)*.9),gs=Math.max(.6,c*.011);
-    for(k=0;k<n;k++){
-      var qx=x+hash(k*1.31+3)*w,qy=y+hash(k*2.17+9)*h;
-      if(qx>fx&&qx<fx+fw&&qy>fy&&qy<fy+fh)continue;
-      if(hash(k*4.3)>.55){g.fillStyle='rgba(120,165,185,'+(.12+hash(k)*.14)+')';g.fillRect(qx,qy,gs,gs);}
-      else{g.fillStyle='rgba(255,255,255,'+(.7+hash(k)*.3)+')';g.fillRect(qx,qy,gs,gs);}
-    }
-    // Soft bevel: light along the outer upper-left lip, shade at the inner lip.
-    g.lineWidth=c*.05;g.strokeStyle='rgba(255,255,255,.7)';
-    g.beginPath();g.roundRect(x+c*.015,y+c*.015,w,h,r);g.stroke();
-    g.strokeStyle='rgba(120,165,185,.16)';g.lineWidth=c*.035;
-    g.beginPath();g.roundRect(fx-c*.01,fy-c*.01,fw+c*.02,fh+c*.02,c*.1);g.stroke();
-    g.restore();
-  };
-
-  Renderer.prototype.buildStaticSprites=function(){
-    if(typeof document==='undefined'||!this.stage)return;
-    var specs=[
-      {key:'floor:ice',kind:'floor',data:{material:'ice'}},
-      {key:'floor:cracked',kind:'floor',data:{material:'cracked'}},
-      {key:'floor:goal',kind:'floor',data:{material:'goal'}},
-      {key:'wall:smooth',kind:'wall',data:{ring:false,outer:false}},
-      {key:'wall:outer',kind:'wall',data:{ring:false,outer:true}}
-    ];
-    var cssW=Math.ceil(this.cell*1.50),cssH=Math.ceil(this.cell*1.82);
-    var anchorX=this.cell*.22,anchorY=this.cell*.66,dpr=this.dpr;
-    var oldOx=this.ox,oldOy=this.oy,oldBuilding=this._buildingSprites;
-    var sprites={};this._buildingSprites=true;this.ox=anchorX;this.oy=anchorY;
-    try{
-      for(var i=0;i<specs.length;i++){
-        var spec=specs[i],canvas=document.createElement('canvas');
-        canvas.width=Math.max(1,Math.round(cssW*dpr));
-        canvas.height=Math.max(1,Math.round(cssH*dpr));
-        var g=canvas.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
-        var data={x:0,y:0,material:spec.data.material,ring:spec.data.ring,
-          front:spec.data.front,outer:spec.data.outer};
-        if(spec.kind==='floor')this.drawFloor(g,data);else this.drawWall(g,data);
-        sprites[spec.key]={canvas:canvas,w:cssW,h:cssH,ox:anchorX,oy:anchorY};
+  // ── moves (same clock and semantics as the engine's frames) ─────────────
+  Renderer.prototype.playMove = function (result, onDone) {
+    var frames = result.frames, n = this.stage.blocks.length, runs = [];
+    for (var i = 0; i < n; i++) {
+      var br = [], start = -1;
+      for (var t = 1; t < frames.length; t++) {
+        var p = frames[t - 1].pos[i], q = frames[t].pos[i];
+        var moved = frames[t - 1].alive[i] && (p[0] !== q[0] || p[1] !== q[1]);
+        if (moved && start < 0) start = t - 1;
+        if (!moved && start >= 0) { br.push([start, t - 1]); start = -1; }
       }
-    }finally{
-      this.ox=oldOx;this.oy=oldOy;this._buildingSprites=oldBuilding;
+      if (start >= 0) br.push([start, frames.length - 1]); runs.push(br);
     }
-    this.staticSprites=sprites;
+    this.anim = { frames: frames, runs: runs, events: result.events.slice(),
+      passes: this.findPasses(frames), firedPass: {}, fired: {}, trailTime: 0, trailDistance: [],
+      t0: (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(),
+      duration: Math.max(TICK, (frames.length - 1) * TICK + TAIL + SQUASH),
+      endState: result.state, onDone: onDone, done: false };
   };
-  Renderer.prototype.blitStaticSprite=function(g,key,x,y){
-    if(this._buildingSprites)return false;
-    var sprite=this.staticSprites&&this.staticSprites[key];if(!sprite)return false;
-    var p=this.project(x,y,0);
-    g.drawImage(sprite.canvas,0,0,sprite.canvas.width,sprite.canvas.height,
-      p.x-sprite.ox,p.y-sprite.oy,sprite.w,sprite.h);
-    return true;
-  };
-
-  Renderer.prototype.playMove=function(result,onDone){
-    var frames=result.frames,n=this.stage.blocks.length,runs=[];
-    for(var i=0;i<n;i++){
-      var br=[],start=-1;
-      for(var t=1;t<frames.length;t++){
-        var p=frames[t-1].pos[i],q=frames[t].pos[i];
-        var moved=frames[t-1].alive[i]&&(p[0]!==q[0]||p[1]!==q[1]);
-        if(moved&&start<0)start=t-1;
-        if(!moved&&start>=0){br.push([start,t-1]);start=-1;}
-      }
-      if(start>=0)br.push([start,frames.length-1]);runs.push(br);
-    }
-    this.anim={frames:frames,runs:runs,events:result.events.slice(),
-      passes:this.findPasses(frames),firedPass:{},fired:{},trailTime:0,trailDistance:[],
-      t0:(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now(),
-      duration:Math.max(TICK,(frames.length-1)*TICK+TAIL+SQUASH),
-      endState:result.state,onDone:onDone,done:false};
-  };
-  Renderer.prototype.findPasses=function(frames){
-    var st=this.stage,out=[],seen={},n=frames[0].pos.length;
-    for(var i=0;i<n;i++)for(var t=1;t+1<frames.length;t++){
-      if(!frames[t].alive[i])break;
-      var p=frames[t].pos[i],ci=p[1]*st.w+p[0];
-      if(!st.goal[ci]||!E.accepts(st.goalColour[ci],st.colour[i]))continue;
-      var q=frames[t+1].pos[i];
-      if(q[0]===p[0]&&q[1]===p[1])continue;
-      var key=ci+'@'+t;if(seen[key])continue;seen[key]=1;
-      out.push({t:t,cell:[p[0],p[1]]});if(out.length>=4)return out;
+  Renderer.prototype.findPasses = function (frames) {
+    var st = this.stage, out = [], seen = {}, n = frames[0].pos.length;
+    for (var i = 0; i < n; i++) for (var t = 1; t + 1 < frames.length; t++) {
+      if (!frames[t].alive[i]) break;
+      var p = frames[t].pos[i], ci = p[1] * st.w + p[0];
+      if (!st.goal[ci] || !E.accepts(st.goalColour[ci], st.colour[i])) continue;
+      var q = frames[t + 1].pos[i];
+      if (q[0] === p[0] && q[1] === p[1]) continue;
+      var key = ci + '@' + t; if (seen[key]) continue; seen[key] = 1;
+      out.push({ t: t, cell: [p[0], p[1]] }); if (out.length >= 4) return out;
     }
     return out;
   };
-  Renderer.prototype.animPos=function(i,elapsed){
-    var a=this.anim,rs=a.runs[i],frames=a.frames;
-    if(!rs.length)return frames[0].pos[i];
-    for(var k=0;k<rs.length;k++){
-      var s=rs[k][0],e=rs[k][1],t0=s*TICK,t1=e*TICK+TAIL;
-      if(elapsed<=t0)return frames[s].pos[i];
-      if(elapsed<t1){
-        var f=easeOut(clamp01((elapsed-t0)/(t1-t0))),p=frames[s].pos[i],q=frames[e].pos[i];
-        return [p[0]+(q[0]-p[0])*f,p[1]+(q[1]-p[1])*f];
+  Renderer.prototype.animPos = function (i, elapsed) {
+    var a = this.anim, rs = a.runs[i], frames = a.frames;
+    if (!rs.length) return frames[0].pos[i];
+    for (var k = 0; k < rs.length; k++) {
+      var s = rs[k][0], e = rs[k][1], t0 = s * TICK, t1 = e * TICK + TAIL;
+      if (elapsed <= t0) return frames[s].pos[i];
+      if (elapsed < t1) {
+        var f = easeOut(clamp01((elapsed - t0) / (t1 - t0))), p = frames[s].pos[i], q = frames[e].pos[i];
+        return [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f];
       }
-      if(k===rs.length-1)return frames[e].pos[i];
+      if (k === rs.length - 1) return frames[e].pos[i];
     }
-    return frames[frames.length-1].pos[i];
+    return frames[frames.length - 1].pos[i];
   };
-  Renderer.prototype.impactOf=function(i,elapsed){
-    var a=this.anim,rs=a.runs[i];if(!rs.length||this.reduceMotion)return 0;
-    for(var k=0;k<rs.length;k++){
-      var s=rs[k][0],e=rs[k][1],end=e*TICK+TAIL,dt=elapsed-end;
-      if(dt>=0&&dt<SQUASH){
-        var dx=a.frames[e].pos[i][0]-a.frames[s].pos[i][0];
-        var dy=a.frames[e].pos[i][1]-a.frames[s].pos[i][1];
-        var power=Math.min(1,(Math.abs(dx)+Math.abs(dy))/3)*.72+.18;
-        return {amount:(1-dt/SQUASH)*power,axis:dx!==0?'x':'y'};
+  Renderer.prototype.impactOf = function (i, elapsed) {
+    var a = this.anim, rs = a.runs[i]; if (!rs.length || this.reduceMotion) return 0;
+    for (var k = 0; k < rs.length; k++) {
+      var s = rs[k][0], e = rs[k][1], end = e * TICK + TAIL, dt = elapsed - end;
+      if (dt >= 0 && dt < SQUASH) {
+        var dx = a.frames[e].pos[i][0] - a.frames[s].pos[i][0];
+        var dy = a.frames[e].pos[i][1] - a.frames[s].pos[i][1];
+        var power = Math.min(1, (Math.abs(dx) + Math.abs(dy)) / 3) * .72 + .18;
+        return { amount: (1 - dt / SQUASH) * power, axis: dx !== 0 ? 'x' : 'y' };
       }
     }
     return 0;
   };
-
-  Renderer.prototype.burst=function(wx,wy,wz,col,count,power){
-    if(this.reduceMotion)return;
-    var n=Math.min(count,18);
-    for(var i=0;i<n;i++){
-      var a=i/n*Math.PI*2+Math.random()*.5,sp=(.00045+Math.random()*.00072)*power;
-      this.particles.push({x:wx,y:wy,z:wz,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
-        vz:.0007+Math.random()*.0012,life:0,max:300+Math.random()*180,
-        size:.025+Math.random()*.035,col:col});
-    }
-    if(this.particles.length>96)this.particles.splice(0,this.particles.length-96);
-  };
-  Renderer.prototype.ripple=function(wx,wy,wz,col,r0,r1,ms){
-    this.ripples.push({x:wx,y:wy,z:wz,col:col,r0:r0,r1:r1,life:0,max:ms});
-  };
-  // Distance-spaced shavings stay continuous across refresh rates. Each pair
-  // peels from a rear contact edge, fans sideways, then tumbles onto the ice.
-  Renderer.prototype.iceSpray=function(x,y,dx,dy,speed,impact){
-    if(this.reduceMotion)return;
-    /* A sliding block grinds the ice along its whole underside, so the
-       shavings come from the full footprint — front to back, side to side —
-       not only the trailing edge. Skate lines lie in fixed lanes under the
-       body so they read as parallel tracks; shards and frost start anywhere
-       under it and get thrown backward and out to the sides. */
-    var count=impact?26:11,LANES=[-.3,-.1,.1,.3];
-    for(var j=0;j<count;j++){
-      var kind=j%5===0?'frost':(j%5===1&&!impact)?'skate':'shard';
-      var side=Math.random()<.5?-1:1,spread=side*(.00045+Math.random()*.0015)*(impact?1.5:1);
-      var back=(.0004+Math.random()*.0009)*speed;
-      var along,across;
-      if(impact){along=.12+Math.random()*.26;across=(Math.random()-.5)*.8;}
-      else if(kind==='skate'){along=-.38+Math.random()*.2;across=LANES[j%LANES.length]+(Math.random()-.5)*.04;}
-      else{along=-.38+Math.random()*.74;across=(Math.random()-.5)*.78;}
-      var px=x+dx*along-dy*across,py=y+dy*along+dx*across;
-      if(px<.025||py<.025||px>this.stage.w-.025||py>this.stage.h-.025)continue;
-      this.particles.push({kind:kind,x:px,y:py,z:.025,
-        vx:-dx*back-dy*spread,vy:-dy*back+dx*spread,
-        vz:kind==='skate'?0:(.0012+Math.random()*.0024)*(impact?1.3:1),
-        life:0,max:kind==='skate'?340:420+Math.random()*320,
-        size:kind==='frost'?.04+Math.random()*.04:.018+Math.random()*.034,
-        angle:Math.random()*Math.PI*2,spin:(Math.random()-.5)*.018,glint:Math.random()<.26,
-        dx:dx,dy:dy,col:j%3?'#e4faff':'#83bed3'});
-    }
-    if(this.particles.length>MAX_PARTICLES)this.particles.splice(0,this.particles.length-MAX_PARTICLES);
-  };
-  Renderer.prototype.emitSlideIce=function(elapsed){
-    var a=this.anim,previous=a.trailTime;a.trailTime=elapsed;
-    if(this.reduceMotion||elapsed-previous>100||elapsed<=previous)return;
-    for(var i=0;i<a.runs.length;i++){
-      var alive=a.frames[Math.max(0,Math.min(a.frames.length-1,Math.floor(elapsed/TICK)))].alive[i];
-      if(!alive)continue;
-      var p=this.animPos(i,previous),q=this.animPos(i,elapsed);
-      var dx=q[0]-p[0],dy=q[1]-p[1],distance=Math.sqrt(dx*dx+dy*dy);
-      if(distance<.0001)continue;
-      dx/=distance;dy/=distance;
-      var spacing=.075,remainder=a.trailDistance[i]||0;
-      for(var d=spacing-remainder;d<=distance;d+=spacing){
-        var f=d/distance;
-        this.iceSpray(p[0]+(q[0]-p[0])*f+.5,p[1]+(q[1]-p[1])*f+.5,
-          dx,dy,Math.min(1.8,distance/(elapsed-previous)*75),false);
-      }
-      a.trailDistance[i]=(remainder+distance)%spacing;
-    }
-  };
-  Renderer.prototype.addShake=function(amount,cap){
-    if(!this.reduceMotion)this.shake=Math.min(this.shake+amount,cap);
-  };
-  Renderer.prototype.fireEvent=function(ev){
-    var x=ev.cell[0]+.5,y=ev.cell[1]+.5;
-    var pal=paletteOf(this.stage.colour?this.stage.colour[ev.block]:0);
-    if(ev.type==='goal'){
-      this.burst(x,y,.22,pal.mid,14,1.25);this.ripple(x,y,.045,pal.mid,.18,.78,390);
-      this.flashes.push({cell:ev.cell,life:0,max:460});this.addShake(.9,2.5);
-    }else if(ev.type==='stop'){
-      this.addShake(.42,2.1);
-      var dir=E.DV[this.gravity];
-      if(dir)this.iceSpray(x,y,dir[0],dir[1],1.2,true);
-    }
-    else if(ev.type==='lost'){
-      this.burst(x,y,.2,THEME.lost,18,1.75);this.ripple(x,y,.04,THEME.lostRing,.18,1.05,480);
-      this.addShake(2.4,4);
-    }
-    if(this.onEvent)this.onEvent(ev);
-  };
-  Renderer.prototype.updateEffects=function(dt){
-    var busy=false,i,p;
-    if(this.reduceMotion)this.particles.length=0;
-    for(i=this.ripples.length-1;i>=0;i--){p=this.ripples[i];p.life+=dt;
-      if(p.life>=p.max)this.ripples.splice(i,1);else busy=true;}
-    for(i=this.particles.length-1;i>=0;i--){p=this.particles[i];p.life+=dt;
-      if(p.life>=p.max){this.particles.splice(i,1);continue;}
-      var step=Math.min(dt,40);
-      p.x+=p.vx*step;p.y+=p.vy*step;
-      if(p.kind==='skate'){p.z=.012;p.vx=0;p.vy=0;}
-      else{p.z+=p.vz*step;p.vz-=.000012*step;}
-      if(p.angle!=null)p.angle+=p.spin*step;
-      var drag=Math.exp(-step*(p.z<=.035?.013:.002));p.vx*=drag;p.vy*=drag;
-      if(p.z<.025){p.z=.025;p.vz*=-.22;p.spin*=.55;}
-      if(p.kind){p.x=Math.max(.025,Math.min(this.stage.w-.025,p.x));
-        p.y=Math.max(.025,Math.min(this.stage.h-.025,p.y));}busy=true;}
-    for(i=this.flashes.length-1;i>=0;i--){this.flashes[i].life+=dt;
-      if(this.flashes[i].life>=this.flashes[i].max)this.flashes.splice(i,1);else busy=true;}
-    for(i=this.grazes.length-1;i>=0;i--){this.grazes[i].life+=dt;
-      if(this.grazes[i].life>=this.grazes[i].max)this.grazes.splice(i,1);else busy=true;}
-    return busy;
+  /* How fast, in cells per tick, a block is gliding right now (signed). */
+  Renderer.prototype.speedOf = function (i, elapsed) {
+    var p = this.animPos(i, Math.max(0, elapsed - 16)), q = this.animPos(i, elapsed);
+    return [(q[0] - p[0]) / 16 * TICK, (q[1] - p[1]) / 16 * TICK];
   };
 
-  Renderer.prototype.frame=function(dt,now){
-    this.time=now;var g=this.ctx,st=this.stage;if(!st)return false;
-    var busy=false,elapsed=0,i;
-    if(this.anim){
-      // RAF's timestamp can precede an input event in the same display frame.
-      // Never use a negative frame index for a newly committed swipe.
-      elapsed=Math.max(0,now-this.anim.t0);
-      this.emitSlideIce(elapsed);
-      for(i=0;i<this.anim.events.length;i++){
-        var ev=this.anim.events[i];if(this.anim.fired[i])continue;
-        var when=ev.t*TICK+(ev.type==='stop'?TAIL:TICK*.55);
-        if(elapsed>=when){this.anim.fired[i]=true;this.fireEvent(ev);}
+  // ── effects ─────────────────────────────────────────────────────────────
+  Renderer.prototype.burst = function (wx, wy, wz, col, count, power) {
+    if (this.reduceMotion) return;
+    var n = Math.min(count, 18);
+    for (var i = 0; i < n; i++) {
+      var a = i / n * Math.PI * 2 + Math.random() * .5, sp = (.00045 + Math.random() * .00072) * power;
+      this.particles.push({ kind: 'spark', x: wx, y: wy, z: wz, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        vz: .0009 + Math.random() * .0014, life: 0, max: 380 + Math.random() * 220,
+        size: .035 + Math.random() * .04, col: col, angle: Math.random() * 6, spin: (Math.random() - .5) * .02 });
+    }
+    this.trimParticles();
+  };
+  Renderer.prototype.ripple = function (wx, wy, wz, col, r0, r1, ms) {
+    this.ripples.push({ x: wx, y: wy, z: wz, col: col, r0: r0, r1: r1, life: 0, max: ms });
+    if (this.ripples.length > this.ringPool.length) this.ripples.shift();
+  };
+  Renderer.prototype.trimParticles = function () {
+    if (this.particles.length > MAX_PARTICLES) this.particles.splice(0, this.particles.length - MAX_PARTICLES);
+  };
+  /* A sliding block grinds the ice along its whole underside: shavings come
+     from the full footprint and are thrown backwards and out to the sides. */
+  Renderer.prototype.iceSpray = function (x, y, dx, dy, speed, impact) {
+    if (this.reduceMotion) return;
+    var count = impact ? 22 : 9, LANES = [-.26, -.09, .09, .26];
+    for (var j = 0; j < count; j++) {
+      var kind = j % 5 === 0 ? 'frost' : (j % 5 === 1 && !impact) ? 'skate' : 'shard';
+      var side = Math.random() < .5 ? -1 : 1, spread = side * (.00045 + Math.random() * .0015) * (impact ? 1.5 : 1);
+      var back = (.0004 + Math.random() * .0009) * speed, along, across;
+      if (impact) { along = .12 + Math.random() * .26; across = (Math.random() - .5) * .8; }
+      else if (kind === 'skate') { along = -.34 + Math.random() * .2; across = LANES[j % LANES.length] + (Math.random() - .5) * .04; }
+      else { along = -.36 + Math.random() * .7; across = (Math.random() - .5) * .72; }
+      var px = x + dx * along - dy * across, py = y + dy * along + dx * across;
+      if (kind === 'skate' && this.groundAt(px, py) < 0) continue;
+      this.particles.push({ kind: kind, x: px, y: py, z: .03,
+        vx: -dx * back - dy * spread, vy: -dy * back + dx * spread,
+        vz: kind === 'skate' ? 0 : (.0013 + Math.random() * .0024) * (impact ? 1.3 : 1),
+        life: 0, max: kind === 'skate' ? 420 : 420 + Math.random() * 320,
+        size: kind === 'frost' ? .07 + Math.random() * .07 : .022 + Math.random() * .03,
+        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .018,
+        dx: dx, dy: dy });
+    }
+    this.trimParticles();
+  };
+  Renderer.prototype.emitSlideIce = function (elapsed) {
+    var a = this.anim, previous = a.trailTime; a.trailTime = elapsed;
+    if (this.reduceMotion || elapsed - previous > 100 || elapsed <= previous) return;
+    for (var i = 0; i < a.runs.length; i++) {
+      var alive = a.frames[Math.max(0, Math.min(a.frames.length - 1, Math.floor(elapsed / TICK)))].alive[i];
+      if (!alive) continue;
+      var p = this.animPos(i, previous), q = this.animPos(i, elapsed);
+      var dx = q[0] - p[0], dy = q[1] - p[1], distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance < .0001) continue;
+      dx /= distance; dy /= distance;
+      var spacing = .085, remainder = a.trailDistance[i] || 0;
+      for (var d = spacing - remainder; d <= distance; d += spacing) {
+        var f = d / distance;
+        this.iceSpray(p[0] + (q[0] - p[0]) * f + .5, p[1] + (q[1] - p[1]) * f + .5,
+          dx, dy, Math.min(1.8, distance / (elapsed - previous) * 75), false);
       }
-      for(i=0;i<this.anim.passes.length;i++){
-        if(this.anim.firedPass[i])continue;var pass=this.anim.passes[i];
-        if(elapsed>=pass.t*TICK+TICK*.4){
-          this.anim.firedPass[i]=true;this.grazes.push({cell:pass.cell,life:0,max:560});
+      a.trailDistance[i] = (remainder + distance) % spacing;
+    }
+  };
+  Renderer.prototype.addShake = function (amount, cap) {
+    if (!this.reduceMotion) this.shake = Math.min(this.shake + amount, cap);
+  };
+  Renderer.prototype.fireEvent = function (ev) {
+    var x = ev.cell[0] + .5, y = ev.cell[1] + .5;
+    var pal = paletteOf(this.stage.colour ? this.stage.colour[ev.block] : 0);
+    if (ev.type === 'goal') {
+      this.burst(x, y, .3, pal.hi, 16, 1.3);
+      this.ripple(x, y, .02, pal.hi, .2, .95, 520);
+      this.flashes.push({ cell: ev.cell, life: 0, max: 620 });
+      this.vanishing.push({ block: ev.block, cell: ev.cell, life: 0, max: VANISH });
+      this.addShake(.9, 2.5);
+    } else if (ev.type === 'stop') {
+      this.addShake(.42, 2.1);
+      var dir = E.DV[this.gravity];
+      if (dir) {
+        this.iceSpray(x, y, dir[0], dir[1], 1.2, true);
+        // Stopped at the edge of the ice: the water answers with a ring.
+        var ex = ev.cell[0] + dir[0], ey = ev.cell[1] + dir[1];
+        if (!this.isIce(ex, ey) && !this.reduceMotion) {
+          this.ripple(x + dir[0] * .62, y + dir[1] * .62, -FREEBOARD + .01, '#e6fbff', .12, .62, 620);
         }
       }
-      if(elapsed>=this.anim.duration){
-        var cb=this.anim.onDone;this.state=this.anim.endState;this.anim=null;if(cb)cb();
-      }else busy=true;
+    } else if (ev.type === 'lost') {
+      this.burst(x, y, .2, '#4DBAD8', 18, 1.75); this.ripple(x, y, .02, '#4DBAD8', .18, 1.05, 480);
+      this.addShake(2.4, 4);
     }
-    var want={x:0,y:0},tiltDir=this.aimDir||(this.anim?this.gravity:null);
-    if(tiltDir&&!this.reduceMotion){
-      var amount=this.aimDir?clamp01(this.aimAmount||0):Math.min(1,Math.max(0,(this.anim.duration-elapsed)/180));
-      if(tiltDir==='L')want.y=-4.5*amount;else if(tiltDir==='R')want.y=4.5*amount;
-      else if(tiltDir==='U')want.x=4.5*amount;else want.x=-4.5*amount;
+    if (this.onEvent) this.onEvent(ev);
+  };
+  Renderer.prototype.updateEffects = function (dt) {
+    var busy = false, i, p;
+    if (this.reduceMotion) this.particles.length = 0;
+    for (i = this.ripples.length - 1; i >= 0; i--) {
+      p = this.ripples[i]; p.life += dt;
+      if (p.life >= p.max) this.ripples.splice(i, 1); else busy = true;
     }
-    var k=1-Math.exp(-Math.min(dt,64)/70);
-    if(this.reduceMotion){this.tilt.x=0;this.tilt.y=0;}
-    else ['x','y'].forEach(function(axis){
-      if(Math.abs(this.tilt[axis]-want[axis])>.008){
-        this.tilt[axis]=lerp(this.tilt[axis],want[axis],k);busy=true;
-      }else this.tilt[axis]=want[axis];
-    },this);
-    var transform=this.tilt.x||this.tilt.y?
-      'perspective(1000px) rotateX('+this.tilt.x.toFixed(3)+'deg) rotateY('+this.tilt.y.toFixed(3)+'deg)':'none';
-    if(this.canvas.style.transform!==transform)this.canvas.style.transform=transform;
-    /* The board leans as a whole; the blocks that gravity would actually move
-       also creep, in cells, the way they are about to go. Both track the swipe
-       as it happens, so a move that is still being made already reads. */
-    var wantSlide=(this.aimDir&&!this.reduceMotion&&!this.anim)
-      ?AIM_SLIDE*Math.max(0,Math.min(1,this.aimAmount||0)):0;
-    if(Math.abs(this.aimSlide-wantSlide)>.0015){
-      this.aimSlide=lerp(this.aimSlide,wantSlide,k);busy=true;
-    }else this.aimSlide=wantSlide;
-    var nx=0,ny=0;
-    if(this.nudge){
-      this.nudge.life+=dt;var np=this.nudge.life/this.nudge.max;
-      if(np>=1)this.nudge=null;else{
-        var amp=Math.sin(np*Math.PI)*(1-np)*this.cell*.105,d=this.nudge.dir;
-        nx=d==='L'?-amp:d==='R'?amp:0;ny=d==='U'?-amp:d==='D'?amp:0;busy=true;
+    for (i = this.particles.length - 1; i >= 0; i--) {
+      p = this.particles[i]; p.life += dt;
+      if (p.life >= p.max) { this.particles.splice(i, 1); continue; }
+      var step = Math.min(dt, 40);
+      p.x += p.vx * step; p.y += p.vy * step;
+      var floor = this.groundAt(p.x, p.y) + .02;
+      if (p.kind === 'skate') { p.z = .006; p.vx = 0; p.vy = 0; }
+      else { p.z += p.vz * step; p.vz -= .000012 * step; }
+      if (p.angle != null) p.angle += p.spin * step;
+      var drag = Math.exp(-step * (p.z <= floor + .01 ? .013 : .002)); p.vx *= drag; p.vy *= drag;
+      if (p.z < floor) {
+        if (floor < 0) { p.life = Math.max(p.life, p.max - 60); }   // into the water
+        p.z = floor; p.vz *= -.22; p.spin *= .55;
       }
+      busy = true;
     }
-    if(this.updateEffects(dt))busy=true;
-    /* Expressions expire on the frame clock rather than on timers of their own,
-       so a reaction keeps the loop at full rate until it is finished with. */
-    if(this.reactions&&this.reactions.tick(now))busy=true;
-    g.save();g.setTransform(this.dpr,0,0,this.dpr,0,0);g.clearRect(0,0,this.cssW,this.cssH);
-    var sx=0,sy=0;
-    if(this.shake>.01){sx=(Math.random()-.5)*this.shake;sy=(Math.random()-.5)*this.shake;
-      this.shake*=Math.pow(.0025,dt/1000);if(this.shake<.05)this.shake=0;busy=true;}
-    g.save();g.translate(this.shift.x+nx+sx,this.shift.y+ny+sy);
-    if(this.baseCache)g.drawImage(this.baseCache,0,0,this.baseCache.width,this.baseCache.height,
-      0,0,this.cssW,this.cssH);
-    this.collectCommands(elapsed);this.commands.sort(depthCompare);
-    for(i=0;i<this.commands.length;i++)this.drawCommand(g,this.commands[i]);
-    if(this.clearGlow>0)this.drawClearGlow(g,this.clearGlow);
-    g.restore();
-    this.drawGravityField(g);
-    if(this.gesture){this.drawGesture(g,dt);if(!this.reduceMotion)busy=true;}
-    g.restore();
-    if(this.clearGlow>0){this.clearGlow=Math.max(0,this.clearGlow-dt/900);busy=true;}
+    for (i = this.flashes.length - 1; i >= 0; i--) {
+      this.flashes[i].life += dt;
+      if (this.flashes[i].life >= this.flashes[i].max) this.flashes.splice(i, 1); else busy = true;
+    }
+    for (i = this.grazes.length - 1; i >= 0; i--) {
+      this.grazes[i].life += dt;
+      if (this.grazes[i].life >= this.grazes[i].max) this.grazes.splice(i, 1); else busy = true;
+    }
+    for (i = this.vanishing.length - 1; i >= 0; i--) {
+      this.vanishing[i].life += dt;
+      if (this.vanishing[i].life >= this.vanishing[i].max) this.vanishing.splice(i, 1); else busy = true;
+    }
     return busy;
   };
 
-  function depthCompare(a,b){
-    /* Terrain is a base pass. Without this split, a floor tile in the next row
-       can be painter-sorted over a penguin while its fractional animation
-       position crosses the row boundary. Raised objects still depth-sort
-       together, so walls keep their legitimate positional occlusion. */
-    if(a.pass!==b.pass)return a.pass-b.pass;
-    if(Math.abs(a.depth-b.depth)>.01)return a.depth-b.depth;
-    if(a.layer!==b.layer)return a.layer-b.layer;
-    return a.tie-b.tie;
-  }
-  Renderer.prototype.pushCommand=function(kind,x,y,z,layer,data){
-    /* Painter order follows the footprint, never the object's height. Using z
-       here makes tall objects sort behind their own floor tile. */
-    var p=this.project(x+.92,y+.92,0);
-    var pass=kind==='particle'?(data.kind?(data.kind==='skate'?.5:1):2):
-      (kind==='wall'||kind==='penguin'?1:0);
-    this.commands.push({kind:kind,x:x,y:y,z:z||0,layer:layer,pass:pass,
-      depth:p.y,tie:p.x,data:data});
-  };
   /**
-   * Which blocks would actually get to move if the aim being held were
-   * committed? A block moves when the next cell is open, or when the block
-   * standing in it moves too. Previewing a slide for a penguin wedged against
-   * a wall would promise a move the board is not going to make, and the whole
-   * point of the preview is that it never lies about the rules.
+   * Which blocks would actually move if the aim being held were committed?
+   * The preview never promises a move the board is not going to make.
    */
-  Renderer.prototype.aimMovers=function(dir){
-    var st=this.stage,s=this.state;
-    if(!st||!s||!dir||!E.DV[dir])return null;
-    if(this.moverDir===dir&&this.moverState===s)return this.movers;
-    var d=E.DV[dir],dx=d[0],dy=d[1],w=st.w,h=st.h,n=s.pos.length,i;
-    var occ={};
-    for(i=0;i<n;i++)if(s.alive[i])occ[s.pos[i][1]*w+s.pos[i][0]]=i;
-    var out=new Array(n),seen=new Array(n);
-    var can=function(idx){
-      if(seen[idx])return out[idx];
-      seen[idx]=true;out[idx]=false;
-      var nx=s.pos[idx][0]+dx,ny=s.pos[idx][1]+dy;
-      if(nx<0||ny<0||nx>=w||ny>=h)return false;
-      if(st.terrain[ny*w+nx]===E.WALL)return false;
-      var o=occ[ny*w+nx];
-      out[idx]=(o===undefined||o===idx)?true:can(o);
+  Renderer.prototype.aimMovers = function (dir) {
+    var st = this.stage, s = this.state;
+    if (!st || !s || !dir || !E.DV[dir]) return null;
+    if (this.moverDir === dir && this.moverState === s) return this.movers;
+    var d = E.DV[dir], dx = d[0], dy = d[1], w = st.w, h = st.h, n = s.pos.length, i;
+    var occ = {};
+    for (i = 0; i < n; i++) if (s.alive[i]) occ[s.pos[i][1] * w + s.pos[i][0]] = i;
+    var out = new Array(n), seen = new Array(n);
+    var can = function (idx) {
+      if (seen[idx]) return out[idx];
+      seen[idx] = true; out[idx] = false;
+      var nx = s.pos[idx][0] + dx, ny = s.pos[idx][1] + dy;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) return false;
+      if (st.terrain[ny * w + nx] === E.WALL) return false;
+      var o = occ[ny * w + nx];
+      out[idx] = (o === undefined || o === idx) ? true : can(o);
       return out[idx];
     };
-    for(i=0;i<n;i++){out[i]=false;seen[i]=false;}
-    for(i=0;i<n;i++)if(s.alive[i])can(i);
-    this.moverDir=dir;this.moverState=s;this.movers=out;
+    for (i = 0; i < n; i++) { out[i] = false; seen[i] = false; }
+    for (i = 0; i < n; i++) if (s.alive[i]) can(i);
+    this.moverDir = dir; this.moverState = s; this.movers = out;
     return out;
   };
-  Renderer.prototype.collectCommands=function(elapsed){
-    var st=this.stage;this.commands.length=0;var i,c;
-    for(i=0;i<this.cells.length;i++){
-      c=this.cells[i];this.pushCommand('floor',c.x,c.y,0,0,c);
-      if(st.goal[c.i])this.pushCommand('goal',c.x,c.y,.012,1,c);
-      if(c.terrain===E.WALL)this.pushCommand('wall',c.x,c.y,.025,3,c);
-    }
-    var frames=this.anim?this.anim.frames:null,state=this.anim?null:this.state;
-    var slideX=0,slideY=0,movers=null;
-    if(state&&this.aimDir&&this.aimSlide>.001){
-      movers=this.aimMovers(this.aimDir);
-      if(movers){var dv=E.DV[this.aimDir];slideX=dv[0]*this.aimSlide;slideY=dv[1]*this.aimSlide;}
-    }
-    for(i=0;i<st.blocks.length;i++){
-      var pos,squash=0;
-      if(this.anim){
-        var gone=-1;for(var j=0;j<frames.length;j++)if(!frames[j].alive[i]){gone=j;break;}
-        if(gone>=0&&elapsed>=gone*TICK+TICK*.55)continue;
-        pos=this.animPos(i,elapsed);squash=this.impactOf(i,elapsed);
-      }else{
-        if(!state||!state.alive[i])continue;pos=state.pos[i];
-        if(movers&&movers[i])pos=[pos[0]+slideX,pos[1]+slideY];
+
+  // ── the frame ───────────────────────────────────────────────────────────
+  Renderer.prototype.frame = function (dt, now) {
+    this.time = now; var st = this.stage; if (!st || this.lost) return false;
+    var busy = false, elapsed = 0, i;
+    if (this.anim) {
+      // RAF's timestamp can precede the input event in the same display frame.
+      elapsed = Math.max(0, now - this.anim.t0);
+      this.emitSlideIce(elapsed);
+      for (i = 0; i < this.anim.events.length; i++) {
+        var ev = this.anim.events[i]; if (this.anim.fired[i]) continue;
+        var when = ev.t * TICK + (ev.type === 'stop' ? TAIL : TICK * .55);
+        if (elapsed >= when) { this.anim.fired[i] = true; this.fireEvent(ev); }
       }
-      var inert=st.win==='select'&&st.collectable&&!st.collectable[i];
-      var react=this.reactions?this.reactions.visualFor(i,this.time):null;
-      this.pushCommand('penguin',pos[0],pos[1],.035,4,
-        {index:i,pos:pos,squash:squash,colour:st.colour?st.colour[i]:0,inert:inert,
-         react:react,drifter:st.colour?st.colour[i]===E.GRAY:false});
-    }
-    for(i=0;i<this.ripples.length;i++){var r=this.ripples[i];
-      this.pushCommand('ripple',r.x-.5,r.y-.5,r.z,2,r);}
-    for(i=0;i<this.particles.length;i++){var p=this.particles[i];
-      this.pushCommand('particle',p.x-.92,p.y-.92,p.z,6,p);}
-  };
-  Renderer.prototype.drawCommand=function(g,c){
-    if(c.kind==='floor')this.drawFloor(g,c.data);
-    else if(c.kind==='wall')this.drawWall(g,c.data);
-    else if(c.kind==='goal')this.drawGoal(g,c.data);
-    else if(c.kind==='penguin')this.drawPenguin(g,c.data);
-    else if(c.kind==='ripple')this.drawRipple(g,c.data);
-    else if(c.kind==='particle')this.drawParticle(g,c.data);
-  };
-
-  var MATERIAL_STYLE={
-    ice:{top:['#F8FDFF','#C5E7F0'],south:['#C0E2ED','#83BED8'],east:['#9BCDE0','#5E9FC6']},
-    cracked:{top:['#B9DEEA','#68AFCF'],south:['#C0E2ED','#83BED8'],east:['#9BCDE0','#5E9FC6']},
-    goal:{top:['#C6E8ED','#79BDC9'],south:['#C0E2ED','#83BED8'],east:['#9BCDE0','#5E9FC6']},
-    'wall-smooth':{top:['#FFFFFF','#EAF5FA'],south:['#79C8E2','#43A0CB'],east:['#62B5D8','#347FB1']},
-    'wall-brick':{top:['#f0fcff','#c3e5f0'],south:['#95cadc','#629fb8'],east:['#88C2E2','#4E89B5']},
-    'penguin-orange':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
-    'penguin-purple':{top:['#2C3138','#171A1F'],south:['#3A424B','#20262E'],east:['#30363E','#171C22']},
-    /* Old drift ice. Deliberately the only desaturated thing on the board: the
-       walls are white-blue and the penguins near-black, so a cold blue-grey
-       reads as "movable, but not yours" against both. The top-to-side falloff
-       is wide on purpose — it is what makes the slab read as a solid object at
-       39px rather than a grey square. */
-    'penguin-amber-solid':{top:['#ffe5aa','#f2c366'],south:['#bd842e','#96601f'],east:['#ae7429','#85521f']},
-    'penguin-violet-solid':{top:['#e1d7fb','#bca2e6'],south:['#8260b3','#5f438d'],east:['#72529f','#513977']},
-    drifter:{top:['#B2C1CF','#71818F'],south:['#A3AFBB','#76828F'],east:['#8F9CA9','#64717F']}
-  };
-
-  Renderer.prototype.boxGeometry=function(o){
-    var self=this,project=o.projector||function(x,y,z){return self.project(x,y,z);};
-    var p00=project(o.x0,o.y0,o.z1),p10=project(o.x1,o.y0,o.z1);
-    var p11=project(o.x1,o.y1,o.z1),p01=project(o.x0,o.y1,o.z1);
-    var b00=project(o.x0,o.y0,o.z0),b10=project(o.x1,o.y0,o.z0);
-    var b11=project(o.x1,o.y1,o.z0),b01=project(o.x0,o.y1,o.z0);
-    return {
-      top:[p00,p10,p11,p01],bottom:[b00,b10,b11,b01],
-      north:[p00,p10,b10,b00],south:[p01,p11,b11,b01],
-      east:[p10,p11,b11,b10],west:[p00,p01,b01,b00]
-    };
-  };
-  Renderer.prototype.drawBox=function(g,o){
-    var f=this.boxGeometry(o),s=MATERIAL_STYLE[o.material]||MATERIAL_STYLE.ice;
-    var textures=o.textures||{},self=this;
-    function texture(name){return Object.prototype.hasOwnProperty.call(textures,name)?textures[name]:self.textureBank.face(o.material,name);}
-    if(f.south[2].y-f.top[0].y>0){
-      var body=[f.top[0],f.top[1],f.south[2],f.south[3]];
-      this.drawFace(g,body,null,s.south,null,o.radius);
-    }
-    if(Math.abs(f.east[2].x-f.east[0].x)>.01)
-      this.drawFace(g,f.east,texture('east'),s.east,o.eastShade,o.radius,.24);
-    if(o.southShade!=null)
-      this.drawFace(g,f.south,texture('south'),s.south,o.southShade,o.radius,.24);
-    this.drawFace(g,f.top,texture(o.topTextureFace||'top'),s.top,o.topShade,o.radius,o.textureAlpha,o.textureInset);
-    return f;
-  };
-
-  Renderer.prototype.drawFace=function(g,pts,texture,colours,shade,radius,textureAlpha,textureInset){
-    g.save();roundedPoly(g,pts,radius||0);
-    var gr=g.createLinearGradient(pts[0].x,pts[0].y,pts[2].x,pts[2].y);
-    gr.addColorStop(0,colours[0]);gr.addColorStop(1,colours[1]);g.fillStyle=gr;g.fill();
-    if(texture){var size=texture.naturalWidth||texture.width||FACE_SIZE,pad=size*(textureInset||0);
-      g.save();roundedPoly(g,pts,radius||0);g.clip();faceTransform(g,pts,size);
-      g.globalAlpha=textureAlpha==null?1:textureAlpha;
-      g.drawImage(texture,pad,pad,size-pad*2,size-pad*2,0,0,size,size);g.restore();}
-    if(shade){roundedPoly(g,pts,radius||0);g.fillStyle=shade;g.fill();}
-    roundedPoly(g,pts,radius||0);g.strokeStyle='rgba(51,116,139,.16)';
-    g.lineWidth=Math.max(.65,this.cell*.008);g.stroke();g.restore();
-  };
-
-  Renderer.prototype.drawFloor=function(g,c){
-    if(c.material!=='goal'&&this.floorBaked&&!this._buildingSprites)return;
-    if(this.blitStaticSprite(g,'floor:'+c.material,c.x,c.y))return;
-    if(c.material!=='goal')return this.drawFloorTile(g,c,0);
-    var gap=.014,material=c.material;
-    var f={top:this.topFace(c.x+gap,c.y+gap,c.x+1-gap,c.y+1-gap,0)};
-    this.drawFace(g,f.top,this.textureBank.face(material,'top'),MATERIAL_STYLE[material].top,
-      material==='goal'?null:'rgba(237,251,252,.08)',this.cell*(material==='goal'?.11:.045),
-      material==='goal'?1:(material==='cracked'?.62:.22),material==='goal'?.015:.10);
-    g.save();g.strokeStyle='rgba(255,255,255,.56)';g.lineWidth=1;
-    g.beginPath();g.moveTo(f.top[0].x+this.cell*.05,f.top[0].y+1);
-    g.lineTo(f.top[1].x-this.cell*.05,f.top[1].y+1);g.stroke();g.restore();
-    if(material==='cracked'&&!this.textureBank.face('cracked','top'))this.drawCracks(g,f.top);
-  };
-
-  /**
-   * One ice tile, in the same shape and palette as before, given the depth of
-   * real ice: its own crop of the ice texture, light falling off into the
-   * thickness toward the lower right, a few frozen bubbles, a polished sheen,
-   * and a bevel that catches the light on the upper-left edges.
-   */
-  Renderer.prototype.drawFloorTile=function(g,c,seed){
-    var gap=.014,material=c.material,cell=this.cell,cracked=material==='cracked';
-    var top=this.topFace(c.x+gap,c.y+gap,c.x+1-gap,c.y+1-gap,0),rad=cell*.045;
-    this.drawFace(g,top,null,MATERIAL_STYLE[material].top,null,rad);
-    var tex=this.textureBank.face(material,'top');
-    g.save();roundedPoly(g,top,rad);g.clip();
-    if(tex){
-      var size=tex.naturalWidth||tex.width||FACE_SIZE;
-      var win=cracked?size*.86:size*(.5+hash(seed*3.3)*.18);
-      var sx=cracked?size*.07:size*(.12+hash(seed)*(.76-win/size));
-      var sy=cracked?size*.07:size*(.12+hash(seed*1.7)*(.76-win/size));
-      var cx=(top[0].x+top[2].x)/2,cy=(top[0].y+top[2].y)/2,tw=top[1].x-top[0].x,th=top[3].y-top[0].y;
-      g.save();g.translate(cx,cy);
-      if(!cracked){g.rotate(Math.floor(hash(seed*2.9)*4)*Math.PI/2);if(hash(seed*3.7)>.5)g.scale(-1,1);}
-      var side=Math.max(tw,th);
-      g.globalAlpha=cracked?.66:.42;
-      g.drawImage(tex,sx,sy,win,win,-side/2,-side/2,side,side);
-      g.globalAlpha=cracked?.18:.22;g.globalCompositeOperation='soft-light';
-      g.drawImage(tex,sx,sy,win,win,-side/2,-side/2,side,side);
-      g.restore();
-    }
-    var x0=top[0].x,y0=top[0].y,x1=top[2].x,y1=top[2].y,w=x1-x0,h=y1-y0;
-    // Thickness: clear ice darkens and blues as you look deeper into it.
-    var deep=g.createRadialGradient(x0+w*.78,y0+h*.82,0,x0+w*.7,y0+h*.75,w*.85);
-    deep.addColorStop(0,cracked?'rgba(30,90,130,.16)':'rgba(70,150,190,.17)');
-    deep.addColorStop(1,'rgba(70,150,190,0)');g.fillStyle=deep;g.fillRect(x0,y0,w,h);
-    // Frozen bubbles.
-    for(var b=0;b<(cracked?2:5);b++){
-      var bx=x0+w*(.12+hash(seed*7.1+b)*.76),by=y0+h*(.12+hash(seed*5.3+b*2)*.76);
-      var br=Math.max(.5,cell*(.006+hash(seed+b*3.1)*.012));
-      g.fillStyle='rgba(255,255,255,.55)';g.beginPath();g.arc(bx,by,br,0,Math.PI*2);g.fill();
-      g.fillStyle='rgba(60,130,170,.18)';g.beginPath();g.arc(bx+br*.5,by+br*.6,br*.7,0,Math.PI*2);g.fill();
-    }
-    // Polished surface: a soft diagonal reflection of the sky.
-    var sheen=g.createLinearGradient(x0,y0,x1,y1);
-    sheen.addColorStop(0,'rgba(255,255,255,.26)');sheen.addColorStop(.32,'rgba(255,255,255,.04)');
-    sheen.addColorStop(.42,'rgba(255,255,255,.16)');sheen.addColorStop(.5,'rgba(255,255,255,0)');
-    g.fillStyle=sheen;g.fillRect(x0,y0,w,h);
-    // Bevel: lit upper-left lip, shaded lower-right lip.
-    g.lineWidth=Math.max(1,cell*.022);g.lineCap='round';
-    g.strokeStyle='rgba(255,255,255,.75)';
-    g.beginPath();g.moveTo(x0+rad,y1-rad);g.lineTo(x0+cell*.012,y0+rad);g.moveTo(x0+rad,y0+cell*.012);g.lineTo(x1-rad,y0+cell*.012);g.stroke();
-    g.strokeStyle='rgba(40,110,150,.20)';
-    g.beginPath();g.moveTo(x1-cell*.012,y0+rad);g.lineTo(x1-cell*.012,y1-rad);g.moveTo(x0+rad,y1-cell*.012);g.lineTo(x1-rad,y1-cell*.012);g.stroke();
-    g.restore();
-    if(cracked&&!tex)this.drawCracks(g,top);
-  };
-
-  Renderer.prototype.drawWall=function(g,c){
-    var key=c.outer?'wall:outer':'wall:smooth';
-    if(this.blitStaticSprite(g,key,c.x,c.y))return;
-    var gap=0;
-    this.drawContactShadow(g,c.x+.5,c.y+.62,.40,.36,true);
-    var f=this.drawBox(g,{x0:c.x+gap,y0:c.y+gap,x1:c.x+1-gap,y1:c.y+1-gap,
-      z0:.015,z1:WALL_HEIGHT,material:'wall-brick',radius:this.cell*.012,
-      textures:{top:null,south:null,east:null}});
-    this.drawIceFront(g,f.south);
-    this.drawIceBevel(g,f.top);
-  };
-  /* The low front face of the ice block: a bright refraction band under the
-     lip, the body going deeper blue, and light pooling at the foot. */
-  Renderer.prototype.drawIceFront=function(g,face){
-    if(face[3].y-face[0].y<1)return;
-    g.save();roundedPoly(g,face,this.cell*.045);g.clip();faceTransform(g,face,256);
-    var gr=g.createLinearGradient(0,0,0,256);
-    gr.addColorStop(0,'rgba(240,253,255,.75)');gr.addColorStop(.22,'rgba(200,240,250,.12)');
-    gr.addColorStop(.7,'rgba(30,90,125,.14)');gr.addColorStop(1,'rgba(210,245,255,.45)');
-    g.fillStyle=gr;g.fillRect(0,0,256,256);
-    for(var k=0;k<7;k++){var x=hash(k*4.7)*240;
-      var s=g.createLinearGradient(x,0,x+22,0);
-      s.addColorStop(0,'rgba(255,255,255,0)');s.addColorStop(.5,'rgba(255,255,255,'+(.06+hash(k)*.08)+')');
-      s.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=s;g.fillRect(x,0,22,256);}
-    g.restore();
-  };
-
-  Renderer.prototype.drawIceBevel=function(g,top){
-    g.save();roundedPoly(g,top,this.cell*.045);g.clip();faceTransform(g,top,256);
-    // Inside the block: denser, bluer ice toward the lower right, a frosted
-    // cloud of trapped air, and a few bubbles — shapeless, so nothing in it
-    // ever reads as a mark.
-    var body=g.createRadialGradient(180,190,8,160,170,220);
-    body.addColorStop(0,'rgba(70,160,205,.38)');body.addColorStop(.6,'rgba(120,195,225,.14)');
-    body.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=body;g.fillRect(0,0,256,256);
-    [[78,150,52,.26],[170,92,38,.20],[140,196,30,.14]].forEach(function(c){
-      var cl=g.createRadialGradient(c[0],c[1],0,c[0],c[1],c[2]);
-      cl.addColorStop(0,'rgba(255,255,255,'+c[3]+')');cl.addColorStop(1,'rgba(255,255,255,0)');
-      g.fillStyle=cl;g.fillRect(c[0]-c[2],c[1]-c[2],c[2]*2,c[2]*2);});
-    [[60,70,5],[196,150,4],[110,206,3.5],[208,62,3],[150,120,2.5]].forEach(function(b){
-      g.fillStyle='rgba(255,255,255,.75)';g.beginPath();g.arc(b[0],b[1],b[2],0,Math.PI*2);g.fill();
-      g.fillStyle='rgba(50,120,160,.22)';g.beginPath();g.arc(b[0]+b[2]*.5,b[1]+b[2]*.6,b[2]*.7,0,Math.PI*2);g.fill();});
-    // Frost settled along the far edge.
-    var frost=g.createLinearGradient(0,0,0,64);
-    frost.addColorStop(0,'rgba(255,255,255,.6)');frost.addColorStop(1,'rgba(255,255,255,0)');
-    g.fillStyle=frost;g.fillRect(0,0,256,64);
-    // Thin inward bevel: the frosted cap never extends beyond the ice body.
-    g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=8;
-    g.beginPath();g.moveTo(4,246);g.lineTo(4,4);g.lineTo(246,4);g.stroke();
-    g.strokeStyle='rgba(82,148,173,.26)';g.lineWidth=7;
-    g.beginPath();g.moveTo(252,12);g.lineTo(252,252);g.lineTo(12,252);g.stroke();
-    var gleam=g.createLinearGradient(0,0,256,210);
-    gleam.addColorStop(0,'rgba(255,255,255,.30)');gleam.addColorStop(.45,'rgba(255,255,255,.06)');
-    gleam.addColorStop(.47,'rgba(255,255,255,.20)');gleam.addColorStop(1,'rgba(255,255,255,0)');
-    g.fillStyle=gleam;g.fillRect(8,8,240,240);
-    var sp=g.createRadialGradient(64,48,2,64,48,52);
-    sp.addColorStop(0,'rgba(255,255,255,.8)');sp.addColorStop(1,'rgba(255,255,255,0)');
-    g.fillStyle=sp;g.fillRect(0,0,140,120);
-    g.restore();
-  };
-
-  Renderer.prototype.drawCracks=function(g,top){
-    var rays=[[128,132,24,32],[128,132,220,20],[128,132,238,130],
-      [128,132,204,238],[128,132,90,248],[128,132,10,184],[128,132,22,92]];
-    g.save();roundedPoly(g,top,this.cell*.034);g.clip();faceTransform(g,top,256);
-    g.lineCap='round';g.lineJoin='round';
-    for(var pass=0;pass<2;pass++){g.strokeStyle=pass?'rgba(226,250,255,.94)':'rgba(30,95,141,.55)';
-      g.lineWidth=pass?3.1:7;
-      for(var i=0;i<rays.length;i++){var r=rays[i];
-        g.beginPath();g.moveTo(r[0],r[1]);g.lineTo((r[0]+r[2])*.54+(i%2?8:-6),(r[1]+r[3])*.54);
-        g.lineTo(r[2],r[3]);g.stroke();}}
-    var core=g.createRadialGradient(128,132,2,128,132,38);
-    core.addColorStop(0,'rgba(235,253,255,.86)');core.addColorStop(1,'rgba(116,203,226,0)');
-    g.fillStyle=core;g.beginPath();g.arc(128,132,38,0,Math.PI*2);g.fill();g.restore();
-  };
-  Renderer.prototype.drawSnow=function(g,face){
-    g.save();roundedPoly(g,face,this.cell*.07);g.clip();faceTransform(g,face,256);
-    g.fillStyle='rgba(255,255,255,.48)';g.beginPath();g.moveTo(0,0);g.lineTo(256,0);g.lineTo(256,36);
-    g.bezierCurveTo(220,28,203,50,168,35);g.bezierCurveTo(132,19,105,49,70,33);
-    g.bezierCurveTo(39,20,24,45,0,31);g.closePath();g.fill();
-    g.strokeStyle='rgba(255,255,255,.66)';g.lineWidth=3;g.beginPath();g.moveTo(10,8);g.lineTo(242,8);g.stroke();g.restore();
-  };
-  Renderer.prototype.drawAO=function(g,face){
-    g.save();roundedPoly(g,face,this.cell*.06);g.clip();faceTransform(g,face,256);
-    var ao=g.createLinearGradient(0,180,0,256);ao.addColorStop(0,'rgba(25,66,112,0)');
-    ao.addColorStop(1,THEME.ao);g.fillStyle=ao;g.fillRect(0,176,256,80);g.restore();
-  };
-
-  Renderer.prototype.drawGoal=function(g,c){
-    var st=this.stage,pal=paletteOf(st.goalColour?st.goalColour[c.i]:0);
-    var top=this.topFace(c.x+.035,c.y+.035,c.x+.965,c.y+.965,.018);
-    var flash=0,graze=0,i;
-    for(i=0;i<this.flashes.length;i++){var f=this.flashes[i];
-      if(f.cell[0]===c.x&&f.cell[1]===c.y)flash=Math.max(flash,1-f.life/f.max);}
-    for(i=0;i<this.grazes.length;i++){var z=this.grazes[i];
-      if(z.cell[0]===c.x&&z.cell[1]===c.y)graze=Math.max(graze,1-z.life/z.max);}
-    var pulse=this.reduceMotion ? .10 : (.08+(.5+.5*Math.sin(this.time/760))*.055);
-    g.save();roundedPoly(g,top,this.cell*.075);g.clip();faceTransform(g,top,FACE_SIZE);
-    /* Keep one aurora artwork and identify its destination with a true colour
-       filter. No extra symbol or badge is laid over the goal. */
-    g.globalCompositeOperation='color';g.globalAlpha=.64;g.fillStyle=pal.mid;
-    g.fillRect(0,0,FACE_SIZE,FACE_SIZE);
-    g.globalCompositeOperation='source-over';g.globalAlpha=1;
-    if(st.goalColour&&st.goalColour[c.i]===1){
-      g.globalCompositeOperation='screen';g.fillStyle='rgba(255,222,120,.32)';
-      g.fillRect(0,0,FACE_SIZE,FACE_SIZE);
-    }
-    var glow=g.createRadialGradient(256,256,18,256,256,218);
-    glow.addColorStop(0,'rgba(255,255,255,'+(pulse+flash*.18)+')');
-    glow.addColorStop(.58,'rgba(255,255,255,'+(pulse*.32)+')');
-    glow.addColorStop(1,'rgba(255,255,255,0)');
-    g.globalCompositeOperation='screen';g.fillStyle=glow;g.fillRect(0,0,FACE_SIZE,FACE_SIZE);
-    g.globalCompositeOperation='source-over';
-    if(graze>0){g.globalAlpha=graze*.38;g.strokeStyle='rgba(255,255,255,.94)';g.lineWidth=11;
-      g.beginPath();g.arc(256,256,150+(1-graze)*58,0,Math.PI*2);g.stroke();}
-    g.restore();
-  };
-
-  Renderer.prototype.drawPenguin=function(g,d){
-    if(d.drifter)return this.drawDrifter(g,d);
-    var p=d.pos,sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
-    var re=d.react||null,rk=re?re.scale:1,rdx=re?re.dx:0,rdy=re?re.dy:0;
-    var lift=re&&re.lift?re.lift:0;
-    var sx=(sq&&sq.axis==='x'?1+q*.045:1-q*.018)*rk;
-    var sy=(sq&&sq.axis==='y'?1+q*.045:1-q*.018)*rk;
-    var h=PENGUIN_HEIGHT,inset=.12;
-    var cx=p[0]+.5+rdx,cy=p[1]+.5+rdy;
-    var x0=cx-(.5-inset)*sx,x1=cx+(.5-inset)*sx;
-    var y0=cy-(.5-inset)*sy,y1=cy+(.5-inset)*sy;
-    /* A hop leaves the tray, so its shadow stays on the ground and only tightens
-       under it. Everything else drags its shadow along unchanged. */
-    this.drawContactShadow(g,cx,p[1]+.64+rdy*(1-lift),
-      .43*(1-lift*.16),.33*(1-lift*.20),false);
-    // A grounded square footprint and a soft south-east cast make the volume
-    // readable without changing the screen-aligned camera or cube dimensions.
-    var ground=this.topFace(x0,y0,x1,y1,.008);
-    g.save();g.shadowColor='rgba(23,49,67,.34)';g.shadowBlur=this.cell*(.065+lift*.12);
-    g.shadowOffsetX=this.cell*.035;g.shadowOffsetY=this.cell*(.055+lift*.06);
-    g.fillStyle='rgba(23,49,67,'+(.23-lift*.12)+')';
-    roundedPoly(g,ground,this.cell*.025);g.fill();g.restore();
-    var style=d.colour===2?'penguin-violet-solid':'penguin-amber-solid';
-    var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035+lift,z1:.035+h+lift,
-      material:style,radius:this.cell*.035,topShade:'rgba(255,255,255,.012)',
-      textures:{top:null,south:null,east:null},
-      southShade:d.inert?'rgba(185,213,220,.22)':'rgba(0,18,30,.025)',
-      eastShade:d.inert?'rgba(180,205,214,.28)':'rgba(0,10,24,.13)'});
-    this.drawPlumage(g,f.south,1);
-    g.save();g.strokeStyle='rgba(63,43,53,.32)';g.lineWidth=Math.max(.7,this.cell*.012);
-    g.beginPath();g.moveTo(f.south[0].x+this.cell*.035,f.south[0].y);
-    g.lineTo(f.south[1].x-this.cell*.035,f.south[1].y);g.stroke();
-    g.strokeStyle='rgba(255,249,230,.62)';g.lineWidth=Math.max(.7,this.cell*.014);
-    g.beginPath();g.moveTo(f.top[3].x+this.cell*.008,f.top[3].y-this.cell*.035);
-    g.lineTo(f.top[0].x+this.cell*.008,f.top[0].y+this.cell*.035);
-    g.lineTo(f.top[1].x-this.cell*.035,f.top[1].y+this.cell*.008);g.stroke();g.restore();
-    // The readable face is formed on the upward plane of the solid cube.
-    this.drawCubePenguinFace(g,f.top,re?re.expression:'normal');
-    var beakZ=.035+lift+h+.015,beakY=cy+.13;
-    var nose=[this.project(cx-.065,beakY,beakZ),this.project(cx,beakY,beakZ+.08),
-      this.project(cx+.065,beakY,beakZ),this.project(cx,beakY+.10,beakZ-.035)];
-    // Same faceted beak, shaded as horn rather than flat plastic: each facet
-    // falls off toward its edge, with a glossy ridge and a soft cast shadow.
-    g.save();g.fillStyle='rgba(120,70,10,.22)';
-    drawPoly(g,[{x:nose[0].x+this.cell*.01,y:nose[0].y+this.cell*.03},{x:nose[2].x+this.cell*.01,y:nose[2].y+this.cell*.03},
-      {x:nose[3].x+this.cell*.012,y:nose[3].y+this.cell*.04}]);g.fill();
-    var fl=g.createLinearGradient(nose[0].x,nose[0].y,nose[3].x,nose[3].y);
-    fl.addColorStop(0,'#ffe08a');fl.addColorStop(1,'#f2b23c');
-    g.fillStyle=fl;drawPoly(g,[nose[0],nose[1],nose[3]]);g.fill();
-    var fr=g.createLinearGradient(nose[1].x,nose[1].y,nose[2].x,nose[3].y);
-    fr.addColorStop(0,'#f4b23a');fr.addColorStop(1,'#d88a1f');
-    g.fillStyle=fr;drawPoly(g,[nose[1],nose[2],nose[3]]);g.fill();
-    var fb=g.createLinearGradient(0,nose[0].y,0,nose[3].y);
-    fb.addColorStop(0,'#e59a2b');fb.addColorStop(1,'#c27717');
-    g.fillStyle=fb;drawPoly(g,[nose[0],nose[2],nose[3]]);g.fill();
-    g.strokeStyle='rgba(255,246,214,.75)';g.lineWidth=Math.max(.6,this.cell*.007);g.lineCap='round';
-    g.beginPath();g.moveTo(nose[1].x,nose[1].y);g.lineTo(nose[3].x,nose[3].y);g.stroke();
-    g.restore();
-    var badge=this.project(cx,y1,.035+lift+h*.44);
-    g.save();g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=Math.max(1,this.cell*.017);
-    glyph(g,badge.x,badge.y,this.cell*.041,paletteOf(d.colour).shape);g.stroke();g.restore();
-  };
-
-  Renderer.prototype.drawCubePenguinFace=function(g,front,expression){
-    this.drawPlumage(g,front,0);
-    g.save();roundedPoly(g,front,this.cell*.05);g.clip();faceTransform(g,front,256);
-    // The same white bib, but feathered: a soft edge where it meets the
-    // coloured plumage, gentle form shading, and fine down along its grain.
-    var bib=g.createLinearGradient(40,30,160,252);bib.addColorStop(0,'#ffffff');bib.addColorStop(1,'#e4eff0');
-    function bibPath(){g.beginPath();g.moveTo(32,233);g.lineTo(32,108);
-      g.bezierCurveTo(32,23,88,21,128,69);g.bezierCurveTo(168,21,224,23,224,108);
-      g.lineTo(224,233);g.quadraticCurveTo(128,256,32,233);}
-    g.save();g.shadowColor='rgba(255,255,255,.85)';g.shadowBlur=9;
-    g.fillStyle=bib;bibPath();g.fill();g.restore();
-    g.save();bibPath();g.clip();
-    var form=g.createRadialGradient(118,120,20,128,140,150);
-    form.addColorStop(0,'rgba(255,255,255,0)');form.addColorStop(1,'rgba(90,120,140,.20)');
-    g.fillStyle=form;g.fillRect(0,0,256,256);
-    g.lineCap='round';
-    for(var k=0;k<70;k++){var fx=36+hash(k*2.3)*184,fy=60+hash(k*3.9)*180,fl=6+hash(k*1.7)*9;
-      g.strokeStyle=hash(k*5.1)>.5?'rgba(255,255,255,.7)':'rgba(140,165,180,.16)';g.lineWidth=1.6;
-      g.beginPath();g.moveTo(fx,fy);g.quadraticCurveTo(fx+(fx<128?-2:2),fy+fl*.6,fx+(fx<128?-1:1),fy+fl);g.stroke();}
-    g.restore();
-    // Cheeks: warmth under the down rather than a painted disc.
-    [54,202].forEach(function(cx){var ck=g.createRadialGradient(cx,164,1,cx,164,22);
-      ck.addColorStop(0,'rgba(231,146,135,.42)');ck.addColorStop(1,'rgba(231,146,135,0)');
-      g.fillStyle=ck;g.fillRect(cx-24,140,48,48);});
-    g.strokeStyle='#263d49';g.fillStyle='#263d49';g.lineWidth=9;g.lineCap='round';g.lineJoin='round';
-    var happy=expression==='good'||expression==='perfect'||expression==='clear';
-    var worried=expression==='danger'||expression==='bad';
-    [84,172].forEach(function(x){
-      g.beginPath();
-      if(expression==='perfect'){
-        g.moveTo(x,93);g.lineTo(x+7,110);g.lineTo(x+20,118);g.lineTo(x+7,126);
-        g.lineTo(x,143);g.lineTo(x-7,126);g.lineTo(x-20,118);g.lineTo(x-7,110);g.closePath();g.fill();
-      }
-      else if(happy){g.moveTo(x-15,131);g.quadraticCurveTo(x,expression==='clear'?83:103,x+15,131);g.stroke();}
-      else if(expression==='fail'){g.moveTo(x-12,104);g.lineTo(x+12,133);g.moveTo(x+12,104);g.lineTo(x-12,133);g.stroke();}
-      else if(expression==='miss'){g.moveTo(x-13,124);g.lineTo(x+13,124);g.stroke();}
-      else {var ey=expression==='surprise'?114:122,erx=expression==='surprise'?17:13,ery=expression==='surprise'?25:20;
-        g.ellipse(x,ey,erx,ery,0,0,Math.PI*2);g.fill();
-        // A wet eye: warm iris depth, the key-light catchlight, and a faint
-        // second reflection from the ice below.
-        var iris=g.createRadialGradient(x+2,ey+7,1,x,ey+2,ery);
-        iris.addColorStop(0,'rgba(110,72,44,.7)');iris.addColorStop(1,'rgba(110,72,44,0)');
-        g.fillStyle=iris;g.beginPath();g.ellipse(x,ey,erx,ery,0,0,Math.PI*2);g.fill();
-        g.fillStyle='#fff';g.beginPath();g.ellipse(x-4,112,4,6,0,0,Math.PI*2);g.fill();
-        g.fillStyle='rgba(200,240,255,.55)';g.beginPath();g.arc(x+4,ey+ery*.55,2.2,0,Math.PI*2);g.fill();
-        g.fillStyle='#263d49';}
-      if(worried){var slope=expression==='bad'?-1:1;
-        g.beginPath();g.moveTo(x-15,87+slope*(x<128?10:0));g.lineTo(x+15,87+slope*(x<128?0:10));g.stroke();}
-    });
-    g.restore();
-  };
-  /* Feathers, on the penguin's own coloured plumage: short overlapping
-     strokes in the colour's light and shade, a soft sheen where the key light
-     grazes the down, and darker roots toward the lower edge. `front` is 1 for
-     the low front face, 0 for the top. */
-  Renderer.prototype.drawPlumage=function(g,face,front){
-    if(Math.abs(face[3].y-face[0].y)<2)return;
-    g.save();roundedPoly(g,face,this.cell*.06);g.clip();faceTransform(g,face,256);
-    var sh=g.createRadialGradient(70,front?20:40,6,90,front?40:70,front?220:190);
-    sh.addColorStop(0,'rgba(255,255,255,.26)');sh.addColorStop(1,'rgba(255,255,255,0)');
-    g.fillStyle=sh;g.fillRect(0,0,256,256);
-    // Overlapping contour feathers: rows of small offset scales, each lit on
-    // its upper rim and shadowed under its lower edge, smaller toward the top.
-    var rows=front?4:9,cols=front?9:9;
-    for(var r=0;r<rows;r++)for(var c=0;c<=cols;c++){
-      var k=r*31+c*7+front*500,fw=256/cols,fh=256/rows;
-      var fx=(c+(r%2)*.5)*fw+(hash(k)-.5)*fw*.2,fy=(r+.55)*fh+(hash(k*1.9)-.5)*fh*.15;
-      var rx=fw*.62,ry=fh*(front?.62:.7);
-      g.strokeStyle='rgba(255,255,255,'+(.06+hash(k*3.3)*.07)+')';g.lineWidth=front?6:3;
-      g.beginPath();g.ellipse(fx,fy,rx,ry,0,Math.PI*1.08,Math.PI*1.92);g.stroke();
-      g.strokeStyle='rgba(60,30,0,'+(.04+hash(k*4.1)*.05)+')';g.lineWidth=front?5:2.5;
-      g.beginPath();g.ellipse(fx,fy+ry*.25,rx*.95,ry,0,Math.PI*.12,Math.PI*.88);g.stroke();
-    }
-    var root=g.createLinearGradient(0,front?80:150,0,256);
-    root.addColorStop(0,'rgba(60,30,0,0)');root.addColorStop(1,'rgba(60,30,0,.16)');
-    g.fillStyle=root;g.fillRect(0,0,256,256);
-    g.restore();
-  };
-  /**
-   * A drifting floe: a slab of old, dense ice that gravity moves and no aurora
-   * will take.
-   *
-   * The front face and broad bevel make the thickness legible. IS IT MINE — it is
-   * the only desaturated thing on the board: no face, no beak, no colour for an
-   * aurora to match. CAN I PUSH IT — it sits ON the tray rather than being part
-   * of it: inset from the cell, rounded, with a contact shadow underneath.
-   * The bevel does
-   * most of that second job, which is why it is drawn wide enough to survive at
-   * the 39px cell an iPhone SE gets: a flat grey square with no rim reads as a
-   * hole cut in the ice, not a block resting on it.
-   */
-  Renderer.prototype.drawDrifter=function(g,d){
-    var p=d.pos,sq=d.squash&&d.squash.amount?d.squash:null,q=sq?sq.amount:0;
-    var sx=sq&&sq.axis==='x'?1+q*.05:1-q*.02;
-    var sy=sq&&sq.axis==='y'?1+q*.05:1-q*.02;
-    var inset=.10;
-    var x0=p[0]+.5-(.5-inset)*sx,x1=p[0]+.5+(.5-inset)*sx;
-    var y0=p[1]+.5-(.5-inset)*sy,y1=p[1]+.5+(.5-inset)*sy;
-    this.drawContactShadow(g,p[0]+.5,p[1]+.62,.44,.38,true);
-    var f=this.drawBox(g,{x0:x0,y0:y0,x1:x1,y1:y1,z0:.035,z1:.035+DRIFTER_HEIGHT,
-      material:'drifter',radius:this.cell*.075,
-      textures:{top:null,south:null,east:null}});
-    this.drawFloeGrain(g,f.top,f.south);
-    g.save();roundedPoly(g,f.top,this.cell*.075);g.strokeStyle='rgba(240,252,255,.65)';
-    g.lineWidth=1.2;g.stroke();g.restore();
-  };
-  /* Old sea ice, on the same grey slab: uneven density, grit frozen in, a thin
-     dusting of snow on the far half, and a weathered front edge. */
-  Renderer.prototype.drawFloeGrain=function(g,top,front){
-    var k;
-    g.save();roundedPoly(g,top,this.cell*.075);g.clip();faceTransform(g,top,256);
-    for(k=0;k<14;k++){var x=hash(k*2.3)*256,y=hash(k*3.7)*256,rr=22+hash(k*5.1)*38;
-      var m=g.createRadialGradient(x,y,0,x,y,rr);
-      m.addColorStop(0,hash(k)>.5?'rgba(255,255,255,.16)':'rgba(40,52,64,.13)');m.addColorStop(1,'rgba(0,0,0,0)');
-      g.fillStyle=m;g.fillRect(x-rr,y-rr,rr*2,rr*2);}
-    for(k=0;k<20;k++){g.fillStyle='rgba(45,52,60,'+(.18+hash(k*7.7)*.3)+')';
-      g.beginPath();g.arc(28+hash(k*1.9)*200,36+hash(k*8.3)*190,1.4+hash(k*3.3)*3,0,Math.PI*2);g.fill();}
-    var snow=g.createLinearGradient(0,0,0,120);
-    snow.addColorStop(0,'rgba(250,253,255,.62)');snow.addColorStop(1,'rgba(250,253,255,0)');
-    g.fillStyle=snow;g.beginPath();g.moveTo(0,0);g.lineTo(256,0);g.lineTo(256,62);
-    g.bezierCurveTo(200,84,160,56,110,80);g.bezierCurveTo(70,100,30,74,0,92);g.closePath();g.fill();
-    g.restore();
-    if(front[3].y-front[0].y<1)return;
-    g.save();roundedPoly(g,front,this.cell*.05);g.clip();faceTransform(g,front,256);
-    var lip=g.createLinearGradient(0,0,0,256);
-    lip.addColorStop(0,'rgba(255,255,255,.28)');lip.addColorStop(.3,'rgba(255,255,255,0)');
-    lip.addColorStop(1,'rgba(20,30,40,.18)');g.fillStyle=lip;g.fillRect(0,0,256,256);
-    for(k=0;k<8;k++){g.fillStyle='rgba(30,36,44,'+(.14+hash(k*9)*.18)+')';
-      g.fillRect(hash(k*4)*240,70+hash(k*6)*160,5+hash(k)*10,4+hash(k*2)*6);}
-    g.restore();
-  };
-  Renderer.prototype.drawFloeTop=function(g,face){
-    var r=this.cell*.12;
-    g.save();roundedPoly(g,face,r);g.clip();faceTransform(g,face,256);
-    /* The raised inner panel. The band left around it is the bevel, and at 17%
-       of the block it stays several pixels wide on the smallest board. */
-    var panel=[{x:44,y:44},{x:212,y:44},{x:212,y:212},{x:44,y:212}];
-    var lift=g.createLinearGradient(44,44,212,212);
-    lift.addColorStop(0,'rgba(255,255,255,.46)');
-    lift.addColorStop(.52,'rgba(255,255,255,.14)');
-    lift.addColorStop(1,'rgba(30,44,60,.13)');
-    roundedPoly(g,panel,26);g.fillStyle=lift;g.fill();
-    /* Glass, not marking. Anything with a countable number of strokes on it
-       turns into a glyph at 39px — two frost lines here read as a slash — so
-       the ice quality comes from a wide diagonal sweep and one soft highlight,
-       which have no shape to misread. */
-    roundedPoly(g,panel,26);g.save();g.clip();
-    var sweep=g.createLinearGradient(60,196,196,60);
-    sweep.addColorStop(0,'rgba(255,255,255,0)');
-    sweep.addColorStop(.44,'rgba(255,255,255,.26)');
-    sweep.addColorStop(.58,'rgba(255,255,255,.05)');
-    sweep.addColorStop(1,'rgba(255,255,255,0)');
-    g.fillStyle=sweep;g.fillRect(0,0,256,256);
-    var gloss=g.createRadialGradient(96,92,4,96,92,86);
-    gloss.addColorStop(0,'rgba(255,255,255,.34)');
-    gloss.addColorStop(1,'rgba(255,255,255,0)');
-    g.fillStyle=gloss;g.fillRect(0,0,256,256);
-    g.restore();
-    /* Lit from the north-west, like every floor tile and wall cap on the board:
-       bright along the two near edges, shaded along the two far ones. */
-    g.strokeStyle='rgba(240,252,255,.82)';g.lineWidth=9;g.lineJoin='round';
-    g.beginPath();g.moveTo(6,238);g.lineTo(6,6);g.lineTo(238,6);g.stroke();
-    g.strokeStyle='rgba(28,58,84,.27)';g.lineWidth=9;
-    g.beginPath();g.moveTo(250,18);g.lineTo(250,250);g.lineTo(18,250);g.stroke();
-    g.restore();
-    /* One crisp outline, outside the clip, so the block keeps a hard edge
-       against a pale floor tile at any size. Saved and restored like every
-       other draw here: the command list shares one context, and a stroke style
-       left behind leaks into whatever paints next. */
-    g.save();roundedPoly(g,face,r);
-    g.strokeStyle='rgba(46,66,88,.42)';g.lineWidth=Math.max(1,this.cell*.02);
-    g.lineJoin='round';g.stroke();g.restore();
-  };
-  Renderer.prototype.drawPenguinBeak=function(g,top,pal){
-    g.save();roundedPoly(g,top,this.cell*.1);g.clip();faceTransform(g,top,FACE_SIZE);
-    g.globalCompositeOperation='color';g.globalAlpha=.98;g.fillStyle=pal.mid;
-    g.beginPath();g.moveTo(198,278);g.bezierCurveTo(215,229,297,226,316,278);
-    g.bezierCurveTo(298,320,218,322,198,278);g.closePath();g.fill();
-    g.globalCompositeOperation='source-over';g.globalAlpha=.30;g.fillStyle=pal.hi;
-    g.beginPath();g.ellipse(256,266,48,15,0,Math.PI,Math.PI*2);g.fill();
-    g.restore();
-  };
-  Renderer.prototype.drawContactShadow=function(g,x,y,rx,ry,deep){
-    var c=this.project(x,y,.008);g.save();
-    g.translate(c.x+this.cell*.025,c.y+this.cell*.025);g.scale(this.cell*rx*1.2,this.cell*ry*1.1);
-    var shadow=g.createRadialGradient(0,0,.12,0,0,1);
-    shadow.addColorStop(0,deep?'rgba(24,65,85,.36)':'rgba(24,65,85,.42)');
-    shadow.addColorStop(.55,'rgba(24,65,85,.20)');
-    shadow.addColorStop(1,'rgba(24,65,85,0)');g.fillStyle=shadow;
-    g.fillRect(-1,-1,2,2);g.restore();
-  };
-  Renderer.prototype.drawPenguinFallback=function(g,f){
-    g.save();roundedPoly(g,f.top,this.cell*.1);g.clip();faceTransform(g,f.top,256);
-    g.fillStyle='#F8FCFD';g.beginPath();g.ellipse(128,150,76,91,0,0,Math.PI*2);g.fill();
-    g.fillStyle='#07131B';g.beginPath();g.arc(101,103,9,0,Math.PI*2);g.arc(155,103,9,0,Math.PI*2);g.fill();
-    g.fillStyle='#F6D0C9';g.beginPath();g.arc(76,137,11,0,Math.PI*2);g.arc(180,137,11,0,Math.PI*2);g.fill();
-    g.fillStyle='#F3AC2D';g.beginPath();g.moveTo(128,121);g.lineTo(106,139);g.lineTo(150,139);g.closePath();g.fill();g.restore();
-  };
-  Renderer.prototype.drawRipple=function(g,r){
-    var p=r.life/r.max,rad=r.r0+(r.r1-r.r0)*easeOut(p),c=this.project(r.x,r.y,r.z);
-    g.save();g.globalAlpha=(1-p)*.82;g.strokeStyle=r.col;g.lineWidth=Math.max(1.2,this.cell*.05*(1-p));
-    g.beginPath();g.ellipse(c.x,c.y,this.cell*rad*.72,this.cell*rad*.23,0,0,Math.PI*2);g.stroke();g.restore();
-  };
-  Renderer.prototype.drawParticle=function(g,p){
-    var c=this.project(p.x,p.y,p.z),a=1-p.life/p.max,s=this.cell*p.size*(.45+a*.55);
-    if(p.kind){
-      g.save();g.globalAlpha=Math.min(1,a*2)*.9;
-      if(p.kind==='skate'){
-        g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=Math.max(.6,this.cell*.009);
-        var tail=this.project(p.x-p.dx*.17,p.y-p.dy*.17,.012);
-        g.beginPath();g.moveTo(tail.x,tail.y);g.lineTo(c.x,c.y);g.stroke();
-      }else if(p.kind==='frost'){
-        var mist=g.createRadialGradient(c.x,c.y,0,c.x,c.y,s*2.2);
-        mist.addColorStop(0,'rgba(247,255,255,.6)');mist.addColorStop(1,'rgba(220,248,255,0)');
-        g.fillStyle=mist;g.fillRect(c.x-s*2.2,c.y-s*2.2,s*4.4,s*4.4);
-      }else{
-        var ground=this.project(p.x,p.y,.01);
-        g.fillStyle='rgba(37,104,127,.12)';g.beginPath();
-        g.ellipse(ground.x+1,ground.y+1,s*.85,s*.35,0,0,Math.PI*2);g.fill();
-        g.translate(c.x,c.y);g.rotate(p.angle);
-        g.fillStyle=p.col;g.beginPath();g.moveTo(-s,-s*.35);g.lineTo(s*.2,-s);
-        g.lineTo(s,s*.3);g.lineTo(-s*.2,s*.7);g.closePath();g.fill();
-        g.fillStyle='#fff';g.beginPath();g.moveTo(-s,-s*.35);g.lineTo(s*.2,-s);
-        g.lineTo(s*.1,s*.12);g.closePath();g.fill();
-        g.strokeStyle='rgba(73,145,175,.65)';g.lineWidth=.5;g.beginPath();
-        g.moveTo(-s*.2,s*.7);g.lineTo(s,s*.3);g.stroke();
-        if(p.glint&&Math.sin(p.angle*2)>.94&&p.z>.055){
-          g.strokeStyle='#fff';g.lineWidth=.8;g.beginPath();
-          g.moveTo(-s*1.6,0);g.lineTo(s*1.6,0);g.moveTo(0,-s*1.6);g.lineTo(0,s*1.6);g.stroke();
+      for (i = 0; i < this.anim.passes.length; i++) {
+        if (this.anim.firedPass[i]) continue; var pass = this.anim.passes[i];
+        if (elapsed >= pass.t * TICK + TICK * .4) {
+          this.anim.firedPass[i] = true; this.grazes.push({ cell: pass.cell, life: 0, max: 560 });
         }
       }
-      g.restore();return;
+      if (elapsed >= this.anim.duration) {
+        var cb = this.anim.onDone; this.state = this.anim.endState; this.anim = null; if (cb) cb();
+      } else busy = true;
     }
-    g.save();g.globalAlpha=a*.9;g.fillStyle=p.col;g.beginPath();g.arc(c.x,c.y,s,0,Math.PI*2);g.fill();
-    g.fillStyle='rgba(255,255,255,.72)';g.beginPath();g.arc(c.x-s*.25,c.y-s*.3,s*.28,0,Math.PI*2);g.fill();g.restore();
-  };
-  Renderer.prototype.drawClearGlow=function(g,a){
-    var st=this.stage,p=[this.project(-.28,-.30,.03),this.project(st.w+.28,-.30,.03),
-      this.project(st.w+.28,st.h+.30,.03),this.project(-.28,st.h+.30,.03)];
-    g.save();g.globalAlpha=a*.55;g.strokeStyle=THEME.clearRing;g.lineWidth=Math.max(2,this.cell*.035);
-    g.lineJoin='round';drawPoly(g,p);g.stroke();g.restore();
+    // The floe leans the way gravity is about to go.
+    var want = { x: 0, y: 0 }, tiltDir = this.aimDir || (this.anim ? this.gravity : null);
+    if (tiltDir && !this.reduceMotion) {
+      var amount = this.aimDir ? clamp01(this.aimAmount || 0) : Math.min(1, Math.max(0, (this.anim.duration - elapsed) / 180));
+      if (tiltDir === 'L') want.y = -TILT_DEG * amount; else if (tiltDir === 'R') want.y = TILT_DEG * amount;
+      else if (tiltDir === 'U') want.x = TILT_DEG * amount; else want.x = -TILT_DEG * amount;
+    }
+    var k = 1 - Math.exp(-Math.min(dt, 64) / 70);
+    if (this.reduceMotion) { this.tilt.x = 0; this.tilt.y = 0; }
+    else ['x', 'y'].forEach(function (axis) {
+      if (Math.abs(this.tilt[axis] - want[axis]) > .008) { this.tilt[axis] = lerp(this.tilt[axis], want[axis], k); busy = true; }
+      else this.tilt[axis] = want[axis];
+    }, this);
+    var wantSlide = (this.aimDir && !this.reduceMotion && !this.anim) ? AIM_SLIDE * clamp01(this.aimAmount || 0) : 0;
+    if (Math.abs(this.aimSlide - wantSlide) > .0015) { this.aimSlide = lerp(this.aimSlide, wantSlide, k); busy = true; }
+    else this.aimSlide = wantSlide;
+    var nx = 0, ny = 0;
+    if (this.nudge) {
+      this.nudge.life += dt; var np = this.nudge.life / this.nudge.max;
+      if (np >= 1) this.nudge = null; else {
+        var amp = Math.sin(np * Math.PI) * (1 - np) * .1, d = this.nudge.dir;
+        nx = d === 'L' ? -amp : d === 'R' ? amp : 0; ny = d === 'U' ? -amp : d === 'D' ? amp : 0; busy = true;
+      }
+    }
+    if (this.updateEffects(dt)) busy = true;
+    if (this.reactions && this.reactions.tick(now)) busy = true;
+
+    // World transform: the lean (tilt.x about X, tilt.y about Z) and nudge.
+    this.world.rotation.set(-this.tilt.x * Math.PI / 180, 0, -this.tilt.y * Math.PI / 180);
+    this.world.position.set(nx, 0, ny);
+    var sx = 0, sy = 0;
+    if (this.shake > .01) {
+      sx = (Math.random() - .5) * this.shake; sy = (Math.random() - .5) * this.shake;
+      this.shake *= Math.pow(.0025, dt / 1000); if (this.shake < .05) this.shake = 0; busy = true;
+    }
+    if (this.camBase) {
+      var px = 1 / Math.max(8, this.cell) * .9;
+      this.camera.position.set(this.camBase.x + sx * px, this.camBase.y + sy * px, this.camBase.z);
+    }
+
+    this.updateBlocks(elapsed);
+    this.updateGoals(now);
+    this.updateWater(now);
+    this.updateParticles();
+    this.updateRipples();
+    this.updateMarkers(dt);
+    if (this.topMaterial) this.topMaterial.emissiveIntensity = this.clearGlow * .35;
+    this.gl.render(this.scene, this.camera);
+    if (this.gesture && !this.reduceMotion) busy = true;
+    if (this.clearGlow > 0) { this.clearGlow = Math.max(0, this.clearGlow - dt / 900); busy = true; }
+    return busy;
   };
 
-  Renderer.prototype.drawGravityField=function(g){
-    var a=[],b=this.boardBounds;
-    if(this.gravity&&this.gravity!==this.aimDir)a.push({d:this.gravity,a:.30,aim:false});
-    if(this.aimDir)a.push({d:this.aimDir,a:.88,aim:true});
-    for(var i=0;i<a.length;i++){
-      var q=a[i],d=q.d,cx=(b.left+b.right)/2,cy=(b.top+b.bottom)/2,pad=Math.min(22,this.cell*.34);
-      if(d==='U')cy=Math.max(17,b.top-pad);else if(d==='D')cy=Math.min(this.cssH-17,b.bottom+pad);
-      else if(d==='L')cx=Math.max(17,b.left-pad);else cx=Math.min(this.cssW-17,b.right+pad);
-      g.save();g.globalAlpha=q.a;g.fillStyle=q.aim?'rgba(235,251,255,.9)':'rgba(239,248,252,.64)';
-      g.strokeStyle=q.aim?'rgba(7,112,148,.72)':'rgba(48,78,112,.42)';g.lineWidth=q.aim?1.5:1;
-      g.beginPath();g.arc(cx,cy,q.aim?15:12,0,Math.PI*2);g.fill();g.stroke();
-      g.strokeStyle=q.aim?'#087A9C':'#445E78';g.lineWidth=q.aim?2.8:2.2;g.lineCap='round';g.lineJoin='round';
-      var s=q.aim?6.5:5;g.beginPath();
-      if(d==='U'){g.moveTo(cx-s,cy+s*.35);g.lineTo(cx,cy-s);g.lineTo(cx+s,cy+s*.35);}
-      else if(d==='D'){g.moveTo(cx-s,cy-s*.35);g.lineTo(cx,cy+s);g.lineTo(cx+s,cy-s*.35);}
-      else if(d==='L'){g.moveTo(cx+s*.35,cy-s);g.lineTo(cx-s,cy);g.lineTo(cx+s*.35,cy+s);}
-      else{g.moveTo(cx-s*.35,cy-s);g.lineTo(cx+s,cy);g.lineTo(cx-s*.35,cy+s);}
-      g.stroke();g.restore();
+  Renderer.prototype.updateBlocks = function (elapsed) {
+    var st = this.stage, frames = this.anim ? this.anim.frames : null, state = this.anim ? null : this.state;
+    var slideX = 0, slideY = 0, movers = null;
+    if (state && this.aimDir && this.aimSlide > .001) {
+      movers = this.aimMovers(this.aimDir);
+      if (movers) { var dv = E.DV[this.aimDir]; slideX = dv[0] * this.aimSlide; slideY = dv[1] * this.aimSlide; }
     }
-  };
-  Renderer.prototype.drawGesture=function(g,dt){
-    var b=this.boardBounds,cx=(b.left+b.right)/2,cy=(b.top+b.bottom)/2,d=this.gestureDir;
-    var horiz=d==='L'||d==='R',sign=d==='R'||d==='D'?1:-1;
-    var span=(horiz?b.right-b.left:b.bottom-b.top)*.40;
-    if(this.reduceMotion){
-      g.save();g.globalAlpha=.42;g.strokeStyle=THEME.cueInk;g.lineWidth=Math.max(2,this.cell*.045);
-      g.lineCap='round';g.lineJoin='round';var z=this.cell*.16,hx=horiz?span*.5*sign:0,hy=horiz?0:span*.5*sign;
-      g.beginPath();g.moveTo(cx-hx,cy-hy);g.lineTo(cx+hx,cy+hy);
-      if(horiz){g.moveTo(cx+hx-z*sign,cy-z);g.lineTo(cx+hx,cy);g.lineTo(cx+hx-z*sign,cy+z);}
-      else{g.moveTo(cx-z,cy+hy-z*sign);g.lineTo(cx,cy+hy);g.lineTo(cx+z,cy+hy-z*sign);}
-      g.stroke();g.restore();return;
+    for (var i = 0; i < this.blocks.length; i++) {
+      var m = this.blocks[i], ud = m.userData, pos = null, squash = 0, vel = [0, 0], vanish = null;
+      for (var v = 0; v < this.vanishing.length; v++) if (this.vanishing[v].block === i) vanish = this.vanishing[v];
+      if (this.anim) {
+        var gone = -1; for (var j = 0; j < frames.length; j++) if (!frames[j].alive[i]) { gone = j; break; }
+        if (gone >= 0 && elapsed >= gone * TICK + TICK * .55) pos = vanish ? vanish.cell : null;
+        else { pos = this.animPos(i, elapsed); squash = this.impactOf(i, elapsed); vel = this.speedOf(i, elapsed); }
+      } else if (state && state.alive[i]) {
+        pos = state.pos[i];
+        if (movers && movers[i]) pos = [pos[0] + slideX, pos[1] + slideY];
+      } else if (vanish) pos = vanish.cell;
+      if (!pos) { m.visible = false; continue; }
+      m.visible = true;
+      var react = this.reactions && !ud.drifter ? this.reactions.visualFor(i, this.time) : null;
+      var rk = react ? react.scale : 1, rdx = react ? react.dx : 0, rdy = react ? react.dy : 0, lift = react && react.lift ? react.lift : 0;
+      var sxs = 1, sys = 1, szs = 1;
+      if (squash && squash.amount) {
+        var q = squash.amount;
+        if (squash.axis === 'x') { sxs = 1 + q * .09; szs = 1 - q * .03; } else { szs = 1 + q * .09; sxs = 1 - q * .03; }
+        sys = 1 - q * .08;
+      }
+      var hop = lift * .32;
+      var vt = 0;
+      if (vanish && (!state || !state.alive[i])) {
+        vt = clamp01(vanish.life / vanish.max);
+        var e = easeOut(vt);
+        rk *= 1 - e * .92; hop += e * .55;
+      }
+      m.position.set(this.wx(pos[0] + .5 + rdx), hop, this.wz(pos[1] + .5 + rdy));
+      m.scale.set(sxs * rk, sys * rk, szs * rk);
+      m.rotation.y = vt ? easeOut(vt) * Math.PI * 1.2 : 0;
+      // Lean back against the glide; flippers lift with speed.
+      var speed = Math.min(1, Math.hypot(vel[0], vel[1]));
+      if (ud.lean && !ud.drifter) {
+        ud.lean.rotation.x = this.reduceMotion ? 0 : -vel[1] * .16;
+        ud.lean.rotation.z = this.reduceMotion ? 0 : vel[0] * .16;
+        ud.wings.forEach(function (wg) { wg.rotation.z = wg.userData.side * (.08 + speed * .75 + (vt ? .9 * Math.sin(vt * 9) : 0)); });
+        ud.shadow.material.opacity = .42 * (1 - Math.min(1, hop * 2.2)) * (1 - vt);
+        var expr = react && react.expression ? react.expression : 'normal';
+        if (ud.expression !== expr) { ud.front.map = faceTexture(ud.colour, expr); ud.expression = expr; }
+      }
     }
-    this.gestureT+=dt;var p=(this.gestureT%2100)/2100,travel=clamp01(p/.55);
-    var e=travel<1?easeOut(travel):1,fade=travel<.08?travel/.08:(travel>.86?Math.max(0,(1-travel)/.14):1);
-    var trail=this.cell*.68,x=horiz?cx-span*.5*sign+span*e*sign:cx;
-    var y=horiz?cy:cy-span*.5*sign+span*e*sign,tx=horiz?x-trail*sign:x,ty=horiz?y:y-trail*sign;
-    g.save();var gr=g.createLinearGradient(tx,ty,x,y);gr.addColorStop(0,'rgba(29,58,94,0)');
-    gr.addColorStop(1,'rgba(29,58,94,'+(.25*fade)+')');g.strokeStyle=gr;g.lineWidth=this.cell*.105;
-    g.lineCap='round';g.beginPath();g.moveTo(tx,ty);g.lineTo(x,y);g.stroke();
-    g.globalAlpha=fade;g.fillStyle=THEME.cueInk;g.beginPath();g.arc(x,y,this.cell*.09,0,Math.PI*2);g.fill();g.restore();
   };
 
-  Renderer.prototype.celebrate=function(){
-    var st=this.stage,x=st.w/2,y=st.h/2,lead=0;
-    /* Colour the burst after a penguin, never after a drifter: a board can
-       list the drifter first, and a grey firework for a clear is a shrug. */
-    if(st.colour)for(var i=0;i<st.colour.length;i++){if(st.colour[i]!==E.GRAY){lead=st.colour[i];break;}}
-    if(!this.reduceMotion){this.ripple(x,y,.08,THEME.clearRing,.28,Math.max(st.w,st.h)*.72,640);
-      this.burst(x,y,.28,paletteOf(lead).mid,16,1.5);this.addShake(1.6,3.4);}
-    this.clearGlow=1;
-  };
-  Renderer.prototype.rebuff=function(dir){
-    if(this.reduceMotion){var st=this.stage;this.ripple(st.w/2,st.h/2,.05,THEME.rebuffRing,.42,.56,260);return;}
-    this.nudge={dir:dir,life:0,max:300};
+  Renderer.prototype.updateGoals = function (now) {
+    if (!this.goals) return;
+    var t = this.reduceMotion ? 0 : now / 1000;
+    for (var i = 0; i < this.goals.length; i++) {
+      var g = this.goals[i], flash = 0, graze = 0, k;
+      for (k = 0; k < this.flashes.length; k++) {
+        var f = this.flashes[k];
+        if (f.cell[0] === g.cell[0] && f.cell[1] === g.cell[1]) flash = Math.max(flash, 1 - f.life / f.max);
+      }
+      for (k = 0; k < this.grazes.length; k++) {
+        var z = this.grazes[k];
+        if (z.cell[0] === g.cell[0] && z.cell[1] === g.cell[1]) graze = Math.max(graze, 1 - z.life / z.max);
+      }
+      var pulse = .5 + .5 * Math.sin(t * 1.3 + g.phase);
+      g.decal.material.emissiveIntensity = .45 + pulse * .2 + flash * 1.2;
+      g.glow.material.opacity = .08 + pulse * .08 + flash * .6 + graze * .3;
+      // Motes of light drift up off the aurora and fade.
+      for (k = 0; k < g.motes.length; k++) {
+        var mo = g.motes[k], sd = mo.userData.seed, life = this.reduceMotion ? .35 : ((t * .32 + sd) % 1);
+        var ang = mo.userData.a + t * .4, rad = .16 + sd * .2;
+        mo.position.set(Math.cos(ang) * rad, .06 + life * (.7 + flash * .4), Math.sin(ang) * rad);
+        var ms = (.07 + sd * .05) * (1 + flash * .8); mo.scale.set(ms, ms, 1);
+        mo.material.opacity = Math.sin(life * Math.PI) * (.55 + flash * .45);
+      }
+    }
   };
 
-  Renderer.prototype.topFace=function(x0,y0,x1,y1,z){
-    return [this.project(x0,y0,z),this.project(x1,y0,z),this.project(x1,y1,z),this.project(x0,y1,z)];
+  Renderer.prototype.updateWater = function (now) {
+    var t = this.reduceMotion ? 0 : now / 1000;
+    this.water.material.normalMap.offset.set(t * .012, t * .008);
   };
-  function faceTransform(g,p,s){
-    g.transform((p[1].x-p[0].x)/s,(p[1].y-p[0].y)/s,
-      (p[3].x-p[0].x)/s,(p[3].y-p[0].y)/s,p[0].x,p[0].y);
-  }
-  function drawPoly(g,p){
-    g.beginPath();g.moveTo(p[0].x,p[0].y);for(var i=1;i<p.length;i++)g.lineTo(p[i].x,p[i].y);g.closePath();
-  }
-  function roundedPoly(g,p,r){
-    if(!r){drawPoly(g,p);return;}
-    var n=p.length,s=[],e=[];
-    for(var i=0;i<n;i++){
-      var a=p[(i+n-1)%n],b=p[i],c=p[(i+1)%n];
-      var d0=Math.hypot(b.x-a.x,b.y-a.y)||1,d1=Math.hypot(c.x-b.x,c.y-b.y)||1;
-      var r0=Math.min(r,d0*.28),r1=Math.min(r,d1*.28);
-      s[i]={x:b.x+(a.x-b.x)*r0/d0,y:b.y+(a.y-b.y)*r0/d0};
-      e[i]={x:b.x+(c.x-b.x)*r1/d1,y:b.y+(c.y-b.y)*r1/d1};
+
+  var tmpM = null, tmpQ = null, tmpV = null, tmpS = null, tmpE = null, tmpC = null;
+  Renderer.prototype.updateParticles = function () {
+    if (!tmpM) { tmpM = new T.Matrix4(); tmpQ = new T.Quaternion(); tmpV = new T.Vector3(); tmpS = new T.Vector3(); tmpE = new T.Euler(); tmpC = new T.Color(); }
+    var ns = 0, np = 0, nm = 0, nk = 0, camQ = this.camera.quaternion;
+    var invWorld = new T.Quaternion().copy(this.world.quaternion).invert();
+    var faceCam = new T.Quaternion().copy(invWorld).multiply(camQ);
+    for (var i = 0; i < this.particles.length; i++) {
+      var p = this.particles[i], f = 1 - p.life / p.max;
+      tmpV.set(this.wx(p.x), p.z, this.wz(p.y));
+      if (p.kind === 'shard') {
+        tmpE.set(p.angle, p.angle * .7, p.angle * 1.3); tmpQ.setFromEuler(tmpE);
+        var s = p.size * (.35 + .65 * f) * 1.6; tmpS.set(s, s, s);
+        tmpM.compose(tmpV, tmpQ, tmpS); this.shards.setMatrixAt(ns++, tmpM);
+      } else if (p.kind === 'frost') {
+        var fs = p.size * (1.2 - .5 * f) * Math.min(1, f * 2.2); tmpS.set(fs, fs, fs);
+        tmpM.compose(tmpV, faceCam, tmpS); this.puffs.setMatrixAt(np++, tmpM);
+      } else if (p.kind === 'skate') {
+        tmpQ.setFromAxisAngle(new T.Vector3(0, 1, 0), Math.atan2(p.dx, p.dy));
+        tmpS.set(.035 * f, 1, .2 * (.5 + .5 * f)); tmpM.compose(tmpV, tmpQ, tmpS); this.marks.setMatrixAt(nm++, tmpM);
+      } else if (p.kind === 'spark' && nk < 128) {
+        tmpE.set(p.angle, p.angle, 0); tmpQ.setFromEuler(tmpE);
+        var ks = p.size * Math.min(1, f * 1.6); tmpS.set(ks, ks, ks);
+        tmpM.compose(tmpV, tmpQ, tmpS); this.sparks.setMatrixAt(nk, tmpM);
+        tmpC.set(p.col); this.sparks.setColorAt(nk, tmpC); nk++;
+      }
     }
-    g.beginPath();g.moveTo(e[0].x,e[0].y);
-    for(i=1;i<=n;i++){var j=i%n;g.lineTo(s[j].x,s[j].y);g.quadraticCurveTo(p[j].x,p[j].y,e[j].x,e[j].y);}
-    g.closePath();
-  }
-  root.TiltRender={
-    Renderer:Renderer,BLOCK:BLOCK,SOCKET:SOCKET,PALETTE:PALETTE,
-    THEME:THEME,TICK:TICK,TAIL:TAIL,MAX_CELL:MAX_CELL,FACE_SIZE:FACE_SIZE,
-    TEXTURE_FILES:TEXTURE_FILES,MATERIAL_FACES:MATERIAL_FACES
+    this.shards.count = ns; this.puffs.count = np; this.marks.count = nm; this.sparks.count = nk;
+    this.shards.instanceMatrix.needsUpdate = true; this.puffs.instanceMatrix.needsUpdate = true;
+    this.marks.instanceMatrix.needsUpdate = true; this.sparks.instanceMatrix.needsUpdate = true;
+    if (this.sparks.instanceColor) this.sparks.instanceColor.needsUpdate = true;
   };
-})(typeof window!=='undefined'?window:globalThis);
+
+  Renderer.prototype.updateRipples = function () {
+    for (var i = 0; i < this.ringPool.length; i++) {
+      var ring = this.ringPool[i], r = this.ripples[i];
+      if (!r) { ring.visible = false; continue; }
+      var p = clamp01(r.life / r.max), rad = lerp(r.r0, r.r1, easeOut(p));
+      var v = new T.Vector3(this.wx(r.x), r.z, this.wz(r.y));
+      if (r.z > -FREEBOARD + .05) this.world.localToWorld(v);
+      ring.position.copy(v);
+      ring.scale.set(rad, 1, rad);
+      ring.material.color.set(r.col || '#ffffff');
+      ring.material.opacity = (1 - p) * .8;
+      ring.visible = true;
+    }
+  };
+
+  Renderer.prototype.updateMarkers = function (dt) {
+    var self = this;
+    ['U', 'R', 'D', 'L'].forEach(function (d) {
+      var sp = self.markers[d], a = 0;
+      if (self.aimDir === d) a = .9;
+      else if (self.gravity === d && !self.aimDir) a = .32;
+      sp.material.opacity = a; sp.visible = a > 0;
+      var s = self.aimDir === d ? .56 : .44; sp.scale.set(s, s, 1);
+    });
+    // First-run swipe cue: a fingertip gliding across the floe.
+    var show = this.gesture && this.stage;
+    this.cue.visible = !!show;
+    this.cueTrail.forEach(function (t) { t.visible = !!show && !self.reduceMotion; });
+    if (!show) return;
+    var d = this.gestureDir, horiz = d === 'L' || d === 'R', sign = d === 'R' || d === 'D' ? 1 : -1;
+    var span = (horiz ? this.stage.w : this.stage.h) * .55;
+    var at = function (e) {
+      var o = -span / 2 + span * e;
+      return horiz ? new T.Vector3(o * sign, 1.05, 0) : new T.Vector3(0, 1.05, o * sign);
+    };
+    if (this.reduceMotion) {
+      this.cue.position.copy(at(1)); this.cue.material.opacity = .5; this.cue.scale.set(.3, .3, 1); return;
+    }
+    this.gestureT += dt;
+    var p = (this.gestureT % 2100) / 2100, travel = clamp01(p / .55);
+    var e = travel < 1 ? easeOut(travel) : 1, fade = travel < .08 ? travel / .08 : (travel > .86 ? Math.max(0, (1 - travel) / .14) : 1);
+    this.cue.position.copy(at(e)); this.cue.material.opacity = .8 * fade; this.cue.scale.set(.3, .3, 1);
+    this.cueTrail.forEach(function (t, i) {
+      var back = Math.max(0, e - (i + 1) * .045);
+      t.position.copy(at(back)); t.material.opacity = .35 * fade * (1 - i / 6) * (e > .02 ? 1 : 0);
+      var s = .24 * (1 - i / 9); t.scale.set(s, s, 1);
+    });
+  };
+
+  Renderer.prototype.celebrate = function () {
+    var st = this.stage, x = st.w / 2, y = st.h / 2, lead = 0;
+    if (st.colour) for (var i = 0; i < st.colour.length; i++) { if (st.colour[i] !== E.GRAY) { lead = st.colour[i]; break; } }
+    if (!this.reduceMotion) {
+      this.ripple(x, y, -FREEBOARD + .01, '#dff8ff', Math.max(st.w, st.h) * .5, Math.max(st.w, st.h) * 1.05, 900);
+      this.burst(x, y, .5, paletteOf(lead).hi, 18, 1.6); this.addShake(1.6, 3.4);
+    }
+    this.clearGlow = 1;
+  };
+  Renderer.prototype.rebuff = function (dir) {
+    if (this.reduceMotion) {
+      var st = this.stage; this.ripple(st.w / 2, st.h / 2, .02, '#9fc7da', .42, .56, 260); return;
+    }
+    this.nudge = { dir: dir, life: 0, max: 300 };
+  };
+
+  /* Read back a rectangle of the last frame, in device pixels. Tests use this
+     to look at what was actually drawn; it renders first so the buffer holds
+     the current picture. */
+  Renderer.prototype.readPixels = function (x, y, w, h) {
+    this.gl.render(this.scene, this.camera);
+    var gl = this.gl.getContext(), out = new Uint8Array(w * h * 4);
+    gl.readPixels(x, this.canvas.height - y - h, w, h, gl.RGBA, gl.UNSIGNED_BYTE, out);
+    return out;
+  };
+
+  root.TiltRender = {
+    Renderer: Renderer, PALETTE: PALETTE, TICK: TICK, TAIL: TAIL, MAX_CELL: MAX_CELL,
+    TEXTURE_FILES: TEXTURE_FILES, FREEBOARD: FREEBOARD, PENGUIN: PENGUIN,
+    floorLoops: floorLoops, drawFace: drawFace
+  };
+})(typeof window !== 'undefined' ? window : globalThis);

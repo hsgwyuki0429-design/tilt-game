@@ -50,7 +50,7 @@ function fixture() {
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   let browser;
   try {
-    browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath:process.env.CHROME_PATH } : {});
+    browser = await chromium.launch(require('./lib/browser').launchOptions());
     const page = await browser.newPage({ viewport:{ width:390,height:844 }, locale:'ja-JP' });
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));

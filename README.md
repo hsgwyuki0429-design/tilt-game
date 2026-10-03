@@ -1,38 +1,42 @@
 # TILT
 
-A gravity puzzle set in a soft, crystalline ice world. Swipe in one of four directions to change gravity; every cube penguin glides until a snowy wall or another block stops it.
+A gravity puzzle on a floating floe of ice. Swipe in one of four directions to change gravity; every cube penguin glides until the edge of the ice — the rim or a hole — or the other penguin stops it.
 
 ## Current campaign
 
-100 newly searched levels: **78 on 4×4, 22 on 5×4**, ordered by exact shortest solution from **3 to 31 moves**. Only the introductory level has one penguin; every later level has two. The campaign uses stationary ice walls and matching auroras, with no grey drifters or cracked ice.
+100 boards, **all 4×4**, found by searching every 4×4 floe exhaustively. Levels 1–3 have one penguin; levels 4–100 have two. **94 of the 97 pair boards are mutual: each penguin has to stop the other at least once in every solution.** The other three teach the brake with one helper first.
 
-The selection favours recoverable choices and cooperation, rather than long corridors. From any reachable solvable position, an ordinary move that collects no penguin cannot create a dead end. Collecting a penguin too early may still remove a brake its partner needs. Every selected two-penguin solution has actual cooperation, multiple useful choices, and at most three consecutive forced moves after excluding the immediate undo direction. Each wall arrangement is distinct under reflection and rotation.
+There are no walls. A cell with no ice is open water, and the edge of the ice stops a penguin exactly as the outer rim does — the engine's rules are unchanged. The ice of every board is one connected piece that spans the full 4×4 with its centre of mass within half a cell of the centre, so it reads, and sits, as one solid floe.
 
-Shortest paths are nondecreasing. The late curve is allowed to follow the available good puzzles rather than padding it to an arbitrary move count. A 37-move candidate was found but rejected because nine final moves were a one-penguin cleanup. No 40-move board was found in this bounded search; this is not a proof that none exists. See [the search report](docs/CAMPAIGN.md).
+The order is set by how hard a board is to *find*, not by how long it is. A simulated explorer — it remembers where it has been, leans towards the auroras, grabs collections it is offered, recovers from dead ends and restarts when lost — plays every shortlisted board 600 times, and the campaign climbs its cost geometrically from 2 to 186 swipes while par wanders between 2 and 13. A long board of obvious moves comes early; a short board that needs a penguin parked as a floor for its partner comes late. See [the search report](docs/CAMPAIGN.md).
 
-The Canvas renderer gives the ice tray and penguins visible depth with an elevated frontal view, contact shadows, shallow obstacles, original aurora artwork, and distance-spaced ice shavings during a swipe. Rows stay horizontal and columns stay vertical. Home and gameplay share the renderer and fit phones, landscape and desktop.
+The game is drawn in real 3D with three.js (WebGL): a thick, bevelled slab of ice floating in a pool of water, engraved cell seams, real lights, shadows and reflections, rounded cube penguins with faces, beaks, feet and flippers, and auroras that glow on the ice. The floe leans in 3D while a swipe is held. See [rendering](docs/RENDERING.md).
 
-New campaign scores are stored separately from the old lineup. Sound, haptics and reduced-motion preferences carry over; the old progress remains in storage.
+New campaign scores are stored separately (`tilt.save.floe.v4`). Sound, haptics and reduced-motion preferences carry over; the old progress remains in storage.
 
 ## Building the campaign
 
-`src/stages.js` is generated from the reviewed, reproducible shortlist in `tools/campaign-selection.json`:
-
 ```sh
-npm run levels:build
-# Fresh seeded searches: width, attempts, output, seed, min walls, max walls
-node tools/refresh-search.js 4 50000 pool-4.json 791333 2 5
-node tools/refresh-search.js 5 800000 pool-5.json 875390 2 6
-node tools/refresh-campaign.js pool-4.json pool-5.json
+npm run levels:search    # every 4×4 floe, every aurora pair, every start (~2 min)
+node tools/floe-campaign.js --pool tools/.floe-cache/pool-4x4.json
+npm run levels:build     # rebuild src/stages.js from tools/floe-selection.json
 ```
 
-The rectangular search builds the complete two-penguin position graph for each sampled wall/goal layout and runs reverse BFS to prove the minimum length of every start. It does not exhaustively enumerate every layout. It filters ordinary-move traps, then measures useful choices, forced runs, real mutual braking, repetition and the single-penguin tail. The builder reserves scarce long puzzles and different wall layouts while prioritising 4×4. The shipped shortlist combines several runs, so the two example runs alone need not recreate it.
+`tools/floe-search.js` enumerates all 1,051 floe shapes (up to symmetry), 64,323 aurora layouts and 3,992,244 starts, builds each layout's complete position graph once, and measures interaction necessity, fairness, temptations and the explorer's cost. `tools/floe-campaign.js` re-measures a shortlist and chooses the hundred with distinct floes and piece placements. Both are seeded and reproduce the shipped selection exactly.
 
-The previous square-only enumerator and builder remain available as legacy research tools; they do not build the current campaign.
+## Rebuilding three.js
+
+```sh
+npm install
+node tools/build-three.mjs   # writes src/vendor/three.js
+```
+
+The game itself has no build step: three.js is vendored as one classic script so `index.html` still opens straight off disk.
 
 ## Additional research tools (legacy square search)
 
-The campaign above was built by looking for **long** boards. `tools/fun-search.js`
+These tools predate the floe campaign and search wall boards; they do not build
+it. An earlier campaign was built by looking for **long** boards. `tools/fun-search.js`
 looks for **good** ones, which is a different search and wants a different
 answer — a four-by-four with two penguins and one wall that you have to go
 backwards on beats a fifty-move corridor, and nothing in this pipeline scores a
@@ -106,16 +110,18 @@ the board analysis checked against the solver — with:
 npm test
 ```
 
-That runs the campaign/engine tests, analysis tests, rectangular accelerator
+That runs the campaign/engine tests (every board re-proved by the engine,
+fairness over the full reachable graph, the mutual-interaction claims), the
+floe accelerator agreement check, analysis tests, rectangular accelerator
 agreement checks, and save migration tests. The analysis tests prove the
 analysis agrees with the solver on all hundred stages and a slice of the index,
 that it does not care which way up a board is drawn or which colour is called A,
 that it spots an idle wall and a penguin used as a brake, that a repeating
 solution is penalised, and that no category has drifted into meaning nothing.
 
-Run the projection, six-face texture, depth-order, and 3×3–5×5 responsive
-contracts with (this environment needs `CHROME_PATH` pointed at the installed
-Chromium):
+Run the WebGL scene, projection, floe geometry (ice under every ice cell,
+water under every hole), shadow, penguin model, tilt and 3×3–5×5 responsive
+contracts with:
 
 ```sh
 npm run test:render
@@ -141,5 +147,7 @@ Serve the game locally with:
 npm run serve
 ```
 
-The runtime is dependency-free. Browser QA uses Playwright only as a development
-dependency; game rules still come from the deterministic engine and solver.
+The runtime needs nothing but the vendored three.js. Browser QA uses Playwright
+only as a development dependency, with SwiftShader WebGL on machines without a
+GPU (`tools/lib/browser.js`); game rules still come from the deterministic
+engine and solver.
