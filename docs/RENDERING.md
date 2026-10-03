@@ -34,12 +34,15 @@ loop is inset, its corners rounded (generously outside, tightly inside), and
 extruded with a bevel into one slab 1.5 cells thick, 0.36 of it above the
 water line.
 
-- **Top:** packed snow and ice, computed per pixel into typed arrays: a tint
-  and soft drift per tile, fine grain and sparkle, and the seams between
+- **Top:** melt-polished ice with frosted patches, computed per pixel into
+  typed arrays: a tint and soft drift per tile, fine grain and sparkle,
+  hairline fractures and trapped air bubbles, a roughness map (glossy where
+  polished, dull where frosted or cracked), and the seams between
   neighbouring cells engraved into a matching normal map, so the grid is
   something the light falls into rather than a line drawn on top.
 - **Sides:** vertex colours from white at the lip through clear blue at the
-  waterline to deep blue below, with clearcoat, so the slab reads as ice.
+  waterline to deep blue below, multiplied by a texture of vertical columns of
+  clear ice, bubbles and old fractures, with clearcoat, so the slab reads as ice.
 - **Water:** a level pool that fades into the page at the edge of what the
   camera sees. The submerged part of the floe shows through it; a soft dark
   ring marks the waterline; slow ripples drift across it.
@@ -66,9 +69,11 @@ off it. Collection flashes it and sends a coloured ring across the ice.
 
 ## Effects
 
-Ice shavings, frost puffs and skate marks keep the old emission model —
-spaced by distance, thrown backwards and to the sides, capped at 420 and
-expiring within 760 ms — and are drawn as instanced meshes. A shaving that
+A sliding penguin tears ice from its whole footprint, every 0.03 cell it
+travels: tumbling shards and larger chips thrown up, back and to the sides, fine
+frost clouds, and six lanes of scratches that stay on the ice for a second. A
+stop throws about a hundred more. Budget 3,600 particles, each living 0.6–1.1 s
+(scratches 1 s), all drawn as instanced meshes. A shaving that
 lands on water sinks. A penguin stopped at the edge of the ice sends a ring
 across the water. A clear rings the whole pool. Reduced motion turns off
 tilt, shake, particles and idle motion; expressions stay.
