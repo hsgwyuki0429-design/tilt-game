@@ -437,8 +437,8 @@
     'col = mix(col, uColDeep * 0.9, groove * 0.5);',
 
     // Cracked ice (stages that have it) and per-cell variation.
-    'col = mix(col, uColDeep * 0.85, cd.g * 0.5 * topK);',
-    'col += cd.g * smoothstep(0.2, 0.7, dA.b) * 0.45 * topK;',
+    'col = mix(col, uColDeep * 0.85, cd.g * 0.68 * topK);',
+    'col += cd.g * smoothstep(0.2, 0.7, dA.b) * 0.85 * topK;',
     'col *= 0.965 + cd.b * 0.07;',
 
     // Water: darker, bluer and lit by caustics below the line, and a lapping

@@ -2,7 +2,7 @@
 
 60 boards, 4×4 to 6×6, two penguins, many walls, cracked ice. Shortest solutions run **12 to 54 moves** (largest step between neighbours: 3).
 
-Nothing here is wired into the game. `tools/hazard-campaign.json` holds stage-shaped entries (`id`, `name`, `par`, `idea`, `hint`, `board`) plus the solution and notes; copying them into a chapter is a separate step.
+In the game these are stages 101–160 (chapters 11–16): `node tools/cracked-campaign.js` turns `tools/hazard-campaign.json` into `src/stages-cracked.js`, which extends `TiltStages` after `src/stages.js`. `tools/hazard-campaign.json` also holds each solution and the notes below.
 
 ## Rules this campaign uses
 
@@ -17,25 +17,27 @@ Nothing here is wired into the game. `tools/hazard-campaign.json` holds stage-sh
 - From every reachable solvable position, every move that neither collects a penguin nor cracks one leads to another solvable position (cracking is excluded because the game rewinds it; collecting a brake too early remains the one irreversible mistake, as in the main campaign).
 - Every wall and every cracked tile changes the shortest route or a move taken along it. A tile whose removal changes nothing is rejected.
 - Each room (walls and cracks, up to rotation, reflection and swapping colours) appears at most once.
+- The ice of every board is one edge-connected piece spanning the board, which is what the floe renderer draws (`hazard-merge.js --whole-floe`). A wall is open water in the current game.
 
 ## Search scale
 
-Four parallel workers, local search over layouts (move a wall, a crack or an aurora, keep what scores better). 357 million layouts were evaluated over 272 minutes (4.5 hours) across three runs of four workers; the third run was stopped at 62 of its planned 90 minutes and its last checkpoint used. 846 engine-verified boards were shortlisted from 38,160 distinct candidates, and 60 were curated from those. Longest solutions found: 6×6 54, 6×5 44, 5×5 40, 5×4 33, 4×4 23. These are search results, not proofs of a maximum.
+Four parallel workers, local search over layouts (move a wall, a crack or an aurora, keep what scores better). 357 million layouts were evaluated over 272 minutes (4.5 hours) across three runs of four workers; the third run was stopped at 62 of its planned 90 minutes and its last checkpoint used. 842 engine-verified boards were shortlisted from 31,272 distinct candidates whose ice is one floe (38,160 before that filter), and 60 were curated from those. Longest solutions found: 6×6 54, 6×5 44, 5×5 40, 5×4 32, 4×4 23. These are search results, not proofs of a maximum.
 
 ## Honest limits
 
 - "Fun" is not measured. The notes below are read off the solution by the engine (reversals, partner braking, crossings, lure moves). They say where a puzzle's ideas are, not whether it is enjoyable.
 - No one has played these yet. Play a handful from each tray before trusting the order.
-- The renderer's responsive contracts cover 3×3–5×5; 6×5 and 6×6 have not been checked on screen.
+- 6×6 fits a 390×844 phone viewport (stages 101 and 160 were loaded in headless Chromium with software WebGL and every board was played to a clear through keyboard input in the browser QA). It has not been tried on a real phone or GPU.
+- Cracked tiles are drawn with a violet-blue tint and white fracture lines. They are readable but still the quietest thing on the board; if playtesters stop on them by surprise, raise the contrast in `src/ice.js`.
 
 ## Mix
 
 | tray | boards | pars |
 |---|---:|---|
 | 6x6 | 18 | 12–54 |
-| 5x5 | 12 | 12–40 |
 | 6x5 | 16 | 12–44 |
-| 5x4 | 8 | 12–33 |
+| 5x5 | 12 | 12–40 |
+| 5x4 | 8 | 12–32 |
 | 4x4 | 6 | 12–23 |
 
 ## Boards
@@ -60,39 +62,39 @@ Solution: `DRULDRDRURUL`
 - 解の中で割れる氷を6回すべって通過
 - 解の途中に「止まれば割れる」誘い手が8回
 
-### 2. 5x5 · 12 moves
+### 2. 6x5 · 12 moves
 
 ```
-#..x.
-..#.a
-.x#.#
-#B.A.
-.#x#b
+.a..x.
+.#A..B
+x...#.
+b..#..
+#.#..#
 ```
 
-Solution: `LULURDLDLURD`
+Solution: `RDRULDLURULD`
 
-- 2手目(上): ゴールから最も遠ざかる逆走
-- 1手目(左): AがBに当たって止まる
+- 9手目(右): ゴールから最も遠ざかる逆走
+- 1手目(右): AがBに当たって止まる
+- 解の中で割れる氷を4回すべって通過
+- 解の途中に「止まれば割れる」誘い手が5回
+
+### 3. 5x5 · 12 moves
+
+```
+#a...
+#BxA.
+b#...
+...#.
+#.x..
+```
+
+Solution: `RDLURURDLULU`
+
+- 1手目(右): ゴールから最も遠ざかる逆走
+- 1手目(右): BがAに当たって止まる
 - 解の中で割れる氷を6回すべって通過
-- 解の途中に「止まれば割れる」誘い手が9回
-
-### 3. 6x5 · 12 moves
-
-```
-.#..ax
-##.Ax#
-.#.B.b
-.x....
-#.#x.#
-```
-
-Solution: `LDLDRULDLDRU`
-
-- 7手目(左): ゴールから最も遠ざかる逆走
-- 2手目(下): AがBに当たって止まる
-- 解の中で割れる氷を5回すべって通過
-- 解の途中に「止まれば割れる」誘い手が9回
+- 解の途中に「止まれば割れる」誘い手が8回
 
 ### 4. 5x4 · 12 moves
 
@@ -146,20 +148,20 @@ Solution: `RDLURURULDLDRU`
 ### 7. 6x6 · 14 moves
 
 ```
-.#.###
-#..Ax.
-#..x.#
-..#B..
-....##
-.#..ba
+#.....
+Ax.##.
+..##.#
+#.x...
+.bB.#.
+.ax.#.
 ```
 
-Solution: `DRULURULDRDLDR`
+Solution: `RULDRURURDLULD`
 
-- 8手目(左): ゴールから最も遠ざかる逆走
-- 1手目(下): AがBに当たって止まる
-- 解の中で割れる氷を6回すべって通過
-- 解の途中に「止まれば割れる」誘い手が6回
+- 12手目(上): ゴールから最も遠ざかる逆走
+- 4手目(下): AがBに当たって止まる
+- 解の中で割れる氷を8回すべって通過
+- 解の途中に「止まれば割れる」誘い手が7回
 
 ### 8. 4x4 · 14 moves
 
@@ -281,19 +283,19 @@ Solution: `LURDRURULDRDLDLUL`
 ### 15. 6x5 · 18 moves
 
 ```
-.#..#.
-#.x...
-b.A#.#
-a#.B..
-.x..#x
+#A.B..
+.x#..#
+#..x..
+.a.##.
+.bx...
 ```
 
-Solution: `ULDRULULDRURULDLDU`
+Solution: `RDLDRURDRDLURURULD`
 
-- 4手目(右): ゴールから最も遠ざかる逆走
-- 3手目(下): AがBに当たって止まる
-- 解の中で割れる氷を6回すべって通過
-- 解の途中に「止まれば割れる」誘い手が10回
+- 1手目(右): ゴールから最も遠ざかる逆走
+- 1手目(右): AがBに当たって止まる
+- 解の中で割れる氷を7回すべって通過
+- 解の途中に「止まれば割れる」誘い手が8回
 
 ### 16. 5x4 · 18 moves
 
@@ -463,7 +465,23 @@ Solution: `LDLURDRDLDLULURDRDRURDU`
 - 解の中で割れる氷を4回すべって通過
 - 解の途中に「止まれば割れる」誘い手が9回
 
-### 26. 4x4 · 23 moves
+### 26. 5x4 · 23 moves
+
+```
+.bx..
+.A.#.
+.#B#.
+a#...
+```
+
+Solution: `DRDRURULULDLURDRURULULD`
+
+- 14手目(右): ゴールから最も遠ざかる逆走
+- 4手目(右): AがBに当たって止まる
+- 解の中で割れる氷を4回すべって通過
+- 解の途中に「止まれば割れる」誘い手が6回
+
+### 27. 4x4 · 23 moves
 
 ```
 .#aA
@@ -479,7 +497,7 @@ Solution: `DLDLULDRDLULDRULURDLRUL`
 - 解の中で割れる氷を6回すべって通過
 - 解の途中に「止まれば割れる」誘い手が3回
 
-### 27. 6x6 · 24 moves
+### 28. 6x6 · 24 moves
 
 ```
 #..x..
@@ -496,22 +514,6 @@ Solution: `DRURURULDRDRURULULDLDLUD`
 - 3手目(上): BがAに当たって止まる
 - 解の中で割れる氷を6回すべって通過
 - 解の途中に「止まれば割れる」誘い手が7回
-
-### 28. 5x4 · 24 moves
-
-```
-..B.#
-.#..A
-...#.
-#axb.
-```
-
-Solution: `LULDLDRULDLURDRURDRDLDRL`
-
-- 8手目(上): ゴールから最も遠ざかる逆走
-- 3手目(左): AがBに当たって止まる
-- 解の中で割れる氷を1回すべって通過
-- 解の途中に「止まれば割れる」誘い手が8回
 
 ### 29. 6x5 · 25 moves
 
@@ -547,7 +549,23 @@ Solution: `URULURDLDRURULDLULURDLULD`
 - 解の中で割れる氷を8回すべって通過
 - 解の途中に「止まれば割れる」誘い手が8回
 
-### 31. 6x6 · 27 moves
+### 31. 5x4 · 26 moves
+
+```
+..A.#
+.#...
+.b.#.
+#.xaB
+```
+
+Solution: `ULULDLDRULDLURDRURDRDLDRLU`
+
+- 9手目(上): ゴールから最も遠ざかる逆走
+- 4手目(左): BがAに当たって止まる
+- 解の中で割れる氷を2回すべって通過
+- 解の途中に「止まれば割れる」誘い手が9回
+
+### 32. 6x6 · 27 moves
 
 ```
 bx.a.#
@@ -565,7 +583,7 @@ Solution: `DRDRDLURURDRDLDLURURURULURL`
 - 解の中で割れる氷を5回すべって通過
 - 解の途中に「止まれば割れる」誘い手が9回
 
-### 32. 6x5 · 27 moves
+### 33. 6x5 · 27 moves
 
 ```
 x.#...
@@ -582,56 +600,40 @@ Solution: `RURULDLDRDRURURULULDLDLDLUD`
 - 解の中で割れる氷を9回すべって通過
 - 解の途中に「止まれば割れる」誘い手が9回
 
-### 33. 5x5 · 27 moves
+### 34. 5x5 · 27 moves
 
 ```
-...#b
-.#..a
-BAx#.
-#....
-.#...
+..B.#
+x#..a
+..x.#
+..#b.
+...#A
 ```
 
-Solution: `ULURURDRDLULULURURDRDRULDRU`
+Solution: `ULULDLDRDLURULULDLDRDLURURD`
 
-- 7手目(下): ゴールから最も遠ざかる逆走
-- 3手目(上): AがBに当たって止まる
-- 解の中で割れる氷を5回すべって通過
-- 解の途中に「止まれば割れる」誘い手が5回
-
-### 34. 5x4 · 27 moves
-
-```
-....#
-.#..B
-.x.#.
-#axbA
-```
-
-Solution: `ULULULDLDRULDLURDRURDRDLDRL`
-
-- 11手目(上): ゴールから最も遠ざかる逆走
-- 1手目(上): AがBに当たって止まる
-- 解の中で割れる氷を7回すべって通過
-- 解の途中に「止まれば割れる」誘い手が11回
+- 14手目(左): ゴールから最も遠ざかる逆走
+- 4手目(左): AがBに当たって止まる
+- 解の中で割れる氷を8回すべって通過
+- 解の途中に「止まれば割れる」誘い手が8回
 
 ### 35. 6x6 · 29 moves
 
 ```
-...#x#
-.#B.A.
+..x.##
+.#....
+BAx#.#
 ....#.
-#.x..x
-#.##..
-.#.xba
+..#..a
+..#..b
 ```
 
-Solution: `LULULDRULULDLDRDLDRURURDRDLDR`
+Solution: `ULURDLDRULURDLDRDLURDLDRDRURD`
 
-- 3手目(左): ゴールから最も遠ざかる逆走
-- 1手目(左): AがBに当たって止まる
-- 解の中で割れる氷を4回すべって通過
-- 解の途中に「止まれば割れる」誘い手が15回
+- 19手目(上): ゴールから最も遠ざかる逆走
+- 3手目(上): AがBに当たって止まる
+- 解の中で割れる氷を6回すべって通過
+- 解の途中に「止まれば割れる」誘い手が11回
 
 ### 36. 6x5 · 29 moves
 
@@ -650,7 +652,23 @@ Solution: `LDLURDRULURURDLULDRDLDRURULUR`
 - 解の中で割れる氷を11回すべって通過
 - 解の途中に「止まれば割れる」誘い手が5回
 
-### 37. 5x5 · 30 moves
+### 37. 5x4 · 29 moves
+
+```
+#....
+a.##.
+#x.B.
+#.Ab#
+```
+
+Solution: `RURULULDLULDRDRURURULULDLULDR`
+
+- 1手目(右): ゴールから最も遠ざかる逆走
+- 4手目(上): AがBに当たって止まる
+- 解の中で割れる氷を7回すべって通過
+- 解の途中に「止まれば割れる」誘い手が12回
+
+### 38. 5x5 · 30 moves
 
 ```
 #...#
@@ -666,22 +684,6 @@ Solution: `RDRULDLDRDRURULURDLURURDLULRDR`
 - 3手目(右): BがAに当たって止まる
 - 解の中で割れる氷を6回すべって通過
 - 解の途中に「止まれば割れる」誘い手が9回
-
-### 38. 5x4 · 30 moves
-
-```
-A#...
-...#a
-#..Bx
-#b##.
-```
-
-Solution: `LURURDRULDLDLULURURDRURDRULDLD`
-
-- 8手目(上): ゴールから最も遠ざかる逆走
-- 9手目(左): BがAに当たって止まる
-- 解の中で割れる氷を5回すべって通過
-- 解の途中に「止まれば割れる」誘い手が11回
 
 ### 39. 6x5 · 31 moves
 
@@ -735,7 +737,23 @@ Solution: `RULULDLDRDLURURULULDLDRDLDRDLRUL`
 - 解の中で割れる氷を6回すべって通過
 - 解の途中に「止まれば割れる」誘い手が12回
 
-### 42. 6x5 · 33 moves
+### 42. 5x4 · 32 moves
+
+```
+.a##.
+#..Ax
+B..#b
+.#...
+```
+
+Solution: `LDRDRURDLULULDLDRDRDRURDRURDLULU`
+
+- 8手目(下): ゴールから最も遠ざかる逆走
+- 9手目(左): AがBに当たって止まる
+- 解の中で割れる氷を5回すべって通過
+- 解の途中に「止まれば割れる」誘い手が9回
+
+### 43. 6x5 · 33 moves
 
 ```
 B..#.#
@@ -751,22 +769,6 @@ Solution: `ULDRULULDLDRDRURDRDLURURDRDLDLURD`
 - 2手目(左): AがBに当たって止まる
 - 解の中で割れる氷を10回すべって通過
 - 解の途中に「止まれば割れる」誘い手が7回
-
-### 43. 5x4 · 33 moves
-
-```
-..a..
-BA.#.
-#..b#
-.x.#.
-```
-
-Solution: `URDLDRDLULDRDRURDLURDLDRDLULDRDRU`
-
-- 4手目(左): ゴールから最も遠ざかる逆走
-- 2手目(右): BがAに当たって止まる
-- 解の中で割れる氷を4回すべって通過
-- 解の途中に「止まれば割れる」誘い手が4回
 
 ### 44. 6x6 · 34 moves
 
@@ -806,9 +808,9 @@ Solution: `LURURDRULURDLURURDLULDLURURDRURDLDR`
 ### 46. 5x5 · 35 moves
 
 ```
-.#..#
-#x#..
-.b.xB
+.x..#
+#.#..
+.b..B
 A#...
 a#.#x
 ```
@@ -817,8 +819,8 @@ Solution: `ULURULDLDRDLULULDRULURULDLDRDLULULD`
 
 - 4手目(右): ゴールから最も遠ざかる逆走
 - 13手目(上): AがBに当たって止まる
-- 解の中で割れる氷を10回すべって通過
-- 解の途中に「止まれば割れる」誘い手が13回
+- 解の中で割れる氷を7回すべって通過
+- 解の途中に「止まれば割れる」誘い手が10回
 
 ### 47. 6x6 · 37 moves
 

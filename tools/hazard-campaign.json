@@ -1,5 +1,5 @@
 {
- "made": "2026-10-03T22:45:48.566Z",
+ "made": "2026-10-03T22:59:27.168Z",
  "count": 60,
  "stages": [
   {
@@ -46,47 +46,6 @@
   },
   {
    "id": 2,
-   "name": "5x5 / 12",
-   "size": "5x5",
-   "par": 12,
-   "idea": "Cracked ice: slide across it, never stop on it.",
-   "hint": {
-    "ja": "割れる氷の上で止まると失敗。通り過ぎるだけなら大丈夫です。",
-    "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
-   },
-   "board": [
-    "#..x.",
-    "..#.a",
-    ".x#.#",
-    "#B.A.",
-    ".#x#b"
-   ],
-   "solution": "LULURDLDLURD",
-   "notes": {
-    "ja": [
-     "2手目(上): ゴールから最も遠ざかる逆走",
-     "1手目(左): AがBに当たって止まる",
-     "解の中で割れる氷を6回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が9回"
-    ],
-    "away": 6,
-    "brakes": 3,
-    "crossings": 6,
-    "lureMoves": 9
-   },
-   "measures": {
-    "score": 128.67,
-    "decisionRate": 1,
-    "cruxRate": 1,
-    "branching": 2.17,
-    "maxForced": 0,
-    "walls": 7,
-    "cracks": 3,
-    "coverage": 0.87
-   }
-  },
-  {
-   "id": 3,
    "name": "6x5 / 12",
    "size": "6x5",
    "par": 12,
@@ -96,34 +55,75 @@
     "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
    },
    "board": [
-    ".#..ax",
-    "##.Ax#",
-    ".#.B.b",
-    ".x....",
-    "#.#x.#"
+    ".a..x.",
+    ".#A..B",
+    "x...#.",
+    "b..#..",
+    "#.#..#"
    ],
-   "solution": "LDLDRULDLDRU",
+   "solution": "RDRULDLURULD",
    "notes": {
     "ja": [
-     "7手目(左): ゴールから最も遠ざかる逆走",
-     "2手目(下): AがBに当たって止まる",
-     "解の中で割れる氷を5回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が9回"
+     "9手目(右): ゴールから最も遠ざかる逆走",
+     "1手目(右): AがBに当たって止まる",
+     "解の中で割れる氷を4回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が5回"
     ],
-    "away": 7,
+    "away": 6,
     "brakes": 4,
-    "crossings": 5,
-    "lureMoves": 9
+    "crossings": 4,
+    "lureMoves": 5
    },
    "measures": {
-    "score": 128.65,
+    "score": 128.05,
+    "decisionRate": 1,
+    "cruxRate": 1,
+    "branching": 2.42,
+    "maxForced": 0,
+    "walls": 6,
+    "cracks": 2,
+    "coverage": 0.95
+   }
+  },
+  {
+   "id": 3,
+   "name": "5x5 / 12",
+   "size": "5x5",
+   "par": 12,
+   "idea": "Cracked ice: slide across it, never stop on it.",
+   "hint": {
+    "ja": "割れる氷の上で止まると失敗。通り過ぎるだけなら大丈夫です。",
+    "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
+   },
+   "board": [
+    "#a...",
+    "#BxA.",
+    "b#...",
+    "...#.",
+    "#.x.."
+   ],
+   "solution": "RDLURURDLULU",
+   "notes": {
+    "ja": [
+     "1手目(右): ゴールから最も遠ざかる逆走",
+     "1手目(右): BがAに当たって止まる",
+     "解の中で割れる氷を6回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が8回"
+    ],
+    "away": 6,
+    "brakes": 2,
+    "crossings": 6,
+    "lureMoves": 8
+   },
+   "measures": {
+    "score": 128,
     "decisionRate": 1,
     "cruxRate": 1,
     "branching": 2.17,
     "maxForced": 0,
-    "walls": 8,
-    "cracks": 4,
-    "coverage": 0.78
+    "walls": 5,
+    "cracks": 2,
+    "coverage": 1
    }
   },
   {
@@ -258,34 +258,34 @@
     "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
    },
    "board": [
-    ".#.###",
-    "#..Ax.",
-    "#..x.#",
-    "..#B..",
-    "....##",
-    ".#..ba"
+    "#.....",
+    "Ax.##.",
+    "..##.#",
+    "#.x...",
+    ".bB.#.",
+    ".ax.#."
    ],
-   "solution": "DRULURULDRDLDR",
+   "solution": "RULDRURURDLULD",
    "notes": {
     "ja": [
-     "8手目(左): ゴールから最も遠ざかる逆走",
-     "1手目(下): AがBに当たって止まる",
-     "解の中で割れる氷を6回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が6回"
+     "12手目(上): ゴールから最も遠ざかる逆走",
+     "4手目(下): AがBに当たって止まる",
+     "解の中で割れる氷を8回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が7回"
     ],
-    "away": 6,
-    "brakes": 3,
-    "crossings": 6,
-    "lureMoves": 6
+    "away": 7,
+    "brakes": 4,
+    "crossings": 8,
+    "lureMoves": 7
    },
    "measures": {
-    "score": 130.99,
+    "score": 130.62,
     "decisionRate": 1,
     "cruxRate": 1,
-    "branching": 2.57,
+    "branching": 2.43,
     "maxForced": 0,
-    "walls": 11,
-    "cracks": 2,
+    "walls": 9,
+    "cracks": 3,
     "coverage": 0.96
    }
   },
@@ -585,34 +585,34 @@
     "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
    },
    "board": [
-    ".#..#.",
-    "#.x...",
-    "b.A#.#",
-    "a#.B..",
-    ".x..#x"
+    "#A.B..",
+    ".x#..#",
+    "#..x..",
+    ".a.##.",
+    ".bx..."
    ],
-   "solution": "ULDRULULDRURULDLDU",
+   "solution": "RDLDRURDRDLURURULD",
    "notes": {
     "ja": [
-     "4手目(右): ゴールから最も遠ざかる逆走",
-     "3手目(下): AがBに当たって止まる",
-     "解の中で割れる氷を6回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が10回"
+     "1手目(右): ゴールから最も遠ざかる逆走",
+     "1手目(右): AがBに当たって止まる",
+     "解の中で割れる氷を7回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が8回"
     ],
-    "away": 6,
-    "brakes": 5,
-    "crossings": 6,
-    "lureMoves": 10
+    "away": 8,
+    "brakes": 6,
+    "crossings": 7,
+    "lureMoves": 8
    },
    "measures": {
-    "score": 132.05,
+    "score": 131.81,
     "decisionRate": 1,
     "cruxRate": 0.94,
-    "branching": 2.44,
+    "branching": 2.33,
     "maxForced": 0,
-    "walls": 7,
+    "walls": 6,
     "cracks": 3,
-    "coverage": 0.9
+    "coverage": 0.81
    }
   },
   {
@@ -1025,6 +1025,46 @@
   },
   {
    "id": 26,
+   "name": "5x4 / 23",
+   "size": "5x4",
+   "par": 23,
+   "idea": "Cracked ice: slide across it, never stop on it.",
+   "hint": {
+    "ja": "割れる氷の上で止まると失敗。通り過ぎるだけなら大丈夫です。",
+    "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
+   },
+   "board": [
+    ".bx..",
+    ".A.#.",
+    ".#B#.",
+    "a#..."
+   ],
+   "solution": "DRDRURULULDLURDRURULULD",
+   "notes": {
+    "ja": [
+     "14手目(右): ゴールから最も遠ざかる逆走",
+     "4手目(右): AがBに当たって止まる",
+     "解の中で割れる氷を4回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が6回"
+    ],
+    "away": 11,
+    "brakes": 7,
+    "crossings": 4,
+    "lureMoves": 6
+   },
+   "measures": {
+    "score": 120.63,
+    "decisionRate": 0.913,
+    "cruxRate": 0.87,
+    "branching": 2.13,
+    "maxForced": 1,
+    "walls": 4,
+    "cracks": 1,
+    "coverage": 1
+   }
+  },
+  {
+   "id": 27,
    "name": "4x4 / 23",
    "size": "4x4",
    "par": 23,
@@ -1064,7 +1104,7 @@
    }
   },
   {
-   "id": 27,
+   "id": 28,
    "name": "6x6 / 24",
    "size": "6x6",
    "par": 24,
@@ -1103,46 +1143,6 @@
     "walls": 10,
     "cracks": 3,
     "coverage": 0.87
-   }
-  },
-  {
-   "id": 28,
-   "name": "5x4 / 24",
-   "size": "5x4",
-   "par": 24,
-   "idea": "Cracked ice: slide across it, never stop on it.",
-   "hint": {
-    "ja": "割れる氷の上で止まると失敗。通り過ぎるだけなら大丈夫です。",
-    "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
-   },
-   "board": [
-    "..B.#",
-    ".#..A",
-    "...#.",
-    "#axb."
-   ],
-   "solution": "LULDLDRULDLURDRURDRDLDRL",
-   "notes": {
-    "ja": [
-     "8手目(上): ゴールから最も遠ざかる逆走",
-     "3手目(左): AがBに当たって止まる",
-     "解の中で割れる氷を1回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が8回"
-    ],
-    "away": 11,
-    "brakes": 6,
-    "crossings": 1,
-    "lureMoves": 8
-   },
-   "measures": {
-    "score": 120.27,
-    "decisionRate": 0.958,
-    "cruxRate": 0.96,
-    "branching": 2.13,
-    "maxForced": 1,
-    "walls": 4,
-    "cracks": 1,
-    "coverage": 0.93
    }
   },
   {
@@ -1229,6 +1229,46 @@
   },
   {
    "id": 31,
+   "name": "5x4 / 26",
+   "size": "5x4",
+   "par": 26,
+   "idea": "Cracked ice: slide across it, never stop on it.",
+   "hint": {
+    "ja": "割れる氷の上で止まると失敗。通り過ぎるだけなら大丈夫です。",
+    "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
+   },
+   "board": [
+    "..A.#",
+    ".#...",
+    ".b.#.",
+    "#.xaB"
+   ],
+   "solution": "ULULDLDRULDLURDRURDRDLDRLU",
+   "notes": {
+    "ja": [
+     "9手目(上): ゴールから最も遠ざかる逆走",
+     "4手目(左): BがAに当たって止まる",
+     "解の中で割れる氷を2回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が9回"
+    ],
+    "away": 12,
+    "brakes": 6,
+    "crossings": 2,
+    "lureMoves": 9
+   },
+   "measures": {
+    "score": 118.79,
+    "decisionRate": 0.923,
+    "cruxRate": 0.92,
+    "branching": 2.12,
+    "maxForced": 1,
+    "walls": 4,
+    "cracks": 1,
+    "coverage": 1
+   }
+  },
+  {
+   "id": 32,
    "name": "6x6 / 27",
    "size": "6x6",
    "par": 27,
@@ -1270,7 +1310,7 @@
    }
   },
   {
-   "id": 32,
+   "id": 33,
    "name": "6x5 / 27",
    "size": "6x5",
    "par": 27,
@@ -1311,7 +1351,7 @@
    }
   },
   {
-   "id": 33,
+   "id": 34,
    "name": "5x5 / 27",
    "size": "5x5",
    "par": 27,
@@ -1321,74 +1361,34 @@
     "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
    },
    "board": [
-    "...#b",
-    ".#..a",
-    "BAx#.",
-    "#....",
-    ".#..."
+    "..B.#",
+    "x#..a",
+    "..x.#",
+    "..#b.",
+    "...#A"
    ],
-   "solution": "ULURURDRDLULULURURDRDRULDRU",
+   "solution": "ULULDLDRDLURULULDLDRDLURURD",
    "notes": {
     "ja": [
-     "7手目(下): ゴールから最も遠ざかる逆走",
-     "3手目(上): AがBに当たって止まる",
-     "解の中で割れる氷を5回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が5回"
+     "14手目(左): ゴールから最も遠ざかる逆走",
+     "4手目(左): AがBに当たって止まる",
+     "解の中で割れる氷を8回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が8回"
     ],
-    "away": 11,
-    "brakes": 7,
-    "crossings": 5,
-    "lureMoves": 5
+    "away": 14,
+    "brakes": 8,
+    "crossings": 8,
+    "lureMoves": 8
    },
    "measures": {
-    "score": 126.34,
-    "decisionRate": 1,
-    "cruxRate": 1,
-    "branching": 2.26,
-    "maxForced": 0,
-    "walls": 5,
-    "cracks": 1,
-    "coverage": 0.79
-   }
-  },
-  {
-   "id": 34,
-   "name": "5x4 / 27",
-   "size": "5x4",
-   "par": 27,
-   "idea": "Cracked ice: slide across it, never stop on it.",
-   "hint": {
-    "ja": "割れる氷の上で止まると失敗。通り過ぎるだけなら大丈夫です。",
-    "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
-   },
-   "board": [
-    "....#",
-    ".#..B",
-    ".x.#.",
-    "#axbA"
-   ],
-   "solution": "ULULULDLDRULDLURDRURDRDLDRL",
-   "notes": {
-    "ja": [
-     "11手目(上): ゴールから最も遠ざかる逆走",
-     "1手目(上): AがBに当たって止まる",
-     "解の中で割れる氷を7回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が11回"
-    ],
-    "away": 13,
-    "brakes": 7,
-    "crossings": 7,
-    "lureMoves": 11
-   },
-   "measures": {
-    "score": 117.51,
+    "score": 124.83,
     "decisionRate": 0.852,
     "cruxRate": 0.85,
-    "branching": 2,
-    "maxForced": 2,
-    "walls": 4,
+    "branching": 2.04,
+    "maxForced": 1,
+    "walls": 5,
     "cracks": 2,
-    "coverage": 0.93
+    "coverage": 1
    }
   },
   {
@@ -1402,35 +1402,35 @@
     "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
    },
    "board": [
-    "...#x#",
-    ".#B.A.",
+    "..x.##",
+    ".#....",
+    "BAx#.#",
     "....#.",
-    "#.x..x",
-    "#.##..",
-    ".#.xba"
+    "..#..a",
+    "..#..b"
    ],
-   "solution": "LULULDRULULDLDRDLDRURURDRDLDR",
+   "solution": "ULURDLDRULURDLDRDLURDLDRDRURD",
    "notes": {
     "ja": [
-     "3手目(左): ゴールから最も遠ざかる逆走",
-     "1手目(左): AがBに当たって止まる",
-     "解の中で割れる氷を4回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が15回"
+     "19手目(上): ゴールから最も遠ざかる逆走",
+     "3手目(上): AがBに当たって止まる",
+     "解の中で割れる氷を6回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が11回"
     ],
-    "away": 14,
-    "brakes": 7,
-    "crossings": 4,
-    "lureMoves": 15
+    "away": 12,
+    "brakes": 4,
+    "crossings": 6,
+    "lureMoves": 11
    },
    "measures": {
-    "score": 130.94,
+    "score": 130.82,
     "decisionRate": 1,
     "cruxRate": 1,
-    "branching": 2.17,
+    "branching": 2.24,
     "maxForced": 0,
-    "walls": 9,
-    "cracks": 4,
-    "coverage": 0.91
+    "walls": 8,
+    "cracks": 2,
+    "coverage": 0.92
    }
   },
   {
@@ -1476,6 +1476,46 @@
   },
   {
    "id": 37,
+   "name": "5x4 / 29",
+   "size": "5x4",
+   "par": 29,
+   "idea": "Cracked ice: slide across it, never stop on it.",
+   "hint": {
+    "ja": "割れる氷の上で止まると失敗。通り過ぎるだけなら大丈夫です。",
+    "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
+   },
+   "board": [
+    "#....",
+    "a.##.",
+    "#x.B.",
+    "#.Ab#"
+   ],
+   "solution": "RURULULDLULDRDRURURULULDLULDR",
+   "notes": {
+    "ja": [
+     "1手目(右): ゴールから最も遠ざかる逆走",
+     "4手目(上): AがBに当たって止まる",
+     "解の中で割れる氷を7回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が12回"
+    ],
+    "away": 14,
+    "brakes": 8,
+    "crossings": 7,
+    "lureMoves": 12
+   },
+   "measures": {
+    "score": 107.64,
+    "decisionRate": 0.69,
+    "cruxRate": 0.69,
+    "branching": 1.79,
+    "maxForced": 3,
+    "walls": 6,
+    "cracks": 1,
+    "coverage": 1
+   }
+  },
+  {
+   "id": 38,
    "name": "5x5 / 30",
    "size": "5x5",
    "par": 30,
@@ -1510,46 +1550,6 @@
     "cruxRate": 0.93,
     "branching": 2.17,
     "maxForced": 1,
-    "walls": 6,
-    "cracks": 1,
-    "coverage": 1
-   }
-  },
-  {
-   "id": 38,
-   "name": "5x4 / 30",
-   "size": "5x4",
-   "par": 30,
-   "idea": "Cracked ice: slide across it, never stop on it.",
-   "hint": {
-    "ja": "割れる氷の上で止まると失敗。通り過ぎるだけなら大丈夫です。",
-    "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
-   },
-   "board": [
-    "A#...",
-    "...#a",
-    "#..Bx",
-    "#b##."
-   ],
-   "solution": "LURURDRULDLDLULURURDRURDRULDLD",
-   "notes": {
-    "ja": [
-     "8手目(上): ゴールから最も遠ざかる逆走",
-     "9手目(左): BがAに当たって止まる",
-     "解の中で割れる氷を5回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が11回"
-    ],
-    "away": 10,
-    "brakes": 4,
-    "crossings": 5,
-    "lureMoves": 11
-   },
-   "measures": {
-    "score": 104.03,
-    "decisionRate": 0.667,
-    "cruxRate": 0.67,
-    "branching": 1.83,
-    "maxForced": 2,
     "walls": 6,
     "cracks": 1,
     "coverage": 1
@@ -1681,6 +1681,46 @@
   },
   {
    "id": 42,
+   "name": "5x4 / 32",
+   "size": "5x4",
+   "par": 32,
+   "idea": "Cracked ice: slide across it, never stop on it.",
+   "hint": {
+    "ja": "割れる氷の上で止まると失敗。通り過ぎるだけなら大丈夫です。",
+    "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
+   },
+   "board": [
+    ".a##.",
+    "#..Ax",
+    "B..#b",
+    ".#..."
+   ],
+   "solution": "LDRDRURDLULULDLDRDRDRURDRURDLULU",
+   "notes": {
+    "ja": [
+     "8手目(下): ゴールから最も遠ざかる逆走",
+     "9手目(左): AがBに当たって止まる",
+     "解の中で割れる氷を5回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が9回"
+    ],
+    "away": 12,
+    "brakes": 3,
+    "crossings": 5,
+    "lureMoves": 9
+   },
+   "measures": {
+    "score": 104.17,
+    "decisionRate": 0.688,
+    "cruxRate": 0.69,
+    "branching": 1.84,
+    "maxForced": 2,
+    "walls": 5,
+    "cracks": 1,
+    "coverage": 1
+   }
+  },
+  {
+   "id": 43,
    "name": "6x5 / 33",
    "size": "6x5",
    "par": 33,
@@ -1718,46 +1758,6 @@
     "walls": 8,
     "cracks": 2,
     "coverage": 0.9
-   }
-  },
-  {
-   "id": 43,
-   "name": "5x4 / 33",
-   "size": "5x4",
-   "par": 33,
-   "idea": "Cracked ice: slide across it, never stop on it.",
-   "hint": {
-    "ja": "割れる氷の上で止まると失敗。通り過ぎるだけなら大丈夫です。",
-    "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
-   },
-   "board": [
-    "..a..",
-    "BA.#.",
-    "#..b#",
-    ".x.#."
-   ],
-   "solution": "URDLDRDLULDRDRURDLURDLDRDLULDRDRU",
-   "notes": {
-    "ja": [
-     "4手目(左): ゴールから最も遠ざかる逆走",
-     "2手目(右): BがAに当たって止まる",
-     "解の中で割れる氷を4回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が4回"
-    ],
-    "away": 13,
-    "brakes": 4,
-    "crossings": 4,
-    "lureMoves": 4
-   },
-   "measures": {
-    "score": 92.39,
-    "decisionRate": 0.667,
-    "cruxRate": 0.67,
-    "branching": 1.76,
-    "maxForced": 3,
-    "walls": 4,
-    "cracks": 1,
-    "coverage": 0.93
    }
   },
   {
@@ -1854,9 +1854,9 @@
     "en": "Cracked ice breaks if you stop on it. Sliding across is safe."
    },
    "board": [
-    ".#..#",
-    "#x#..",
-    ".b.xB",
+    ".x..#",
+    "#.#..",
+    ".b..B",
     "A#...",
     "a#.#x"
    ],
@@ -1865,23 +1865,23 @@
     "ja": [
      "4手目(右): ゴールから最も遠ざかる逆走",
      "13手目(上): AがBに当たって止まる",
-     "解の中で割れる氷を10回すべって通過",
-     "解の途中に「止まれば割れる」誘い手が13回"
+     "解の中で割れる氷を7回すべって通過",
+     "解の途中に「止まれば割れる」誘い手が10回"
     ],
     "away": 13,
     "brakes": 4,
-    "crossings": 10,
-    "lureMoves": 13
+    "crossings": 7,
+    "lureMoves": 10
    },
    "measures": {
-    "score": 122.36,
-    "decisionRate": 0.886,
-    "cruxRate": 0.89,
-    "branching": 2.14,
+    "score": 121.18,
+    "decisionRate": 0.943,
+    "cruxRate": 0.94,
+    "branching": 2.23,
     "maxForced": 1,
-    "walls": 7,
-    "cracks": 3,
-    "coverage": 0.93
+    "walls": 6,
+    "cracks": 2,
+    "coverage": 0.94
    }
   },
   {
