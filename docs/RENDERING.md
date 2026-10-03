@@ -161,12 +161,12 @@ When a swipe is held, the floe — not the canvas — leans up to 5° in 3D towa
 the direction gravity is about to go, and the water stays level around it.
 
 A sliding penguin leaves a solid white streak right behind it and, behind that,
-a band of blue **blobs** the width of the penguin, copied from the reference
-video. Every 0.075 cell on HIGH (0.12 on LITE) 36 (16) small rounded, stretched
-flakes in one flat ice-white are laid on the ice; a stop adds thirty. They
-overlap into ragged clumps, then shrink and fade over 0.5–1.1 s; the streak
-fades over 0.34 s. A per-instance alpha attribute lets each one fade on its
-own. All are instanced meshes with normal transparency and no depth writes,
+a band of **tiny flakes** the width of the penguin, copied from the reference
+video. Every 0.075 cell on HIGH (0.12 on LITE) 140 (60) rounded flakes, a few
+hundredths of a cell across, are laid on the ice in one flat ice-white, fully
+opaque and unlit, so where they overlap nothing shows: the band reads as one
+grainy mass. A stop adds thirty. The flakes shrink away over 0.5–1.1 s and the
+streak fades over 0.34 s. All are instanced meshes with no depth writes,
 within the tier's budget. Emission is distance-based at every
 refresh rate and starts only over ice. A flake that lands
 on water sinks. A penguin stopped at the edge of the ice sends a ring across
