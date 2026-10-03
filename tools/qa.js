@@ -760,19 +760,20 @@ async function swipe(page, x, y, dx, dy) {
     var g = window.game;
     var total = window.TiltStages.STAGES.length;
     g.save.reset();
-    var W = window.TiltSave.Save.SKIP_WINDOW;
+    g.renderStageGrid();
     return {
-      window: W,
       firstOpen: g.save.isUnlocked(1),
-      windowOpen: g.save.isUnlocked(1 + W),
-      beyondShut: g.save.isUnlocked(2 + W),
-      lastShut: g.save.isUnlocked(total)
+      midOpen: g.save.isUnlocked(Math.ceil(total / 2)),
+      lastOpen: g.save.isUnlocked(total),
+      cells: document.querySelectorAll('#stage-grid .cell').length,
+      lockedCells: document.querySelectorAll('#stage-grid .cell.locked, #stage-grid .cell:disabled').length
     };
   });
   ok('stage 1 is open on a fresh save', unlock.firstOpen === true);
-  ok('a stuck player may still reach ' + unlock.window + ' stages ahead', unlock.windowOpen === true);
-  ok('but no further than that', unlock.beyondShut === false);
-  ok('the late campaign stays locked', unlock.lastShut === false);
+  ok('a stage in the middle of the campaign is open', unlock.midOpen === true);
+  ok('the last stage is open too', unlock.lastOpen === true);
+  ok('the stage list shows no locked or disabled tile on a fresh save',
+    unlock.cells === 100 && unlock.lockedCells === 0, 'cells=' + unlock.cells + ' locked=' + unlock.lockedCells);
   await page.evaluate(function () { window.game.save.data.unlocked = 99; window.game.save.flush(); });
 
   console.log('\n\u001b[1mPERSISTENCE\u001b[0m');
