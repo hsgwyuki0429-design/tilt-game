@@ -658,13 +658,25 @@
       transparent: true, opacity: .88, depthWrite: false }), MAX_PARTICLES);
     this.marks = new T.InstancedMesh(new T.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({
       map: S.blob, color: '#d8edf1', transparent: true, opacity: .22, depthWrite: false }), MAX_PARTICLES);
+    // Grains: thousands of tiny ragged flakes lying on the ice behind a slider,
+    // a spray that thins out and fades rather than a painted stroke.
+    var flake = new T.BufferGeometry(), fv = [], fa = [0, .9, 1.9, 2.7, 3.9, 5.2], fr = [.5, .28, .55, .3, .5, .26], fi;
+    fv.push(0, 0, 0);
+    for (fi = 0; fi < fa.length; fi++) fv.push(Math.cos(fa[fi]) * fr[fi], 0, Math.sin(fa[fi]) * fr[fi]);
+    flake.setAttribute('position', new T.Float32BufferAttribute(fv, 3));
+    var fx = []; for (fi = 1; fi <= fa.length; fi++) fx.push(0, fi, fi % fa.length + 1);
+    flake.setIndex(fx);
+    this.grains = new T.InstancedMesh(flake, new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .95,
+      depthWrite: false, side: T.DoubleSide }), MAX_PARTICLES);
+    this.grains.setColorAt(0, new T.Color('#fff'));
+    this.grains.renderOrder = 6;
     this.sparks = new T.InstancedMesh(new T.OctahedronGeometry(.5), new T.MeshBasicMaterial({ color: '#ffffff' }), 128);
-    [this.shards, this.puffs, this.marks, this.sparks].forEach(function (m) {
+    [this.shards, this.puffs, this.marks, this.grains, this.sparks].forEach(function (m) {
       m.count = 0; m.frustumCulled = false; this.fxGroup.add(m);
     }, this);
     this.puffs.renderOrder = 6; this.marks.renderOrder = 1;
     // Fade each segment independently so a white ribbon dissolves into grains.
-    [this.shards, this.puffs, this.marks].forEach(function (mesh) {
+    [this.shards, this.puffs, this.marks, this.grains].forEach(function (mesh) {
       mesh.geometry.setAttribute('wakeAlpha', new T.InstancedBufferAttribute(new Float32Array(MAX_PARTICLES), 1));
       mesh.material.onBeforeCompile = function (shader) {
         shader.vertexShader = shader.vertexShader
@@ -1030,27 +1042,30 @@
   };
   /* A white ribbon follows the contact patch, then dissolves into blue ice
      grains. Distance-based segments join at every refresh rate. */
+  var GRAIN_COLORS = ['#ffffff', '#e6f8ff', '#a9dcff', '#74c0fa', '#4a9cf0', '#3a82e6'];
   Renderer.prototype.iceSpray = function (x, y, dx, dy, speed, impact) {
     if (this.reduceMotion) return;
-    var count = impact ? 24 : 10;
+    var count = impact ? 28 : (this.tier === 'lite' ? 16 : 38);
     for (var j = 0; j < count; j++) {
-      var kind = !impact && j === 0 ? 'frost' : !impact && j === 1 ? 'skate' : j % 4 === 2 ? 'chip' : 'shard';
-      var side = Math.random() < .5 ? -1 : 1, hard = impact ? 1.25 : 1;
-      var spread = side * (.00012 + Math.random() * .00042) * hard;
-      var back = (.00012 + Math.random() * .00032) * speed, along, across;
-      if (impact) { along = .18 + Math.random() * .16; across = (Math.random() - .5) * .6; }
-      else { along = -.36 + Math.random() * .14; across = (Math.random() - .5) * .54; }
+      var kind = !impact && j === 0 ? 'frost' : !impact && j === 1 ? 'skate' : j % 6 === 2 ? 'shard' : 'grain';
+      var along, across, hard = impact ? 1.25 : 1;
+      if (impact) { along = .12 + Math.random() * .2; across = (Math.random() - .5) * .8; }
+      else { along = -.08 - Math.random() * .5; across = (Math.random() * 2 - 1) * .42; }
       if (kind === 'frost') { along = -.28; across = 0; }
       var px = x + dx * along - dy * across, py = y + dy * along + dx * across;
       if (this.groundAt(px, py) < 0) continue;
       var surface = kind === 'skate' || kind === 'frost';
-      var up = surface ? 0 : (.00045 + Math.random() * .0009) * hard;
-      this.particles.push({ kind: kind, x: px, y: py, z: surface ? .008 : .022,
-        vx: surface ? 0 : -dx * back - dy * spread, vy: surface ? 0 : -dy * back + dx * spread, vz: up,
-        life: 0, max: kind === 'frost' ? 300 : kind === 'skate' ? 420 : 420 + Math.random() * 220,
-        size: kind === 'frost' ? .5 : kind === 'chip' ? .035 + Math.random() * .018 : .018 + Math.random() * .018,
-        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * .008,
-        dx: dx, dy: dy });
+      var grain = kind === 'grain';
+      var drift = (Math.random() - .5) * .00022 * hard, back = (.00004 + Math.random() * .00014) * speed;
+      var up = surface ? 0 : grain ? Math.random() * .00018 : (.00045 + Math.random() * .0009) * hard;
+      var p = { kind: kind, x: px, y: py, z: surface ? .008 : grain ? .016 + Math.random() * .05 : .022,
+        vx: surface ? 0 : -dx * back - dy * drift, vy: surface ? 0 : -dy * back + dx * drift, vz: up,
+        life: 0, max: kind === 'frost' ? 300 : kind === 'skate' ? 420 : grain ? 650 + Math.random() * 800 : 420 + Math.random() * 220,
+        size: kind === 'frost' ? .5 : grain ? .05 + Math.random() * .1 : .018 + Math.random() * .018,
+        angle: Math.random() * Math.PI * 2, spin: (Math.random() - .5) * (grain ? .004 : .008),
+        dx: dx, dy: dy };
+      if (grain) p.col = GRAIN_COLORS[(Math.random() * Math.random() * GRAIN_COLORS.length) | 0];
+      this.particles.push(p);
     }
     this.trimParticles();
   };
@@ -1338,7 +1353,7 @@
   var tmpM = null, tmpQ = null, tmpV = null, tmpS = null, tmpE = null, tmpC = null;
   Renderer.prototype.updateParticles = function () {
     if (!tmpM) { tmpM = new T.Matrix4(); tmpQ = new T.Quaternion(); tmpV = new T.Vector3(); tmpS = new T.Vector3(); tmpE = new T.Euler(); tmpC = new T.Color(); }
-    var ns = 0, np = 0, nm = 0, nk = 0;
+    var ns = 0, np = 0, nm = 0, nk = 0, ng = 0;
     for (var i = 0; i < this.particles.length; i++) {
       var p = this.particles[i], f = 1 - p.life / p.max;
       tmpV.set(this.wx(p.x), p.z, this.wz(p.y));
@@ -1347,6 +1362,12 @@
         var s = p.size * Math.sqrt(f); tmpS.set(s, s * .55, s);
         tmpM.compose(tmpV, tmpQ, tmpS); this.shards.geometry.attributes.wakeAlpha.setX(ns, Math.min(1, f * 2));
         this.shards.setMatrixAt(ns++, tmpM);
+      } else if (p.kind === 'grain') {
+        var gs = p.size * (.45 + .55 * Math.sqrt(f));
+        tmpE.set(0, p.angle, 0); tmpQ.setFromEuler(tmpE); tmpS.set(gs, 1, gs * (.7 + .3 * Math.sin(p.angle * 3)));
+        tmpM.compose(tmpV, tmpQ, tmpS); tmpC.set(p.col);
+        this.grains.geometry.attributes.wakeAlpha.setX(ng, Math.min(1, f * 1.8));
+        this.grains.setColorAt(ng, tmpC); this.grains.setMatrixAt(ng++, tmpM);
       } else if (p.kind === 'frost') {
         var fs = p.size * (.6 + .4 * f);
         tmpE.set(0, Math.atan2(p.dx, p.dy), 0); tmpQ.setFromEuler(tmpE);
@@ -1364,13 +1385,15 @@
         tmpC.set(p.col); this.sparks.setColorAt(nk, tmpC); nk++;
       }
     }
-    this.shards.count = ns; this.puffs.count = np; this.marks.count = nm; this.sparks.count = nk;
+    this.shards.count = ns; this.puffs.count = np; this.marks.count = nm; this.sparks.count = nk; this.grains.count = ng;
     this.shards.instanceMatrix.needsUpdate = true; this.puffs.instanceMatrix.needsUpdate = true;
-    this.marks.instanceMatrix.needsUpdate = true; this.sparks.instanceMatrix.needsUpdate = true;
+    this.marks.instanceMatrix.needsUpdate = true; this.grains.instanceMatrix.needsUpdate = true; this.sparks.instanceMatrix.needsUpdate = true;
     if (this.sparks.instanceColor) this.sparks.instanceColor.needsUpdate = true;
     this.shards.geometry.attributes.wakeAlpha.needsUpdate = true;
     this.puffs.geometry.attributes.wakeAlpha.needsUpdate = true;
     this.marks.geometry.attributes.wakeAlpha.needsUpdate = true;
+    this.grains.geometry.attributes.wakeAlpha.needsUpdate = true;
+    if (this.grains.instanceColor) this.grains.instanceColor.needsUpdate = true;
   };
 
   Renderer.prototype.updateRipples = function () {

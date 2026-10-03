@@ -134,11 +134,11 @@ function serve() {
         result.directions=result.directions&&r.particles.length>0&&r.particles.every(function(p){
           return p.dx===dv[0]&&p.dy===dv[1]&&p.vx*dv[0]+p.vy*dv[1]<=0;
         });
-        result.types=result.types&&['shard','skate','frost','chip'].every(function(kind){
+        result.types=result.types&&['shard','skate','frost','grain'].every(function(kind){
           return r.particles.some(function(p){return p.kind===kind;});
         });
         r.frame(16,r.anim.t0+96);
-        result.occlusion=r.shards.count+r.puffs.count+r.marks.count>0;
+        result.occlusion=r.shards.count+r.puffs.count+r.marks.count+r.grains.count>0;
       });
       [8,16,32].forEach(function(dt){
         r.setStage(st,E.initialState(st));r.playMove(E.simulate(st,r.state,'R'),function(){});
@@ -161,7 +161,7 @@ function serve() {
       game.loadStage(9);return result;
     });
     check('all four directions throw shavings backward from moving contact edges',ice.directions);
-    check('shards, frost and skate marks are distinct and drawn as instanced meshes',ice.types&&ice.occlusion);
+    check('grains, shards, frost and skate marks are distinct and drawn as instanced meshes',ice.types&&ice.occlusion);
     check('emission density matches at 30, 60 and 120 Hz',ice.refresh);
     check('a fresh swipe tolerates RAF timestamps just before its input event',ice.fresh);
     check('effects have a fixed budget and expire completely',ice.bounded&&ice.expired);
