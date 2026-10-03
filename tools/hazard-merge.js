@@ -2,7 +2,7 @@
 // Merge the worker pools, re-check every kept board against the real engine,
 // and write a shortlist filed by tray and shortest solution.
 //
-//   node tools/hazard-merge.js [pool-dir] [--per 3] [--out tools/hazard-shortlist.json]
+//   node tools/hazard-merge.js [pool-dir] [--per 3] [--whole-floe] [--out tools/hazard-shortlist.json]
 //
 // Engine checks, per board:
 //   * compiles, two penguins, one aurora each, at least one cracked tile
@@ -12,12 +12,20 @@
 const fs = require('fs');
 const path = require('path');
 const E = require('../src/engine.js');
+const F = require('./lib/floe.js');
 
 const argv = process.argv.slice(2);
 const dir = argv[0] && !argv[0].startsWith('--') ? argv[0] : 'tools/hazard-pool';
 const opt = k => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : null; };
 const per = Number(opt('per') || 3);
 const outFile = opt('out') || 'tools/hazard-shortlist.json';
+// The game draws the ice as one floe: edge-connected and spanning the board.
+const wholeFloe = argv.includes('--whole-floe');
+function isWhole(board) {
+  const w = board[0].length, h = board.length, fl = new Uint8Array(w * h);
+  board.forEach((r, y) => { for (let x = 0; x < w; x++) fl[y * w + x] = r[x] === '#' ? 0 : 1; });
+  return F.isWholeFloe(w, h, fl);
+}
 
 function verify(entry) {
   let stage;
@@ -52,7 +60,7 @@ const best = new Map();
 let total = 0;
 for (const f of files) {
   let d; try { d = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) { console.log('skip', f, e.message); continue; }
-  for (const c of d.candidates) { total++; const o = best.get(c.canon); if (!o || c.score > o.score) best.set(c.canon, c); }
+  for (const c of d.candidates) { if (wholeFloe && !isWhole(c.board)) continue; total++; const o = best.get(c.canon); if (!o || c.score > o.score) best.set(c.canon, c); }
 }
 console.log(JSON.stringify({ files: files.length, candidates: total, distinct: best.size }));
 

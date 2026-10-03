@@ -763,6 +763,7 @@ async function swipe(page, x, y, dx, dy) {
       firstOpen: g.save.isUnlocked(1),
       midOpen: g.save.isUnlocked(Math.ceil(total / 2)),
       lastOpen: g.save.isUnlocked(total),
+      total: total,
       cells: document.querySelectorAll('#stage-grid .cell').length,
       lockedCells: document.querySelectorAll('#stage-grid .cell.locked, #stage-grid .cell:disabled').length
     };
@@ -771,7 +772,7 @@ async function swipe(page, x, y, dx, dy) {
   ok('a stage in the middle of the campaign is open', unlock.midOpen === true);
   ok('the last stage is open too', unlock.lastOpen === true);
   ok('the stage list shows no locked or disabled tile on a fresh save',
-    unlock.cells === 100 && unlock.lockedCells === 0, 'cells=' + unlock.cells + ' locked=' + unlock.lockedCells);
+    unlock.cells === unlock.total && unlock.lockedCells === 0, 'cells=' + unlock.cells + ' locked=' + unlock.lockedCells);
   await page.evaluate(function () { window.game.save.data.unlocked = 99; window.game.save.flush(); });
 
   console.log('\n\u001b[1mPERSISTENCE\u001b[0m');
