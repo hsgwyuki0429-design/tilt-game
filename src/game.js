@@ -600,9 +600,26 @@
     // leaving a stale override behind on the renderer.
     this.renderer.onEvent = function (ev) {
       if (ev.type === 'goal') { self.audio.goal(goalIndex++); self.haptics.collect(); }
-      else if (ev.type === 'stop') { self.audio.impact(1); self.haptics.land(); }
+      else if (ev.type === 'stop') { self.audio.impact(stopDistance(ev), stoppedByPenguin(ev)); self.haptics.land(); }
       else if (ev.type === 'lost') { self.audio.lost(); self.haptics.over(); }
     };
+
+    // How far the penguin that just stopped slid, and whether what stopped it
+    // was another penguin (a knock of ice on ice) rather than the edge.
+    var dv = E.DV[dir];
+    function stopDistance(ev) {
+      var runs = self.renderer.anim && self.renderer.anim.runs[ev.block], k;
+      if (!runs) return 1;
+      for (k = 0; k < runs.length; k++) if (runs[k][1] === ev.t) return runs[k][1] - runs[k][0];
+      return 1;
+    }
+    function stoppedByPenguin(ev) {
+      var f = res.frames[Math.min(ev.t, res.frames.length - 1)], nx = ev.cell[0] + dv[0], ny = ev.cell[1] + dv[1];
+      for (var j = 0; j < f.pos.length; j++) {
+        if (j !== ev.block && f.alive[j] && f.pos[j][0] === nx && f.pos[j][1] === ny) return true;
+      }
+      return false;
+    }
 
     var chain = res.events.filter(function (e) { return e.type === 'goal'; }).length;
     var lost = res.events.filter(function (e) { return e.type === 'lost'; }).length;
@@ -616,8 +633,26 @@
       if (!lost && chain >= 2 && !res.clear) self.showToast(t('chain') + ' ×' + chain);
       self.settle(res);
     });
+    this.playSlides(res);
     this.syncHud();
     this.wake();
+  };
+
+  /* One slide sound per stretch a penguin travels, on the renderer's clock
+     (a stretch from tick s to e eases out over (e - s) ticks plus the tail),
+     panned to where on the board it happens. */
+  Game.prototype.playSlides = function (res) {
+    var R = root.TiltRender, anim = this.renderer.anim;
+    if (!anim) return;
+    var w = this.stage.w || 1;
+    for (var i = 0; i < anim.runs.length; i++) {
+      for (var k = 0; k < anim.runs[i].length; k++) {
+        var s = anim.runs[i][k][0], e = anim.runs[i][k][1];
+        var x = (res.frames[s].pos[i][0] + res.frames[e].pos[i][0]) / 2;
+        this.audio.slide(s * R.TICK / 1000, ((e - s) * R.TICK + R.TAIL) / 1000, e - s,
+          w > 1 ? x / (w - 1) * 2 - 1 : 0);
+      }
+    }
   };
 
   /** Called once the animation has finished and the board is at rest. */
