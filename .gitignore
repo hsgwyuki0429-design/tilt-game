@@ -6,3 +6,4 @@ tools/.campaign-cache/
 # Search output is measured data, not source: it belongs in a scratch directory.
 /rw-*.json
 /log-*.txt
+tools/hazard-pool/
