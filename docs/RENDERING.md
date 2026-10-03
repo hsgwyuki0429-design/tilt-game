@@ -67,7 +67,9 @@ corners and the bevel need no UV coordinates.
 - The water is turquoise on the shelf around the ice and deeper away from it.
   It is see-through close to the wall so the submerged ice shows, with a
   broken line of foam where it meets the wall and a little slush. The floe's
-  shadow falls on it.
+  shadow falls on it. A broad water plane extends towards the viewer rather
+  than filling the height of the screen. Its pale far side, deeper blue
+  foreground and fine horizontal wavelets give the sea perspective.
 
 **How it is made**
 
@@ -158,11 +160,16 @@ off it. Collection flashes it and sends a coloured ring across the ice.
 When a swipe is held, the floe — not the canvas — leans up to 5° in 3D towards
 the direction gravity is about to go, and the water stays level around it.
 
-A sliding penguin tears ice from its whole footprint, every 0.03 cell it
-travels: tumbling shards and larger chips thrown up, back and to the sides, fine
-frost clouds, and six lanes of scratches that stay on the ice for a second. A
-stop throws about a hundred more. Particles live 0.6–1.1 s (scratches 1 s) and
-are drawn as instanced meshes, within the tier's budget. A shaving that lands
+A sliding penguin leaves a continuous white ribbon with feathered cyan edges,
+which dissolves into scattered blue ice grains, following the reference video's
+bright trail and lingering flecks. Ten particles are emitted every 0.075 cell
+on HIGH, or every 0.12 cell on LITE; a stop scatters twenty-four grains.
+The ribbon lies on the ice and fades over 0.3 s, while small, flattened grains
+hop just above it and fade over 0.42–0.64 s (skate marks 0.42 s). A per-instance
+alpha attribute lets each segment fade independently instead of disappearing
+at full opacity. All are instanced meshes with normal transparency and no
+depth writes, within the tier's budget. Emission is distance-based at every
+refresh rate and starts only over ice. A shaving that lands
 on water sinks. A penguin stopped at the edge of the ice sends a ring across
 the water. A clear rings the whole pool. Reduced motion turns off tilt, shake,
 particles and idle motion; expressions stay.
