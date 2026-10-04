@@ -1,22 +1,22 @@
 # The large-floe band (stages 101–160)
 
-60 boards on floes from 4×4 up to 6×6, two penguins, no cracked ice, picked by the main campaign's own rules. Shortest solutions run **10 to 43 moves**.
+60 boards on floes from 4×4 up to 6×6, two penguins, no cracked ice, picked by the main campaign's own rules. Shortest solutions run **11 to 44 moves**.
 
 ## What a board has to be
 
 - One edge-connected floe spanning the board, centre of mass within half a cell of the centre. Open water is the old wall: the engine's rules are unchanged.
 - Fair: an ordinary move (one that collects nobody) never strands the pair; collecting a brake too early is the only irreversible mistake.
 - A partner must be used as a brake. At most two forced moves in a row, two lone clean-up moves and three fatal "collect now" temptations on the shortest routes; the solution uses at least 60% of the ice.
-- Mutual boards (each penguin has to stop the other at least once) first. A shape or piece layout is never used twice, and at most a few boards have touching auroras (23 of 60).
+- Mutual boards (each penguin has to stop the other at least once) first. A shape or piece layout is never used twice, and boards with touching auroras are rationed, as in the main campaign (23 of 60).
 - Re-solved on `src/engine.js`: the shortest solution equals the stated par, and no ordinary move strands the pair anywhere in the reachable graph.
 
 ## Order
 
-As in the main campaign, by how hard a simulated player finds a board. The explorer finishes short boards (par up to about 16 here) and its swipes set their place. On longer boards it never finishes — every 4×4–6×6 board with par 15 or more ran into a 3,000-swipe ceiling — so 17 of the 60 boards are ordered by that ceiling, which grows with par, and sit after every board the explorer can solve, with a few short boards the explorer finds very hard placed among them. Par is capped at 45.
+As in the main campaign, by how hard a simulated player finds a board. The explorer finishes the short boards (par up to 18 here) and its swipes set their place. On the longer boards it mostly does not finish — in a sample of 40 mutual boards per tray, 39 or 40 with par 15–24 ran into a 3,000-swipe ceiling, and some boards as short as par 14 here defeat it — so 16 of the 60 boards are ordered by that ceiling, which grows with par, and sit after every board the explorer can solve, with a few short boards the explorer finds very hard placed among them. Par is capped at 45.
 
 ## Search
 
-Layouts sampled by local search (move a piece of water or an aurora, keep what scores better); 31808 distinct candidate boards; the explorer measured the best of each tray and par; the final climb is geometric between the difficulty where the main campaign ends and the hardest boards found. These are search results, not proofs of a maximum.
+338 million layouts sampled by local search (move a piece of water or an aurora, keep what scores better) over 1200 worker-minutes; 47243 distinct candidate boards; the explorer measured the best of each tray and par; the final climb is geometric between the difficulty where the main campaign ends and the hardest boards found. These are search results, not proofs of a maximum.
 
 ## Honest limits
 
@@ -27,29 +27,18 @@ Layouts sampled by local search (move a piece of water or an aurora, keep what s
 
 | # | name | stages | note |
 |---|---|---|---|
-| 11 | WIDE FLOE | 101–110 | Larger floes, 5x4 · 5x5 · 6x4 · 6x5. Par 10–15. |
-| 12 | ARCHIPELAGO | 111–120 | Larger floes, 5x4 · 5x5 · 6x4 · 6x5 · 6x6. Par 12–16. |
-| 13 | LABYRINTH | 121–130 | Larger floes, 5x4 · 5x5 · 6x4 · 6x5 · 6x6. Par 12–15. |
-| 14 | LONG NIGHT | 131–140 | Larger floes, 4x4 · 5x5 · 6x4 · 6x5 · 6x6. Par 12–14. |
-| 15 | DEEP FREEZE | 141–150 | Larger floes, 5x5 · 6x4 · 6x5 · 6x6. Par 13–29. |
-| 16 | THE POLE | 151–160 | Larger floes, 6x5 · 6x6. Par 16–43. |
+| 11 | WIDE FLOE | 101–110 | Larger floes, 5x4 · 5x5 · 6x4 · 6x5. Par 11–14. |
+| 12 | ARCHIPELAGO | 111–120 | Larger floes, 5x4 · 5x5 · 6x4 · 6x5 · 6x6. Par 11–16. |
+| 13 | LABYRINTH | 121–130 | Larger floes, 5x4 · 5x5 · 6x4 · 6x6. Par 12–17. |
+| 14 | LONG NIGHT | 131–140 | Larger floes, 5x5 · 6x4 · 6x5. Par 11–18. |
+| 15 | DEEP FREEZE | 141–150 | Larger floes, 6x4 · 6x5 · 6x6. Par 12–29. |
+| 16 | THE POLE | 151–160 | Larger floes, 6x6. Par 31–44. |
 
 ## Boards
 
 `#` open water, `A`/`B` penguins, `a`/`b` their auroras.
 
-### 101 ICEBOUND · 5x4 · par 11 · mutual
-
-```
-b....
-a.#..
-B#.A.
-....#
-```
-
-Solution `DRURULULDLU` · explorer 152 swipes
-
-### 102 SKERRY · 5x5 · par 11 · mutual
+### 101 ICEBOUND · 5x5 · par 11 · mutual
 
 ```
 ba.B.
@@ -59,21 +48,44 @@ ba.B.
 .....
 ```
 
-Solution `RDLDLULURUL` · explorer 156 swipes
+Solution `RDLDLULURUL` · explorer 157 swipes
 
-### 103 FELL · 6x5 · par 10 · mutual
+### 102 SKERRY · 5x4 · par 11 · mutual
 
 ```
-#....#
-#....#
-#B##..
-.....#
-.#abA#
+b....
+a.#..
+B#.A.
+....#
 ```
 
-Solution `ULDRDLURDL` · explorer 163 swipes
+Solution `DRURULULDLU` · explorer 166 swipes
 
-### 104 ESKER · 5x5 · par 12 · mutual
+### 103 FELL · 5x5 · par 13 · mutual
+
+```
+baB..
+..##.
+.#.A.
+.#...
+...#.
+```
+
+Solution `RDLULDLULURUL` · explorer 177 swipes
+
+### 104 ESKER · 6x5 · par 11 · mutual
+
+```
+......
+...A#B
+.###..
+..#..a
+.....b
+```
+
+Solution `ULDLDRDRURD` · explorer 182 swipes
+
+### 105 OXBOW · 5x5 · par 12 · mutual
 
 ```
 ###A.
@@ -83,62 +95,54 @@ a....
 .B###
 ```
 
-Solution `URDLURDLURDL` · explorer 187 swipes
+Solution `URDLURDLURDL` · explorer 190 swipes
 
-### 105 OXBOW · 6x4 · par 15 · mutual
-
-```
-A.#.#b
-..#.#.
-B...#a
-##....
-```
-
-Solution `RDRDLURDRDRURDU` · explorer 198 swipes
-
-### 106 KETTLE · 6x4 · par 12 · mutual
+### 106 KETTLE · 6x5 · par 11 · mutual
 
 ```
-#..B..
-...A#.
-..##.a
-.....b
+##.b..
+..a.#.
+......
+A##B.#
+.....#
 ```
 
-Solution `RULDLDRDRURD` · explorer 198 swipes
+Solution `DRURULDLURU` · explorer 200 swipes
 
-### 107 DRUMLIN · 5x4 · par 12 · mutual
-
-```
-.#...
-.B.#.
-..#.b
-..A.a
-```
-
-Solution `LURDLDRDRURD` · explorer 211 swipes
-
-### 108 TARN · 6x4 · par 12 · mutual
+### 107 DRUMLIN · 5x5 · par 14 · mutual
 
 ```
-b#....
-.#..AB
-....##
-.a....
+.A..#
+..#..
+..##.
+.##.a
+..B.b
 ```
 
-Solution `LDLULDRULDLU` · explorer 227 swipes
+Solution `LURDRDLDRDRURD` · explorer 209 swipes
 
-### 109 COL · 5x4 · par 13 · mutual
+### 108 TARN · 5x5 · par 13 · mutual
 
 ```
-...##
-#..B.
-..b#.
-#aA..
+#.a..
+#...#
+....#
+#.#AB
+.b..#
 ```
 
-Solution `RULDRULDLURDL` · explorer 235 swipes
+Solution `ULULDRULDRULD` · explorer 220 swipes
+
+### 109 COL · 6x4 · par 12 · mutual
+
+```
+##.a.B
+.#...#
+.A.#.#
+#.b..#
+```
+
+Solution `RULDRULDRULD` · explorer 229 swipes
 
 ### 110 ARETE · 6x4 · par 12 · mutual
 
@@ -149,33 +153,45 @@ Solution `RULDRULDLURDL` · explorer 235 swipes
 #.B.a#
 ```
 
-Solution `LULDLDRDRURD` · explorer 250 swipes
+Solution `LULDLDRDRURD` · explorer 233 swipes
 
-### 111 SASTRUGI · 5x5 · par 12 · mutual
-
-```
-#.b..
-#..B#
-....#
-#.#.A
-.a..#
-```
-
-Solution `LULDRULDRULD` · explorer 253 swipes
-
-### 112 NEVE · 6x5 · par 12 · mutual
+### 111 SASTRUGI · 5x4 · par 13 · mutual
 
 ```
-.....#
-B.#..a
-A.#...
-....b.
-#..#..
+...##
+#..B.
+..b#.
+#aA..
 ```
 
-Solution `RDRURULULDRU` · explorer 272 swipes
+Solution `RULDRULDLURDL` · explorer 269 swipes
 
-### 113 FIRN · 5x4 · par 12 · mutual
+### 112 NEVE · 5x5 · par 12 · mutual
+
+```
+##A#.
+....b
+a.##B
+.....
+.##.#
+```
+
+Solution `DLURDLURDLUR` · explorer 272 swipes
+
+### 113 FIRN · 6x6 · par 11 · mutual
+
+```
+.b###.
+.a.#..
+......
+..#.B.
+..#...
+#...A#
+```
+
+Solution `URDLULULDRU` · explorer 286 swipes
+
+### 114 TALUS · 5x4 · par 12 · mutual
 
 ```
 #..b.
@@ -184,9 +200,21 @@ B.#..
 ..a.#
 ```
 
-Solution `RDRULDRULDRU` · explorer 308 swipes
+Solution `RDRULDRULDRU` · explorer 307 swipes
 
-### 114 TALUS · 6x4 · par 14 · mutual
+### 115 SCREE · 6x5 · par 13 · mutual
+
+```
+..#..b
+#A#a##
+B.#...
+......
+#..#.#
+```
+
+Solution `RDRULDRULULUR` · explorer 324 swipes
+
+### 116 PINGO · 6x4 · par 14 · mutual
 
 ```
 ...#..
@@ -195,82 +223,20 @@ Solution `RDRULDRULDRU` · explorer 308 swipes
 ba..B.
 ```
 
-Solution `DRULDLULDLDRDL` · explorer 311 swipes
+Solution `DRULDLULDLDRDL` · explorer 331 swipes
 
-### 115 SCREE · 6x6 · par 13 · mutual
-
-```
-...#..
-.#...#
-b...B.
-.a#.#.
-..#...
-#..A..
-```
-
-Solution `RDLULULDLDRUL` · explorer 341 swipes
-
-### 116 PINGO · 6x5 · par 13 · mutual
+### 117 FJELD · 6x4 · par 14 · mutual
 
 ```
-..#.ab
-A.##..
-......
-...##.
-#...B.
+#.a..#
+#...#.
+#.#.AB
+.b..##
 ```
 
-Solution `RDLULDRURULUR` · explorer 344 swipes
+Solution `LULULDRULDRULD` · explorer 376 swipes
 
-### 117 FJELD · 5x5 · par 12 · mutual
-
-```
-.a..#
-#....
-#.#.#
-....#
-#BbA.
-```
-
-Solution `LURURDLDRDLU` · explorer 366 swipes
-
-### 118 LEEWARD · 6x4 · par 16 · mutual
-
-```
-#....#
-#..#b.
-B#A#..
-...#a#
-```
-
-Solution `DRURULDRURURDRUD` · explorer 408 swipes
-
-### 119 WINDWARD · 5x5 · par 14 · mutual
-
-```
-#.A#.
-...#B
-.#...
-..b..
-#.a##
-```
-
-Solution `LDLDRDRURDLURD` · explorer 415 swipes
-
-### 120 PERIGEE · 6x6 · par 16 · mutual
-
-```
-##A...
-....#.
-..#...
-.##.a.
-.#.B.#
-....b#
-```
-
-Solution `DLURURURDRDLDRUD` · explorer 428 swipes
-
-### 121 KELVIN · 5x5 · par 14 · mutual
+### 118 LEEWARD · 5x5 · par 14 · mutual
 
 ```
 #....
@@ -280,91 +246,132 @@ Solution `DLURURURDRDLDRUD` · explorer 428 swipes
 A..##
 ```
 
-Solution `DLULURURURDRUD` · explorer 445 swipes
+Solution `DLULURURURDRUD` · explorer 389 swipes
 
-### 122 ARCTIC · 5x4 · par 15 · mutual
-
-```
-.#..B
-...#.
-A##..
-...ba
-```
-
-Solution `LDLURDRURDRDLDR` · explorer 466 swipes
-
-### 123 ALPINE · 5x5 · par 13 · mutual
+### 119 WINDWARD · 6x4 · par 15 · mutual
 
 ```
-A.###
+abA.#.
+..#.#B
+.#....
+...#..
+```
+
+Solution `RDLULULDLULURUL` · explorer 400 swipes
+
+### 120 PERIGEE · 6x4 · par 16 · mutual
+
+```
+#....#
+#..#b.
+B#A#..
+...#a#
+```
+
+Solution `DRURULDRURURDRUD` · explorer 430 swipes
+
+### 121 KELVIN · 5x5 · par 13 · mutual
+
+```
+.A###
 b....
 .##.a
 ..B..
 ##.#.
 ```
 
-Solution `RDRULDRULDRUL` · explorer 510 swipes
+Solution `RDRULDRULDRUL` · explorer 445 swipes
 
-### 124 TAIGA · 6x6 · par 14 · mutual
+### 122 ARCTIC · 5x5 · par 14 · mutual
 
 ```
-.....#
-B#..A.
-.#....
-...#..
+#.A#.
+...#B
+.#...
+..b..
+#.a##
+```
+
+Solution `LDLDRDRURDLURD` · explorer 464 swipes
+
+### 123 ALPINE · 5x4 · par 12 · mutual
+
+```
+#.###
+...bA
+...#B
+##.#a
+```
+
+Solution `LULDRDRURURD` · explorer 511 swipes
+
+### 124 TAIGA · 6x4 · par 15 · mutual
+
+```
+....ab
+.B##..
+....#.
+..#..A
+```
+
+Solution `LULDRURDRURULUR` · explorer 525 swipes
+
+### 125 STEPPE · 6x4 · par 17 · mutual
+
+```
+...#.#
+B#..b.
+A#....
+....#a
+```
+
+Solution `URDRURDRURULDRURD` · explorer 556 swipes
+
+### 126 MESA · 6x4 · par 13 · mutual
+
+```
+abA.#.
 ..#...
-ba.#..
+.###B.
+......
 ```
 
-Solution `URDRULDLDLDRDL` · explorer 529 swipes
-
-### 125 STEPPE · 6x5 · par 12 · mutual
-
-```
-.B#a..
-.##...
-..b.#.
-..A...
-#....#
-```
-
-Solution `LDRULDLDLURU` · explorer 535 swipes
-
-### 126 MESA · 5x5 · par 13 · mutual
-
-```
-.a..#
-B.#A.
-..#..
-#...#
-#.b..
-```
-
-Solution `DRDLURDLURDLU` · explorer 585 swipes
+Solution `RDRDLDLULURUL` · explorer 603 swipes
 
 ### 127 BUTTE · 6x4 · par 13 · mutual
 
 ```
-.#.Bab
-...#..
-..#.#A
+##....
+..b.#.
 ......
+B.#aA#
 ```
 
-Solution `LDLDRDRURULUR` · explorer 641 swipes
+Solution `URURDRULDLURD` · explorer 619 swipes
 
-### 128 GORGE · 5x4 · par 14 · mutual
+### 128 GORGE · 6x4 · par 15 · mutual
 
 ```
-#a.b.
+#.a..#
+#...#B
+A.#...
+.b..##
+```
+
+Solution `DLURULDRULDRULD` · explorer 646 swipes
+
+### 129 RAVINE · 5x4 · par 14 · mutual
+
+```
+.B..#
+.##..
 .A##.
-.#...
-B..##
+#a.b.
 ```
 
-Solution `LDRDRURURULURL` · explorer 657 swipes
+Solution `LURURDRDRDLDRL` · explorer 714 swipes
 
-### 129 RAVINE · 6x6 · par 15 · mutual
+### 130 CIRRUS · 6x6 · par 15 · mutual
 
 ```
 #.....
@@ -375,112 +382,99 @@ Solution `LDRDRURURULURL` · explorer 657 swipes
 ....#.
 ```
 
-Solution `ULURDLULDLURULD` · explorer 722 swipes
+Solution `ULURDLULDLURULD` · explorer 726 swipes
 
-### 130 CIRRUS · 5x4 · par 14 · mutual
-
-```
-.B..#
-.##..
-.A##.
-#a.b.
-```
-
-Solution `LURURDRDRDLDRL` · explorer 731 swipes
-
-### 131 HALO · 6x5 · par 13 · mutual
+### 131 HALO · 6x4 · par 13 · mutual
 
 ```
-B....#
-.#A...
-.##...
-...a.#
-#...b.
+#.....
+....#b
+..#.A.
+..B.#a
 ```
 
-Solution `ULDRURDLDLURD` · explorer 754 swipes
+Solution `RULDLDRURDRUD` · explorer 798 swipes
 
-### 132 SWELL · 6x6 · par 12 · mutual
+### 132 SWELL · 6x4 · par 13 · mutual
 
 ```
-#....#
-...b.#
-..#..#
-#.#A..
-.B#...
-..#a..
+.A#...
+.##a#.
+...B..
+..#b#.
 ```
 
-Solution `ULDLDRURDLUD` · explorer 808 swipes
+Solution `LDRURULULDLUD` · explorer 816 swipes
 
 ### 133 DEW · 5x5 · par 14 · mutual
 
 ```
-.#..#
-ba..B
-#.#..
-.#..#
-.A..#
+..#a.
+.#.b#
+.##..
+B....
+#..A#
 ```
 
-Solution `DLDRURULDLDRUL` · explorer 869 swipes
+Solution `LULDRDRULULDRU` · explorer 852 swipes
 
-### 134 FOG · 6x4 · par 14 · mutual
-
-```
-..B..#
-b#...#
-A##...
-a#....
-```
-
-Solution `URDLURULULDLUD` · explorer 892 swipes
-
-### 135 SNOWFALL · 5x5 · par 14 · mutual
+### 134 FOG · 5x5 · par 15 · mutual
 
 ```
-.a.b#
-.##B.
-.###.
-..##A
-#....
+B...#
+.##.#
+..#..
+#A##.
+#a.b.
 ```
 
-Solution `RDLDLULULURULR` · explorer 966 swipes
+Solution `ULURURDRDRDLDRL` · explorer 938 swipes
 
-### 136 DRIZZLE · 5x5 · par 14 · mutual
-
-```
-#...A
-..##.
-..#.#
-B..ab
-#..#.
-```
-
-Solution `URULDLDRURULDR` · explorer 1022 swipes
-
-### 137 VERGLAS · 6x4 · par 13 · mutual
+### 135 SNOWFALL · 6x4 · par 14 · mutual
 
 ```
-....#b
-..#.B.
-A...#a
-#.....
+.b#.#B
+A.#...
+#....#
+#.a..#
 ```
 
-Solution `RDLULURDRURDU` · explorer 1085 swipes
+Solution `RDLDRULDRULDLU` · explorer 948 swipes
 
-### 138 SLUSH · 4x4 · par 14 · mutual
+### 136 DRIZZLE · 6x5 · par 13 · mutual
 
 ```
-..b#
-.#..
-..aB
-A..#
+.#.Bab
+.A.#..
+..###.
+..##..
+......
 ```
 
-Solution `ULDLULURULDRDU` · explorer 1123 swipes
+Solution `LDLDRDRURULUR` · explorer 992 swipes
+
+### 137 VERGLAS · 6x4 · par 18 · mutual
+
+```
+#...#a
+..#A#.
+.#..#b
+B#....
+```
+
+Solution `URURDRDLURDRDRURDU` · explorer 1091 swipes
+
+### 138 SLUSH · 6x5 · par 14 · mutual
+
+```
+#.#...
+..##..
+A....#
+aB.b.#
+##...#
+```
+
+Solution `RULDRDLDLULDRL` · explorer 1122 swipes
 
 ### 139 BRASH · 5x5 · par 14 · mutual
 
@@ -492,30 +486,31 @@ Solution `ULDLULURULDRDU` · explorer 1123 swipes
 .#.b#
 ```
 
-Solution `LDRDLULDRURULD` · explorer 1174 swipes
+Solution `LDRDLULDRURULD` · explorer 1160 swipes
 
-### 140 FLURRY · 6x4 · par 13 · mutual
-
-```
-....#b
-#...#A
-...##B
-#...a.
-```
-
-Solution `DLDLURDLDRDRU` · explorer 1291 swipes
-
-### 141 SHEEN · 6x5 · par 13 · mutual
+### 140 FLURRY · 6x5 · par 11 · mutual
 
 ```
-b#....
-.B.#..
-...#.A
-a#....
-.....#
+bBaA##
+......
+#..#..
+......
+.##...
 ```
 
-Solution `LDRURULDLULDU` · explorer 1321 swipes
+Solution `DRDLURULURL` · explorer 1282 swipes
+
+### 141 SHEEN · 6x5 · par 14 · mutual
+
+```
+A.B#..
+....#.
+.##...
+a..b.#
+#.....
+```
+
+Solution `RDRDRDRULDLURL` · explorer 1355 swipes
 
 ### 142 HOARFROST · 6x5 · par 14 · mutual
 
@@ -527,21 +522,32 @@ Solution `LDRURULDLULDU` · explorer 1321 swipes
 ......
 ```
 
-Solution `DLURDRDRURULUR` · explorer 1363 swipes
+Solution `DLURDRDRURULUR` · explorer 1374 swipes
 
-### 143 ICICLE · 5x5 · par 15 · mutual
+### 143 ICICLE · 6x5 · par 12 · mutual
 
 ```
-##B..
-aA.#.
-.###.
-b#...
-...##
+#..#.b
+#...#.
+..B...
+.#A.a.
+...###
 ```
 
-Solution `RURDRDLDLDLULDU` · explorer 1538 swipes
+Solution `LDRURULDRDRU` · explorer 1462 swipes
 
 ### 144 GLAZE · 6x4 · par 14 · mutual
+
+```
+......
+B#A.#.
+..#...
+ba...#
+```
+
+Solution `URDRDLULDLDRDL` · explorer 1523 swipes
+
+### 145 SEAM · 6x4 · par 14 · mutual
 
 ```
 ...A.#
@@ -552,28 +558,18 @@ Solution `RURDRDLDLDLULDU` · explorer 1538 swipes
 
 Solution `LULDLURDRDLDRL` · explorer cannot finish
 
-### 145 SEAM · 6x4 · par 16 · mutual
+### 146 SPLINTER · 6x6 · par 20 · mutual
 
 ```
-..A...
-B###..
-..#...
-ba..#.
+.....#
+...##.
+A#..#.
+B.#...
+...#.b
+##a...
 ```
 
-Solution `URDLURULULDLDRDL` · explorer cannot finish
-
-### 146 SPLINTER · 6x5 · par 22 · mutual
-
-```
-#...B.
-....#.
-.##.##
-...##b
-#..Aa.
-```
-
-Solution `LULURULDRDRULDLDRDRDRU` · explorer cannot finish
+Solution `URULDRDRDRDLDRULDRDL` · explorer cannot finish
 
 ### 147 WEDGE · 6x6 · par 24 · mutual
 
@@ -681,28 +677,28 @@ Solution `ULDRDRDLURULULDRDRULULULURURDRDLULD` · explorer cannot finish
 ### 155 CLEAVE · 6x6 · par 36 · mutual
 
 ```
-a...##
-A#.b.#
-..#..#
-#...#.
-#.#...
-##.B.#
+.##b..
+B...#a
+##.#..
+...#..
+.#...#
+...A##
 ```
 
-Solution `DRURDLULDRDRURDRULURDRURDLURDRURDLUL` · explorer cannot finish
+Solution `ULURDRDRURDLDLDLULURDLULDRURDRURURUL` · explorer cannot finish
 
 ### 156 TREMOR · 6x6 · par 38 · mutual
 
 ```
-..#..#
-.....B
-.#..#.
-#..##.
-#ab..A
-.....#
+##B..A
+#...#.
+..##.b
+..#.#a
+.#...#
+...#.#
 ```
 
-Solution `ULULDRURDRDLURURULURDRULDLDLURDRDLDRUL` · explorer cannot finish
+Solution `LDLDLDLDRDRURURULDLDLULURURURURDRDLURD` · explorer cannot finish
 
 ### 157 QUAKE · 6x6 · par 39 · mutual
 
@@ -717,17 +713,18 @@ a..b.#
 
 Solution `URDRDLDLULULULDRURDRDLURDRDRDRURULULURL` · explorer cannot finish
 
-### 158 GROWLER · 6x5 · par 16 · mutual
+### 158 GROWLER · 6x6 · par 41 · mutual
 
 ```
-#....#
-....Bb
-A..#..
-.#.#.a
-...#..
+..#..#
+.....#
+#..#..
+##.##B
+#.b.#.
+a..#A.
 ```
 
-Solution `ULDRDLDRURURDRDU` · explorer cannot finish
+Solution `RULULDLULDLDRULDLDRDLULDLURDRDRULURDLDRDL` · explorer cannot finish
 
 ### 159 BERGY · 6x6 · par 43 · mutual
 
@@ -742,16 +739,16 @@ Solution `ULDRDLDRURURDRDU` · explorer cannot finish
 
 Solution `RDLULDRDRDRULULULULURURDRDLULULDLDRDRDRDRUL` · explorer cannot finish
 
-### 160 RUPTURE · 6x6 · par 43 · mutual
+### 160 RUPTURE · 6x6 · par 44 · mutual
 
 ```
-A..#.#
+a.#..A
+.b..#.
+#.####
 ..#...
-#...#.
-a.##..
-.#B#..
-.b...#
+.#.B.#
+...#..
 ```
 
-Solution `DRURULDLDRDRURDLDRDLDRDRURURULULURDRDLDLDLU` · explorer cannot finish
+Solution `DLDLURULDLDLURDLDLDRDRURURDLDLULDLDLULURURUL` · explorer cannot finish
 

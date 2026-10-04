@@ -11,7 +11,7 @@
       "ja": "ひろい氷",
       "from": 101,
       "to": 110,
-      "note": "Larger floes, 5x4 · 5x5 · 6x4 · 6x5. Par 10–15."
+      "note": "Larger floes, 5x4 · 5x5 · 6x4 · 6x5. Par 11–14."
     },
     {
       "number": 12,
@@ -19,7 +19,7 @@
       "ja": "群島",
       "from": 111,
       "to": 120,
-      "note": "Larger floes, 5x4 · 5x5 · 6x4 · 6x5 · 6x6. Par 12–16."
+      "note": "Larger floes, 5x4 · 5x5 · 6x4 · 6x5 · 6x6. Par 11–16."
     },
     {
       "number": 13,
@@ -27,7 +27,7 @@
       "ja": "迷路",
       "from": 121,
       "to": 130,
-      "note": "Larger floes, 5x4 · 5x5 · 6x4 · 6x5 · 6x6. Par 12–15."
+      "note": "Larger floes, 5x4 · 5x5 · 6x4 · 6x6. Par 12–17."
     },
     {
       "number": 14,
@@ -35,7 +35,7 @@
       "ja": "長い夜",
       "from": 131,
       "to": 140,
-      "note": "Larger floes, 4x4 · 5x5 · 6x4 · 6x5 · 6x6. Par 12–14."
+      "note": "Larger floes, 5x5 · 6x4 · 6x5. Par 11–18."
     },
     {
       "number": 15,
@@ -43,7 +43,7 @@
       "ja": "氷結",
       "from": 141,
       "to": 150,
-      "note": "Larger floes, 5x5 · 6x4 · 6x5 · 6x6. Par 13–29."
+      "note": "Larger floes, 6x4 · 6x5 · 6x6. Par 12–29."
     },
     {
       "number": 16,
@@ -51,7 +51,7 @@
       "ja": "極点",
       "from": 151,
       "to": 160,
-      "note": "Larger floes, 6x5 · 6x6. Par 16–43."
+      "note": "Larger floes, 6x6. Par 31–44."
     }
   ];
   var STAGES = [
@@ -65,10 +65,11 @@
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "b....",
-        "a.#..",
-        "B#.A.",
-        "....#"
+        "ba.B.",
+        "..##.",
+        ".#.A.",
+        "..#..",
+        "....."
       ]
     },
     {
@@ -81,38 +82,54 @@
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        "ba.B.",
-        "..##.",
-        ".#.A.",
-        "..#..",
-        "....."
+        "b....",
+        "a.#..",
+        "B#.A.",
+        "....#"
       ]
     },
     {
       "id": 103,
       "name": "FELL",
-      "par": 10,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
+      "par": 13,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
         "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
-        "#....#",
-        "#....#",
-        "#B##..",
-        ".....#",
-        ".#abA#"
+        "baB..",
+        "..##.",
+        ".#.A.",
+        ".#...",
+        "...#."
       ]
     },
     {
       "id": 104,
       "name": "ESKER",
-      "par": 12,
+      "par": 11,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
+      },
+      "board": [
+        "......",
+        "...A#B",
+        ".###..",
+        "..#..a",
+        ".....b"
+      ]
+    },
+    {
+      "id": 105,
+      "name": "OXBOW",
+      "par": 12,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "hint": {
+        "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
+        "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
         "###A.",
@@ -123,83 +140,70 @@
       ]
     },
     {
-      "id": 105,
-      "name": "OXBOW",
-      "par": 15,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
-      "hint": {
-        "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
-        "en": "Being able to collect is not a reason to. Check the partner still has a brake."
-      },
-      "board": [
-        "A.#.#b",
-        "..#.#.",
-        "B...#a",
-        "##...."
-      ]
-    },
-    {
       "id": 106,
       "name": "KETTLE",
-      "par": 12,
+      "par": 11,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
         "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
-        "#..B..",
-        "...A#.",
-        "..##.a",
-        ".....b"
+        "##.b..",
+        "..a.#.",
+        "......",
+        "A##B.#",
+        ".....#"
       ]
     },
     {
       "id": 107,
       "name": "DRUMLIN",
-      "par": 12,
+      "par": 14,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        ".#...",
-        ".B.#.",
-        "..#.b",
-        "..A.a"
+        ".A..#",
+        "..#..",
+        "..##.",
+        ".##.a",
+        "..B.b"
       ]
     },
     {
       "id": 108,
       "name": "TARN",
-      "par": 12,
+      "par": 13,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        "b#....",
-        ".#..AB",
-        "....##",
-        ".a...."
+        "#.a..",
+        "#...#",
+        "....#",
+        "#.#AB",
+        ".b..#"
       ]
     },
     {
       "id": 109,
       "name": "COL",
-      "par": 13,
+      "par": 12,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
         "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
-        "...##",
-        "#..B.",
-        "..b#.",
-        "#aA.."
+        "##.a.B",
+        ".#...#",
+        ".A.#.#",
+        "#.b..#"
       ]
     },
     {
@@ -221,18 +225,17 @@
     {
       "id": 111,
       "name": "SASTRUGI",
-      "par": 12,
+      "par": 13,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        "#.b..",
-        "#..B#",
-        "....#",
-        "#.#.A",
-        ".a..#"
+        "...##",
+        "#..B.",
+        "..b#.",
+        "#aA.."
       ]
     },
     {
@@ -245,43 +248,45 @@
         "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
-        ".....#",
-        "B.#..a",
-        "A.#...",
-        "....b.",
-        "#..#.."
+        "##A#.",
+        "....b",
+        "a.##B",
+        ".....",
+        ".##.#"
       ]
     },
     {
       "id": 113,
       "name": "FIRN",
-      "par": 12,
+      "par": 11,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "#..b.",
-        "B.#..",
-        "#..A#",
-        "..a.#"
+        ".b###.",
+        ".a.#..",
+        "......",
+        "..#.B.",
+        "..#...",
+        "#...A#"
       ]
     },
     {
       "id": 114,
       "name": "TALUS",
-      "par": 14,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
+      "par": 12,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        "...#..",
-        ".#.A..",
-        "..#.#.",
-        "ba..B."
+        "#..b.",
+        "B.#..",
+        "#..A#",
+        "..a.#"
       ]
     },
     {
@@ -294,67 +299,16 @@
         "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
-        "...#..",
-        ".#...#",
-        "b...B.",
-        ".a#.#.",
-        "..#...",
-        "#..A.."
+        "..#..b",
+        "#A#a##",
+        "B.#...",
+        "......",
+        "#..#.#"
       ]
     },
     {
       "id": 116,
       "name": "PINGO",
-      "par": 13,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
-      "hint": {
-        "ja": "おたがいに一度ずつ、相手の足場になります。",
-        "en": "Each penguin has to stop the other at least once."
-      },
-      "board": [
-        "..#.ab",
-        "A.##..",
-        "......",
-        "...##.",
-        "#...B."
-      ]
-    },
-    {
-      "id": 117,
-      "name": "FJELD",
-      "par": 12,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
-      "hint": {
-        "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
-        "en": "Being able to collect is not a reason to. Check the partner still has a brake."
-      },
-      "board": [
-        ".a..#",
-        "#....",
-        "#.#.#",
-        "....#",
-        "#BbA."
-      ]
-    },
-    {
-      "id": 118,
-      "name": "LEEWARD",
-      "par": 16,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
-      "hint": {
-        "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
-        "en": "Park the other penguin just past an aurora to stop on it."
-      },
-      "board": [
-        "#....#",
-        "#..#b.",
-        "B#A#..",
-        "...#a#"
-      ]
-    },
-    {
-      "id": 119,
-      "name": "WINDWARD",
       "par": 14,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
       "hint": {
@@ -362,34 +316,31 @@
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "#.A#.",
-        "...#B",
-        ".#...",
-        "..b..",
-        "#.a##"
+        "...#..",
+        ".#.A..",
+        "..#.#.",
+        "ba..B."
       ]
     },
     {
-      "id": 120,
-      "name": "PERIGEE",
-      "par": 16,
+      "id": 117,
+      "name": "FJELD",
+      "par": 14,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        "##A...",
-        "....#.",
-        "..#...",
-        ".##.a.",
-        ".#.B.#",
-        "....b#"
+        "#.a..#",
+        "#...#.",
+        "#.#.AB",
+        ".b..##"
       ]
     },
     {
-      "id": 121,
-      "name": "KELVIN",
+      "id": 118,
+      "name": "LEEWARD",
       "par": 14,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
       "hint": {
@@ -405,8 +356,8 @@
       ]
     },
     {
-      "id": 122,
-      "name": "ARCTIC",
+      "id": 119,
+      "name": "WINDWARD",
       "par": 15,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
@@ -414,23 +365,39 @@
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        ".#..B",
-        "...#.",
-        "A##..",
-        "...ba"
+        "abA.#.",
+        "..#.#B",
+        ".#....",
+        "...#.."
       ]
     },
     {
-      "id": 123,
-      "name": "ALPINE",
-      "par": 13,
+      "id": 120,
+      "name": "PERIGEE",
+      "par": 16,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        "A.###",
+        "#....#",
+        "#..#b.",
+        "B#A#..",
+        "...#a#"
+      ]
+    },
+    {
+      "id": 121,
+      "name": "KELVIN",
+      "par": 13,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "hint": {
+        "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
+        "en": "Park the other penguin just past an aurora to stop on it."
+      },
+      "board": [
+        ".A###",
         "b....",
         ".##.a",
         "..B..",
@@ -438,38 +405,68 @@
       ]
     },
     {
+      "id": 122,
+      "name": "ARCTIC",
+      "par": 14,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
+      "hint": {
+        "ja": "おたがいに一度ずつ、相手の足場になります。",
+        "en": "Each penguin has to stop the other at least once."
+      },
+      "board": [
+        "#.A#.",
+        "...#B",
+        ".#...",
+        "..b..",
+        "#.a##"
+      ]
+    },
+    {
+      "id": 123,
+      "name": "ALPINE",
+      "par": 12,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "hint": {
+        "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
+        "en": "Being able to collect is not a reason to. Check the partner still has a brake."
+      },
+      "board": [
+        "#.###",
+        "...bA",
+        "...#B",
+        "##.#a"
+      ]
+    },
+    {
       "id": 124,
       "name": "TAIGA",
-      "par": 14,
+      "par": 15,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
         "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
-        ".....#",
-        "B#..A.",
-        ".#....",
-        "...#..",
-        "..#...",
-        "ba.#.."
+        "....ab",
+        ".B##..",
+        "....#.",
+        "..#..A"
       ]
     },
     {
       "id": 125,
       "name": "STEPPE",
-      "par": 12,
+      "par": 17,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        ".B#a..",
-        ".##...",
-        "..b.#.",
-        "..A...",
-        "#....#"
+        "...#.#",
+        "B#..b.",
+        "A#....",
+        "....#a"
       ]
     },
     {
@@ -482,53 +479,68 @@
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        ".a..#",
-        "B.#A.",
-        "..#..",
-        "#...#",
-        "#.b.."
+        "abA.#.",
+        "..#...",
+        ".###B.",
+        "......"
       ]
     },
     {
       "id": 127,
       "name": "BUTTE",
       "par": 13,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
       "hint": {
         "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
         "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
-        ".#.Bab",
-        "...#..",
-        "..#.#A",
-        "......"
+        "##....",
+        "..b.#.",
+        "......",
+        "B.#aA#"
       ]
     },
     {
       "id": 128,
       "name": "GORGE",
-      "par": 14,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
+      "par": 15,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "#a.b.",
-        ".A##.",
-        ".#...",
-        "B..##"
+        "#.a..#",
+        "#...#B",
+        "A.#...",
+        ".b..##"
       ]
     },
     {
       "id": 129,
       "name": "RAVINE",
-      "par": 15,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "par": 14,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
       "hint": {
         "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
+      },
+      "board": [
+        ".B..#",
+        ".##..",
+        ".A##.",
+        "#a.b."
+      ]
+    },
+    {
+      "id": 130,
+      "name": "CIRRUS",
+      "par": 15,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "hint": {
+        "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
+        "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
         "#.....",
@@ -537,22 +549,6 @@
         ".a.#..",
         ".#..#B",
         "....#."
-      ]
-    },
-    {
-      "id": 130,
-      "name": "CIRRUS",
-      "par": 14,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
-      "hint": {
-        "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
-        "en": "Park the other penguin just past an aurora to stop on it."
-      },
-      "board": [
-        ".B..#",
-        ".##..",
-        ".A##.",
-        "#a.b."
       ]
     },
     {
@@ -565,29 +561,26 @@
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "B....#",
-        ".#A...",
-        ".##...",
-        "...a.#",
-        "#...b."
+        "#.....",
+        "....#b",
+        "..#.A.",
+        "..B.#a"
       ]
     },
     {
       "id": 132,
       "name": "SWELL",
-      "par": 12,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "par": 13,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
       "hint": {
         "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        "#....#",
-        "...b.#",
-        "..#..#",
-        "#.#A..",
-        ".B#...",
-        "..#a.."
+        ".A#...",
+        ".##a#.",
+        "...B..",
+        "..#b#."
       ]
     },
     {
@@ -600,93 +593,94 @@
         "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
-        ".#..#",
-        "ba..B",
-        "#.#..",
-        ".#..#",
-        ".A..#"
+        "..#a.",
+        ".#.b#",
+        ".##..",
+        "B....",
+        "#..A#"
       ]
     },
     {
       "id": 134,
       "name": "FOG",
-      "par": 14,
+      "par": 15,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "..B..#",
-        "b#...#",
-        "A##...",
-        "a#...."
+        "B...#",
+        ".##.#",
+        "..#..",
+        "#A##.",
+        "#a.b."
       ]
     },
     {
       "id": 135,
       "name": "SNOWFALL",
       "par": 14,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        ".a.b#",
-        ".##B.",
-        ".###.",
-        "..##A",
-        "#...."
+        ".b#.#B",
+        "A.#...",
+        "#....#",
+        "#.a..#"
       ]
     },
     {
       "id": 136,
       "name": "DRIZZLE",
-      "par": 14,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
+      "par": 13,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
         "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
-        "#...A",
-        "..##.",
-        "..#.#",
-        "B..ab",
-        "#..#."
+        ".#.Bab",
+        ".A.#..",
+        "..###.",
+        "..##..",
+        "......"
       ]
     },
     {
       "id": 137,
       "name": "VERGLAS",
-      "par": 13,
+      "par": 18,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "....#b",
-        "..#.B.",
-        "A...#a",
-        "#....."
+        "#...#a",
+        "..#A#.",
+        ".#..#b",
+        "B#...."
       ]
     },
     {
       "id": 138,
       "name": "SLUSH",
       "par": 14,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
       "hint": {
         "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        "..b#",
-        ".#..",
-        "..aB",
-        "A..#"
+        "#.#...",
+        "..##..",
+        "A....#",
+        "aB.b.#",
+        "##...#"
       ]
     },
     {
@@ -709,34 +703,35 @@
     {
       "id": 140,
       "name": "FLURRY",
-      "par": 13,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "par": 11,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "....#b",
-        "#...#A",
-        "...##B",
-        "#...a."
+        "bBaA##",
+        "......",
+        "#..#..",
+        "......",
+        ".##..."
       ]
     },
     {
       "id": 141,
       "name": "SHEEN",
-      "par": 13,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "par": 14,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
       "hint": {
         "ja": "回収できても、すぐに入れるとは限りません。相手の足場が残っているか確かめよう。",
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        "b#....",
-        ".B.#..",
-        "...#.A",
-        "a#....",
-        ".....#"
+        "A.B#..",
+        "....#.",
+        ".##...",
+        "a..b.#",
+        "#....."
       ]
     },
     {
@@ -759,18 +754,18 @@
     {
       "id": 143,
       "name": "ICICLE",
-      "par": 15,
+      "par": 12,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "##B..",
-        "aA.#.",
-        ".###.",
-        "b#...",
-        "...##"
+        "#..#.b",
+        "#...#.",
+        "..B...",
+        ".#A.a.",
+        "...###"
       ]
     },
     {
@@ -783,6 +778,22 @@
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
+        "......",
+        "B#A.#.",
+        "..#...",
+        "ba...#"
+      ]
+    },
+    {
+      "id": 145,
+      "name": "SEAM",
+      "par": 14,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
+      "hint": {
+        "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
+        "en": "Park the other penguin just past an aurora to stop on it."
+      },
+      "board": [
         "...A.#",
         "...#..",
         ".#.B#.",
@@ -790,36 +801,21 @@
       ]
     },
     {
-      "id": 145,
-      "name": "SEAM",
-      "par": 16,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
-      "hint": {
-        "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
-        "en": "Park the other penguin just past an aurora to stop on it."
-      },
-      "board": [
-        "..A...",
-        "B###..",
-        "..#...",
-        "ba..#."
-      ]
-    },
-    {
       "id": 146,
       "name": "SPLINTER",
-      "par": 22,
+      "par": 20,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "#...B.",
-        "....#.",
-        ".##.##",
-        "...##b",
-        "#..Aa."
+        ".....#",
+        "...##.",
+        "A#..#.",
+        "B.#...",
+        "...#.b",
+        "##a..."
       ]
     },
     {
@@ -975,12 +971,12 @@
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "a...##",
-        "A#.b.#",
-        "..#..#",
-        "#...#.",
-        "#.#...",
-        "##.B.#"
+        ".##b..",
+        "B...#a",
+        "##.#..",
+        "...#..",
+        ".#...#",
+        "...A##"
       ]
     },
     {
@@ -993,12 +989,12 @@
         "en": "Being able to collect is not a reason to. Check the partner still has a brake."
       },
       "board": [
-        "..#..#",
-        ".....B",
-        ".#..#.",
-        "#..##.",
-        "#ab..A",
-        ".....#"
+        "##B..A",
+        "#...#.",
+        "..##.b",
+        "..#.#a",
+        ".#...#",
+        "...#.#"
       ]
     },
     {
@@ -1022,18 +1018,19 @@
     {
       "id": 158,
       "name": "GROWLER",
-      "par": 16,
-      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 1 fatal early collection on the shortest routes.",
+      "par": 41,
+      "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "おたがいに一度ずつ、相手の足場になります。",
         "en": "Each penguin has to stop the other at least once."
       },
       "board": [
-        "#....#",
-        "....Bb",
-        "A..#..",
-        ".#.#.a",
-        "...#.."
+        "..#..#",
+        ".....#",
+        "#..#..",
+        "##.##B",
+        "#.b.#.",
+        "a..#A."
       ]
     },
     {
@@ -1057,19 +1054,19 @@
     {
       "id": 160,
       "name": "RUPTURE",
-      "par": 43,
+      "par": 44,
       "idea": "Each penguin must stop the other at least once; a penguin can only be collected by being braked onto its aurora; 2 fatal early collections on the shortest routes.",
       "hint": {
         "ja": "もう一羽をオーロラの先に置くと、その上で止まれます。",
         "en": "Park the other penguin just past an aurora to stop on it."
       },
       "board": [
-        "A..#.#",
+        "a.#..A",
+        ".b..#.",
+        "#.####",
         "..#...",
-        "#...#.",
-        "a.##..",
-        ".#B#..",
-        ".b...#"
+        ".#.B.#",
+        "...#.."
       ]
     }
   ];
