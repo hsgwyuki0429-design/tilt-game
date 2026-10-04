@@ -20,11 +20,13 @@ The game is drawn in real 3D with three.js (WebGL): a thick, bevelled slab of ic
 
 New campaign scores are stored separately (`tilt.save.floe.v4`). Sound, haptics and reduced-motion preferences carry over; the old progress remains in storage.
 
-## The cracked-ice band (stages 101–160)
+## The large-floe band (stages 101–160)
 
-Sixty more boards follow the hundred, in chapters 11–16 (THIN ICE to ABYSS). They are bigger, **4×4 up to 6×6**, with two penguins, a floe full of holes, and **cracked ice**: a penguin may slide across a cracked tile but is lost if it comes to rest on one, and the game offers to step back to the last solvable position. Shortest solutions run from 12 to 54 moves, in order. Every board was re-solved on the engine, is fair (an ordinary move never strands the pair), is one connected floe, and has no wall or crack that changes nothing. Nobody has played them yet; see [the report](docs/HAZARD-CAMPAIGN.md) for what was and was not measured.
+Sixty more boards follow the hundred, in chapters 11–16 (WIDE FLOE to THE POLE). They are bigger, **5×4 up to 6×6** (and 6×4), two penguins on a floe with holes in it, no cracked ice, and shortest solutions from 11 to 44 moves. They are picked by the rules that picked the first hundred: one connected floe with its centre of mass near the middle, fair (an ordinary move never strands the pair), a partner always needed as a brake, at most two forced moves in a row, at most two lone clean-up moves, at most three fatal early collections, at least 60% of the ice used, mutual boards first, no shape or piece layout twice, touching auroras rationed. Every board is re-solved on the engine; every one has a single shortest route that needs a penguin parked past an aurora and a move away from a goal.
 
-`src/stages-cracked.js` is loaded after `src/stages.js` and extends `TiltStages` in place, so the base campaign file is untouched and the game needs no special code for the band. Stage ids, chapters, progress and the stage list all treat it as part of one campaign of 160.
+The order is the explorer's, as before, for the boards it can finish (par up to 18 here). The boards it cannot finish — most of the longer ones and a few short ones — come after, ordered by par. Nobody has played them yet; see [the report](docs/LARGE-CAMPAIGN.md) for what was and was not measured.
+
+`src/stages-large.js` is loaded after `src/stages.js` and extends `TiltStages` in place, so the base campaign file is untouched and the game needs no special code for the band. Stage ids, chapters, progress and the stage list treat it as part of one campaign of 160.
 
 ## Building the campaign
 
@@ -36,16 +38,17 @@ npm run levels:build     # rebuild src/stages.js from tools/floe-selection.json
 
 `tools/floe-search.js` enumerates all 1,051 floe shapes (up to symmetry), 64,323 aurora layouts and 3,992,244 starts, builds each layout's complete position graph once, and measures interaction necessity, fairness, temptations and the explorer's cost. `tools/floe-campaign.js` re-measures a shortlist and chooses the hundred with distinct floes and piece placements. Both are seeded and reproduce the shipped selection exactly.
 
-## Building the cracked-ice band
+## Building the large-floe band
 
 ```sh
-node tools/hazard-search.js --minutes 60 --seed 1 --out tools/hazard-pool/w1.json   # one worker; run four
-node tools/hazard-merge.js tools/hazard-pool --per 6 --whole-floe                   # re-check on the engine
-npm run levels:cracked                                                              # curate 60, write src/stages-cracked.js
-node tools/hazard-selftest.js                                                       # search graph vs engine
+node tools/large-search.js --minutes 60 --seed 1 --out tools/large-pool/w1.json   # one worker; run four
+node tools/large-campaign.js                    # measure, choose 60, re-solve on the engine; writes tools/large-selection.json,
+                                                # src/stages-large.js and docs/LARGE-CAMPAIGN.md
+node tools/large-campaign.js --from-selection   # rebuild those files from the selection alone
+node tools/large-test.js                        # the band's contract (also part of npm test)
 ```
 
-`tools/hazard-pool/` is ignored: the raw pools are 19 MB and can be regenerated. `tools/hazard-shortlist.json` and `tools/hazard-campaign.json` are kept.
+`tools/large-pool/` is ignored: the raw pools are tens of megabytes and can be regenerated. `tools/hazard-*.js` is an earlier search for boards with cracked ice, kept as research; the game does not use it.
 
 ## Rebuilding three.js
 

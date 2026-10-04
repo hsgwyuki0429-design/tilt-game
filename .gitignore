@@ -8,3 +8,4 @@ tools/.campaign-cache/
 /log-*.txt
 tools/.floe-cache/
 tools/hazard-pool/
+tools/large-pool/
