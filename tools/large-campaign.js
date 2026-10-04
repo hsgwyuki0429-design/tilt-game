@@ -26,8 +26,8 @@ var args = process.argv.slice(2);
 function arg(name, def) { var i = args.indexOf('--' + name); return i >= 0 ? args[i + 1] : def; }
 var POOL_DIR = arg('pool-dir', path.join(__dirname, 'large-pool'));
 var SELECTION = path.join(__dirname, 'large-selection.json');
-var COUNT = +arg('count', 60), ROUGH_PER = +arg('rough-per', 10), ROUGH_RUNS = +arg('rough-runs', 24);
-var FINAL_RUNS = +arg('runs', 600), BAND_KEEP = +arg('band-keep', 40);
+var COUNT = +arg('count', 60), ROUGH_PER = +arg('rough-per', 10), ROUGH_RUNS = +arg('rough-runs', 12);
+var FINAL_RUNS = +arg('runs', 200), BAND_KEEP = +arg('band-keep', 40), MAX_PAR = +arg('max-par', 45);
 var FIRST_ID = base.STAGES[base.STAGES.length - 1].id + 1;
 var FIRST_CHAPTER = base.CHAPTERS[base.CHAPTERS.length - 1].number + 1;
 
@@ -56,11 +56,21 @@ function goalsTouch(board) {
   var flat = board.join(''), w = board[0].length, a = flat.indexOf('a'), b = flat.indexOf('b');
   return Math.abs(a % w - b % w) + Math.abs(((a / w) | 0) - ((b / w) | 0)) === 1;
 }
+/*
+ * Difficulty is the explorer's cost where the explorer can finish: log2 of its
+ * geometric-mean swipes, as in the main campaign. Past par ~14 it cannot (on
+ * 4x4 and up, every board with par 15+ ran into a 3,000-swipe ceiling), so a
+ * board the explorer fails on is ranked by that ceiling, which grows with par,
+ * and sits above every board it can solve. Short boards the explorer solves
+ * keep the main campaign's meaning; long ones are ordered by length.
+ */
 function measureAgain(c, runs, cap) {
   var p = F.parseRows(c.board), g = p.floe.graph(p.gA, p.gB), start = p.a * g.B + p.b;
   var m = S.measure(g, start, { runs: runs, cap: cap });
   ['explorerGeo', 'explorerMedian', 'explorer', 'quick', 'capped'].forEach(function (k) { c[k] = m[k]; });
-  c.difficulty = Math.log2(c.explorerGeo);
+  c.runs = runs; c.cap = cap;
+  c.hard = c.capped > runs * 0.5;
+  c.difficulty = c.hard ? Math.log2(cap) + c.par * 0.01 : Math.log2(c.explorerGeo);
   return c;
 }
 
@@ -97,7 +107,7 @@ function select() {
     });
   });
   var baseKeys = new Set(base.STAGES.map(function (s) { return K.canonical(s.board); }));
-  var pool = [...best.values()].filter(function (c) { return !baseKeys.has(c.canon); });
+  var pool = [...best.values()].filter(function (c) { return !baseKeys.has(c.canon) && c.par <= MAX_PAR; });
   console.log('pool: ' + files.length + ' files, ' + total + ' entries, ' + pool.length + ' distinct');
 
   // Rough difficulty on the best few of each tray and shortest solution.
@@ -109,8 +119,7 @@ function select() {
     list.slice(0, ROUGH_PER).forEach(function (c) { rough.push(c); });
   });
   console.log('rough explorer (' + ROUGH_RUNS + ' runs) on ' + rough.length + ' boards');
-  rough.forEach(function (c) { measureAgain(c, ROUGH_RUNS); c.shape = K.canonical(c.board, 'room'); c.pieces = K.canonical(c.board, 'ice'); c.touch = goalsTouch(c.board); });
-  rough = rough.filter(function (c) { return c.capped <= 1; });
+  rough.forEach(function (c) { measureAgain(c, ROUGH_RUNS, Math.max(1500, c.par * 60)); c.shape = K.canonical(c.board, 'room'); c.pieces = K.canonical(c.board, 'ice'); c.touch = goalsTouch(c.board); });
 
   var bands = {};
   rough.forEach(function (c) { var k = Math.floor(c.difficulty * 4); (bands[k] = bands[k] || []).push(c); });
@@ -123,16 +132,14 @@ function select() {
     });
   });
   console.log('re-measuring ' + shortlist.length + ' shortlisted boards with ' + FINAL_RUNS + ' runs');
-  shortlist.forEach(function (c) { measureAgain(c, FINAL_RUNS, Math.max(1000, c.par * 80)); });
-  shortlist = shortlist.filter(function (c) { return c.capped <= FINAL_RUNS * 0.005; });
+  shortlist.forEach(function (c) { if (!c.hard) measureAgain(c, FINAL_RUNS, Math.max(3000, c.par * 100)); });
 
   var sorted = shortlist.slice().sort(function (x, y) { return x.difficulty - y.difficulty; });
   var lastBase = require('./floe-selection.json').stages.slice(-1)[0].difficulty;
   var lo = +arg('lo', Math.max(lastBase - 0.3, sorted[0].difficulty));
   var hi = +arg('hi', sorted[Math.max(0, sorted.length - 5)].difficulty);
   console.log('difficulty ' + sorted[0].difficulty.toFixed(2) + '..' + sorted[sorted.length - 1].difficulty.toFixed(2) +
-    ' (explorer swipes ' + Math.round(Math.pow(2, sorted[0].difficulty)) + '..' + Math.round(Math.pow(2, sorted[sorted.length - 1].difficulty)) +
-    '); band ' + lo.toFixed(2) + '..' + hi.toFixed(2) + '; main campaign ends at ' + lastBase.toFixed(2));
+    ' (' + shortlist.filter(function (c) { return c.hard; }).length + ' of ' + shortlist.length + ' beyond the explorer); band ' + lo.toFixed(2) + '..' + hi.toFixed(2) + '; main campaign ends at ' + lastBase.toFixed(2));
 
   var chosen = [], used = new Set(), piecesUsed = new Set(), routes = new Set(), touches = 0;
   for (var i = 0; i < COUNT; i++) {
@@ -156,7 +163,7 @@ function select() {
   chosen.sort(function (x, y) { return x.difficulty - y.difficulty; });
   chosen.forEach(function (c, i) { engineCheck(c, FIRST_ID + i); });
   var keep = ['board', 'size', 'kind', 'par', 'route', 'ways', 'difficulty', 'explorerGeo', 'explorerMedian', 'quick', 'minBrakes',
-    'needBrakeHome', 'needAB', 'needBA', 'tempt', 'away', 'tail', 'maxForced', 'choice', 'reach', 'traps', 'cells', 'usedCells', 'balance', 'quality'];
+    'hard', 'needBrakeHome', 'needAB', 'needBA', 'tempt', 'away', 'tail', 'maxForced', 'choice', 'reach', 'traps', 'cells', 'usedCells', 'balance', 'quality'];
   var out = {
     version: 'large-2026-10',
     source: { pools: files.length, entries: total, distinct: pool.length, rough: rough.length, shortlist: shortlist.length, finalRuns: FINAL_RUNS, band: [lo, hi] },
