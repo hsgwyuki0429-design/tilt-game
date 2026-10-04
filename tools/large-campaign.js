@@ -100,9 +100,11 @@ function engineCheck(c, id) {
 
 function select() {
   var files = fs.readdirSync(POOL_DIR).filter(function (f) { return /\.json$/.test(f); });
-  var best = new Map(), total = 0;
+  var best = new Map(), total = 0, scale = { layouts: 0, workerMinutes: 0 };
   files.forEach(function (f) {
-    JSON.parse(fs.readFileSync(path.join(POOL_DIR, f), 'utf8')).candidates.forEach(function (c) {
+    var d = JSON.parse(fs.readFileSync(path.join(POOL_DIR, f), 'utf8'));
+    scale.layouts += d.stats.layouts; scale.workerMinutes += d.minutes;
+    d.candidates.forEach(function (c) {
       total++; var o = best.get(c.canon); if (!o || c.quality > o.quality) best.set(c.canon, c);
     });
   });
@@ -111,18 +113,22 @@ function select() {
   console.log('pool: ' + files.length + ' files, ' + total + ' entries, ' + pool.length + ' distinct');
 
   // Rough difficulty on the best few of each tray and shortest solution.
+  // Boards whose auroras touch outrank the rest on quality, so each kind gets its own slots.
   var groups = new Map();
-  pool.forEach(function (c) { var k = c.size + '|' + c.par; (groups.get(k) || groups.set(k, []).get(k)).push(c); });
+  pool.forEach(function (c) {
+    c.touch = goalsTouch(c.board);
+    var k = c.size + '|' + c.par + '|' + (c.touch ? 'T' : 'N'); (groups.get(k) || groups.set(k, []).get(k)).push(c);
+  });
   var rough = [];
   groups.forEach(function (list) {
     list.sort(function (a, b) { return b.quality - a.quality; });
     list.slice(0, ROUGH_PER).forEach(function (c) { rough.push(c); });
   });
   console.log('rough explorer (' + ROUGH_RUNS + ' runs) on ' + rough.length + ' boards');
-  rough.forEach(function (c) { measureAgain(c, ROUGH_RUNS, Math.max(1500, c.par * 60)); c.shape = K.canonical(c.board, 'room'); c.pieces = K.canonical(c.board, 'ice'); c.touch = goalsTouch(c.board); });
+  rough.forEach(function (c) { measureAgain(c, ROUGH_RUNS, Math.max(1500, c.par * 60)); c.shape = K.canonical(c.board, 'room'); c.pieces = K.canonical(c.board, 'ice'); });
 
   var bands = {};
-  rough.forEach(function (c) { var k = Math.floor(c.difficulty * 4); (bands[k] = bands[k] || []).push(c); });
+  rough.forEach(function (c) { var k = Math.floor(c.difficulty * 4) + (c.touch ? 'T' : 'N'); (bands[k] = bands[k] || []).push(c); });
   var shortlist = [];
   Object.keys(bands).forEach(function (k) {
     var seen = new Set();
@@ -167,7 +173,7 @@ function select() {
     'hard', 'needBrakeHome', 'needAB', 'needBA', 'tempt', 'away', 'tail', 'maxForced', 'choice', 'reach', 'traps', 'cells', 'usedCells', 'balance', 'quality'];
   var out = {
     version: 'large-2026-10',
-    source: { pools: files.length, entries: total, distinct: pool.length, rough: rough.length, shortlist: shortlist.length, finalRuns: FINAL_RUNS, band: [lo, hi] },
+    source: { pools: files.length, layouts: scale.layouts, workerMinutes: scale.workerMinutes, entries: total, distinct: pool.length, rough: rough.length, shortlist: shortlist.length, finalRuns: FINAL_RUNS, band: [lo, hi] },
     stages: chosen.map(function (c) {
       var o = {}; keep.forEach(function (k) { if (c[k] !== undefined) o[k] = typeof c[k] === 'number' ? +c[k].toFixed(3) : c[k]; }); return o;
     })
@@ -188,6 +194,33 @@ function ideaFor(c) {
   if (c.needBrakeHome) bits.push('a penguin can only be collected by being braked onto its aurora');
   if (c.tempt) bits.push(c.tempt + ' fatal early collection' + (c.tempt > 1 ? 's' : '') + ' on the shortest routes');
   return bits.join('; ') + '.';
+}
+
+function writeReport(data, stages, chapters, chosen, sizes) {
+  var src = data.source || {}, touching = chosen.filter(function (c) { return goalsTouch(c.board); }).length;
+  var beyond = chosen.filter(function (c) { return c.hard; }).length;
+  var md = '# The large-floe band (stages ' + stages[0].id + '–' + stages[stages.length - 1].id + ')\n\n';
+  md += stages.length + ' boards on floes from 4×4 up to 6×6, two penguins, no cracked ice, picked by the main campaign\'s own rules. Shortest solutions run **' +
+    Math.min.apply(null, chosen.map(function (c) { return c.par; })) + ' to ' + Math.max.apply(null, chosen.map(function (c) { return c.par; })) + ' moves**.\n\n';
+  md += '## What a board has to be\n\n- One edge-connected floe spanning the board, centre of mass within half a cell of the centre. Open water is the old wall: the engine\'s rules are unchanged.\n' +
+    '- Fair: an ordinary move (one that collects nobody) never strands the pair; collecting a brake too early is the only irreversible mistake.\n' +
+    '- A partner must be used as a brake. At most two forced moves in a row, two lone clean-up moves and three fatal "collect now" temptations on the shortest routes; the solution uses at least 60% of the ice.\n' +
+    '- Mutual boards (each penguin has to stop the other at least once) first. A shape or piece layout is never used twice, and boards with touching auroras are rationed, as in the main campaign (' + touching + ' of ' + stages.length + ').\n' +
+    '- Re-solved on `src/engine.js`: the shortest solution equals the stated par, and no ordinary move strands the pair anywhere in the reachable graph.\n\n';
+  md += '## Order\n\nAs in the main campaign, by how hard a simulated player finds a board. The explorer finishes short boards (par up to about 16 here) and its swipes set their place. On longer boards it never finishes — in a sample of 40 mutual boards per tray, 39 or 40 with par 15–24 ran into a 3,000-swipe ceiling — so ' +
+    beyond + ' of the ' + stages.length + ' boards are ordered by that ceiling, which grows with par, and sit after every board the explorer can solve, with a few short boards the explorer finds very hard placed among them. Par is capped at 45.\n\n';
+  md += '## Search\n\n' + (src.layouts ? (src.layouts / 1e6).toFixed(0) + ' million layouts' : 'Layouts') + ' sampled by local search (move a piece of water or an aurora, keep what scores better)' +
+    (src.workerMinutes ? ' over ' + src.workerMinutes + ' worker-minutes' : '') + '; ' + (src.distinct || '?') + ' distinct candidate boards; the explorer measured the best of each tray and par; the final climb is geometric between the difficulty where the main campaign ends and the hardest boards found. These are search results, not proofs of a maximum.\n\n';
+  md += '## Honest limits\n\n- Nobody has played these. Order comes from the engine and a simulated player, which is crude: it sees a finish two swipes away and nothing else.\n- Not tried on a real phone or GPU.\n\n';
+  md += '## Chapters\n\n| # | name | stages | note |\n|---|---|---|---|\n';
+  chapters.forEach(function (c) { md += '| ' + c.number + ' | ' + c.name + ' | ' + c.from + '–' + c.to + ' | ' + c.note + ' |\n'; });
+  md += '\n## Boards\n\n`#` open water, `A`/`B` penguins, `a`/`b` their auroras.\n\n';
+  stages.forEach(function (st, i) {
+    var c = chosen[i];
+    md += '### ' + st.id + ' ' + st.name + ' · ' + c.size + ' · par ' + c.par + (c.kind === 'MUTUAL' ? ' · mutual' : '') + '\n\n```\n' + st.board.join('\n') + '\n```\n\n' +
+      'Solution `' + c.route + '` · explorer ' + (c.hard ? 'cannot finish' : Math.round(c.explorerGeo) + ' swipes') + '\n\n';
+  });
+  fs.writeFileSync(path.join(ROOT, 'docs', 'LARGE-CAMPAIGN.md'), md);
 }
 
 function build(data) {
@@ -223,6 +256,7 @@ function build(data) {
   fs.writeFileSync(path.join(ROOT, 'src', 'stages-large.js'), js);
   var kinds = {}, sizes = {};
   chosen.forEach(function (c) { kinds[c.kind] = (kinds[c.kind] || 0) + 1; sizes[c.size] = (sizes[c.size] || 0) + 1; });
+  writeReport(data, stages, chapters, chosen, sizes);
   console.log(JSON.stringify({ count: stages.length, kinds: kinds, sizes: sizes,
     par: [Math.min.apply(null, chosen.map(function (c) { return c.par; })), Math.max.apply(null, chosen.map(function (c) { return c.par; }))],
     explorer: [chosen[0].explorerGeo, chosen[chosen.length - 1].explorerGeo] }));
