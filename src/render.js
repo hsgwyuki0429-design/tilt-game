@@ -45,6 +45,8 @@
   var CORNER = .2;            // rounding on the outside of a corner
   var NOTCH = .07;            // rounding inside a corner
   var PENGUIN = .74;
+  var PENGUIN_CORNER = .08;
+  var PENGUIN_BASE = .04;
 
   var PALETTE = [
     { hi:'#84E4F0', mid:'#0B8DAE', lo:'#05637C', body:'#2fb0cf', shape:'circle' },
@@ -322,9 +324,9 @@
     }
     g.restore();
     [58, 198].forEach(function (cx) {
-      var ck = g.createRadialGradient(cx, 150, 1, cx, 150, 24);
-      ck.addColorStop(0, 'rgba(236,140,128,.5)'); ck.addColorStop(1, 'rgba(236,140,128,0)');
-      g.fillStyle = ck; g.fillRect(cx - 26, 124, 52, 52);
+      var ck = g.createRadialGradient(cx, 148, 2, cx, 148, 28);
+      ck.addColorStop(0, 'rgba(245,143,151,.65)'); ck.addColorStop(1, 'rgba(245,143,151,0)');
+      g.fillStyle = ck; g.fillRect(cx - 30, 118, 60, 60);
     });
     g.strokeStyle = '#263d49'; g.fillStyle = '#263d49'; g.lineWidth = 9; g.lineCap = 'round'; g.lineJoin = 'round';
     var happy = expression === 'good' || expression === 'perfect' || expression === 'clear';
@@ -342,12 +344,12 @@
       } else if (expression === 'miss') {
         g.moveTo(x - 13, EY + 4); g.lineTo(x + 13, EY + 4); g.stroke();
       } else {
-        var ey = expression === 'surprise' ? EY - 6 : EY, erx = expression === 'surprise' ? 17 : 13, ery = expression === 'surprise' ? 24 : 19;
+        var ey = expression === 'surprise' ? EY - 6 : EY, erx = expression === 'surprise' ? 18 : 15, ery = expression === 'surprise' ? 25 : 21;
         g.ellipse(x, ey, erx, ery, 0, 0, Math.PI * 2); g.fill();
         var iris = g.createRadialGradient(x + 2, ey + 7, 1, x, ey + 2, ery);
         iris.addColorStop(0, 'rgba(110,72,44,.7)'); iris.addColorStop(1, 'rgba(110,72,44,0)');
         g.fillStyle = iris; g.beginPath(); g.ellipse(x, ey, erx, ery, 0, 0, Math.PI * 2); g.fill();
-        g.fillStyle = '#fff'; g.beginPath(); g.ellipse(x - 4, ey - 8, 4.5, 6.5, 0, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#fff'; g.beginPath(); g.ellipse(x - 4, ey - 8, 5, 7, 0, 0, Math.PI * 2); g.fill();
         g.fillStyle = 'rgba(200,240,255,.6)'; g.beginPath(); g.arc(x + 4, ey + ery * .55, 2.4, 0, Math.PI * 2); g.fill();
         g.fillStyle = '#263d49';
       }
@@ -394,10 +396,11 @@
     var flipper = new T.MeshPhysicalMaterial({ color: new T.Color(pal.mid), roughness: .55, sheen: .4,
       sheenColor: new T.Color(pal.hi) });
     var kit = KITS[colour] = {
-      body: new T.RoundedBoxGeometry(PENGUIN, PENGUIN * 1.06, PENGUIN * .92, 5, .15),
-      beak: new T.ConeGeometry(.075, .17, 16).rotateX(Math.PI / 2),
+      // Equal sides and a small bevel keep the flat cube faces readable.
+      body: new T.RoundedBoxGeometry(PENGUIN, PENGUIN, PENGUIN, 5, PENGUIN_CORNER),
+      beak: new T.ConeGeometry(.065, .13, 16).rotateX(Math.PI / 2),
       foot: new T.SphereGeometry(.075, 16, 10).scale(1.25, .42, 1.55),
-      wing: new T.RoundedBoxGeometry(.07, .36, .24, 3, .03),
+      wing: new T.RoundedBoxGeometry(.07, .28, .20, 3, .03),
       shadow: new T.PlaneGeometry(1.15, 1.15).rotateX(-Math.PI / 2),
       side: side, back: back, top: top, bottom: bottom, orange: orange, flipper: flipper
     };
@@ -410,18 +413,18 @@
     front.map = faceTexture(colour, 'normal');
     // BoxGeometry groups: +x, -x, +y, -y, +z (front), -z.
     var body = new T.Mesh(kit.body, [kit.side, kit.side, kit.top, kit.bottom, front, kit.back]);
-    body.position.y = PENGUIN * .53 + .01;
+    body.position.y = PENGUIN / 2 + PENGUIN_BASE;
     body.castShadow = true; body.receiveShadow = true;
     var beak = new T.Mesh(kit.beak, kit.orange);
-    beak.position.set(0, PENGUIN * .6, PENGUIN * .46 + .07);
+    beak.position.set(0, PENGUIN * .55 + PENGUIN_BASE, PENGUIN / 2 + .045);
     var feet = [-1, 1].map(function (s) {
-      var f = new T.Mesh(kit.foot, kit.orange); f.position.set(s * .15, .03, PENGUIN * .46 - .03); return f;
+      var f = new T.Mesh(kit.foot, kit.orange); f.position.set(s * .15, .03, PENGUIN / 2 - .035); return f;
     });
     var wings = [-1, 1].map(function (s) {
       var pivot = new T.Group();
-      pivot.position.set(s * (PENGUIN / 2 + .015), PENGUIN * .7, .02);
+      pivot.position.set(s * (PENGUIN / 2 + .015), PENGUIN * .67 + PENGUIN_BASE, .02);
       var wmesh = new T.Mesh(kit.wing, kit.flipper);
-      wmesh.position.y = -.17; wmesh.castShadow = true;
+      wmesh.position.y = -.13; wmesh.castShadow = true;
       pivot.add(wmesh); pivot.userData.side = s;
       return pivot;
     });

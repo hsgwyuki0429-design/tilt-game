@@ -87,6 +87,12 @@ function serve() {
         shadows: r.gl.shadowMap.enabled && body.castShadow && r.floe.receiveShadow,
         penguin: Array.isArray(body.material) && body.material.length === 6 &&
           body.material[4].map && body.material[4].map.isTexture,
+        cubes: r.blocks.every(function (block) {
+          var geometry = block.children[0].children[0].geometry;
+          geometry.computeBoundingBox();
+          var size = geometry.boundingBox.getSize(new T.Vector3());
+          return Math.abs(size.x - size.y) < .001 && Math.abs(size.x - size.z) < .001;
+        }),
         kinds: kinds,
         textures: r.textureBank.loaded === r.textureBank.expected && !!r.textureBank.images.goalTop,
         goals: r.goals.length === 2,
@@ -101,6 +107,7 @@ function serve() {
     check('penguins cast real shadows onto the floe', architecture.shadows);
     check('penguins are solid cubes with a face on the front', architecture.penguin && architecture.kinds === '1,2',
       'kinds=' + architecture.kinds);
+    check('both penguin bodies have equal width, height and depth', architecture.cubes);
     check('the aurora artwork decodes and both auroras are placed', architecture.textures && architecture.goals);
     check('devicePixelRatio is capped at 2', architecture.dpr <= 2, 'dpr=' + architecture.dpr);
     check('all nine expressions have distinct face drawings', await page.evaluate(function () {
