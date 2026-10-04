@@ -108,6 +108,10 @@ var pool = new Map(), seen = new Set();
 var stats = { layouts: 0, starts: 0, measured: 0, gated: 0, kept: 0, bestPar: {}, episodes: 0 };
 var started = Date.now(), deadline = started + minutes * 60000;
 var BUCKET = 16;
+/* Long mutual boards drift towards auroras that touch, because the braking penguin sits just past
+   the aurora. The main campaign allows only a few of those, so they are scored down here and kept
+   in buckets of their own, leaving room for boards whose auroras are apart. */
+function touching(L) { return Math.abs(L.gA % L.w - L.gB % L.w) + Math.abs(((L.gA / L.w) | 0) - ((L.gB / L.w) | 0)) === 1; }
 
 function evaluate(L, wPar) {
   var floe = new F.Floe(L.w, L.h, L.floor), g = floe.graph(L.gA, L.gB);
@@ -128,7 +132,7 @@ function evaluate(L, wPar) {
   starts.sort(function (p, q) { return g.dist[q] - g.dist[p]; });
   var picks = new Set(starts.slice(0, 3));
   for (var k = 0; k < 4; k++) picks.add(starts[rng() * starts.length | 0]);
-  var best = maxPar * .15, lazy = null;
+  var best = maxPar * .15, lazy = null, touch = touching(L);
   picks.forEach(function (s) {
     var m = S.measure(g, s, { runs: 0 });
     stats.measured++;
@@ -150,10 +154,11 @@ function evaluate(L, wPar) {
     };
     c.quality = +quality(c).toFixed(3);
     var score = c.quality + wPar * c.par;
-    best = Math.max(best, 5 + score);
+    best = Math.max(best, 5 + score - (touch ? 4 : 0));
     var canon = K.canonical(rows);
     if (seen.has(canon)) return;
-    var key = size + '|' + c.par + '|' + c.kind, list = pool.get(key) || [];
+    c.touch = touch;
+    var key = size + '|' + c.par + '|' + c.kind + '|' + (touch ? 'T' : 'N'), list = pool.get(key) || [];
     if (list.length >= BUCKET && list[list.length - 1].quality >= c.quality) return;
     seen.add(canon);
     c.canon = canon; c.room = K.canonical(rows, 'room');

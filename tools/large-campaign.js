@@ -141,6 +141,7 @@ function select() {
   console.log('difficulty ' + sorted[0].difficulty.toFixed(2) + '..' + sorted[sorted.length - 1].difficulty.toFixed(2) +
     ' (' + shortlist.filter(function (c) { return c.hard; }).length + ' of ' + shortlist.length + ' beyond the explorer); band ' + lo.toFixed(2) + '..' + hi.toFixed(2) + '; main campaign ends at ' + lastBase.toFixed(2));
 
+  console.log('shortlist: ' + sorted.length + ' boards, ' + new Set(sorted.map(function (c) { return c.shape; })).size + ' room shapes, ' + new Set(sorted.map(function (c) { return c.pieces; })).size + ' piece layouts, ' + sorted.filter(function (c) { return c.touch; }).length + ' with touching auroras');
   var chosen = [], used = new Set(), piecesUsed = new Set(), routes = new Set(), touches = 0;
   for (var i = 0; i < COUNT; i++) {
     var target = lo + (hi - lo) * i / (COUNT - 1), wantMutual = i % 5 !== 4, touchRoom = touches < 2 + 0.35 * i;
